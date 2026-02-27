@@ -14,7 +14,7 @@
 |----------|------|
 | **損傷検出** | 4 クラス分類 (debond / delam / impact / healthy) を実装・評価 |
 | **データ** | 5,000+ サンプル、メッシュ 10 mm まで検証、データセット 120 点 |
-| **モデル** | GNN + Point Transformer + FNO サロゲート + DANN (Sim-to-Real) |
+| **モデル** | GNN + **Graph Mamba** + Point Transformer + FNO サロゲート + DANN (Sim-to-Real) |
 | **論文** | 国際学会 2 本以上、学術誌 1 本以上、**JAXA 共同論文の検討** |
 | **実用化** | **JAXA/PSS 試験体の実計測データで Sim-to-Real 検証**、CBM 適用可能性の評価 |
 
@@ -150,6 +150,7 @@
 | ページ | 内容 |
 |--------|------|
 | [Roadmap](Roadmap) | フェーズ別タスク |
+| [Cutting-Edge-ML](Cutting-Edge-ML) | 超最先端 ML (Graph Mamba, Equivariant GNN 等) |
 | [Multi-Class-Roadmap](Multi-Class-Roadmap) | マルチクラス詳細 |
 | [Ideal-vs-Implementation](Ideal-vs-Implementation) | 難易度・貢献 |
 | [Publication-Venues](Publication-Venues) | 投稿先 |
