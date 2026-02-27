@@ -12,6 +12,8 @@
 | [#6](https://github.com/keisuke58/Payload_gnn/issues/6) | Phase 7: マルチクラス 4 クラス (debond/delam/impact/healthy) | Phase 7 |
 | [#7](https://github.com/keisuke58/Payload_gnn/issues/7) | Phase 8: Sim-to-Real (DANN + JAXA/PSS 実データ) | Phase 8 |
 | [#8](https://github.com/keisuke58/Payload_gnn/issues/8) | Phase 9: FNO サロゲート + PINN 逆問題 | Phase 9 |
+| [#10](https://github.com/keisuke58/Payload_gnn/issues/10) | Graph Mamba 実装・比較 (SOTA 2024) | 超最先端 ML |
+| [#11](https://github.com/keisuke58/Payload_gnn/issues/11) | E(3)-Equivariant GNN 検討 (NequIP / e3nn) | 超最先端 ML |
 
 ## リンク
 

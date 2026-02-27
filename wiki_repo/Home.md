@@ -10,7 +10,7 @@
 | カテゴリ | ページ |
 |----------|--------|
 | **概要** | [H3ロケット総覧](H3-Rocket-Overview), [フェアリング仕様](JAXA-Fairing-Specs) |
-| **技術** | [アーキテクチャ](Architecture), [ML戦略](ML-Strategy), [熱解析](Thermal-Analysis) |
+| **技術** | [アーキテクチャ](Architecture), [ML戦略](ML-Strategy), [超最先端ML](Cutting-Edge-ML), [熱解析](Thermal-Analysis) |
 | **データ** | [データセット形式](Dataset-Format), [欠陥生成](Defect-Generation-and-Labeling), [生成状況](Dataset-Generation-Status), [完璧度スコア](Dataset-Perfect-Score), [マルチクラス](Multi-Class-Roadmap), [外部データセット調査](Dataset-Survey) |
 | **事故分析** | [F8事故](F8-Accident-Analysis), [SHM文脈](SHM-Context) |
 | **研究** | [2年目標](2-Year-Goals), [ロードマップ](Roadmap), [理想vs実装](Ideal-vs-Implementation), [文献レビュー](Literature-Review), [研究レポート](Research-Report), [投稿先](Publication-Venues), [想定Q&A](Anticipated-QA) |
