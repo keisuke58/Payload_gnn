@@ -2,6 +2,10 @@
 
 # ML Strategy: JAXA H3 Fairing SHM (2026)
 
+> **日本語概要**: シミュレーション検証 (Phase 3) から実験的 PoC (Phase 4) への移行が目標。GNN/FNO は FEM データで有望だが、Sim-to-Real ギャップが実機適用の最大リスク。ベンチマーク → DANN によるドメイン適応 → Physics-Informed 学習の順で推進。**超最先端 ML** (Graph Mamba, Equivariant GNN) は [Cutting-Edge-ML](Cutting-Edge-ML) を参照。
+
+---
+
 ## 1. Executive Summary
 The goal is to transition from **simulated validation (Phase 3)** to **experimental proof-of-concept (Phase 4)**. Current GNN/FNO models show promise on FEM data, but the "Sim-to-Real" gap remains the primary risk for deployment on the H3 rocket.
 
@@ -34,7 +38,16 @@ The goal is to transition from **simulated validation (Phase 3)** to **experimen
 *   **Implementation**: Add a residual loss term $L_{physics} = || \nabla \cdot \sigma - \rho \ddot{u} ||^2$.
 *   **Benefit**: Reduces data requirements; ensures physical consistency of predictions.
 
-## 4. Immediate Action Items
+## 4. Cutting-Edge ML (2024–2025 SOTA)
+
+| 手法 | 利点 | 参照 |
+|------|------|------|
+| **Graph Mamba** | 長距離依存・over-squashing 解消、O(N) スケール | [Cutting-Edge-ML](Cutting-Edge-ML) |
+| **E(3)-Equivariant GNN** | 回転・並進不変、物理的整合性、データ効率 | 同上 |
+| **FNO** | 解像度非依存、データ生成 1000x 加速 | 同上 |
+| **PINN** | 物理制約、スパースセンサ逆問題 | 同上 |
+
+## 5. Immediate Action Items
 1.  [ ] **Run Benchmark**: Compare UV-Net vs PointTrans vs FNO on `Job-H3-Fairing-Test` dataset.
 2.  [ ] **Synthesize Noise**: Create a "Noisy Test Set" to evaluate robustness.
 3.  [ ] **Deploy to Wiki**: Document findings in this Wiki.
