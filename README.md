@@ -121,9 +121,22 @@ python src/run_batch.py --doe doe_phase1.json --output_dir dataset_output
 
 `dataset_output/` にサンプルデータ（healthy_baseline, sample_0001 等）が含まれています。詳細は [dataset_output/README.md](dataset_output/README.md) を参照してください。
 
-- **nodes.csv**: 座標 (x,y,z), 応力 (s11,s22,s12), 変位 (dspss), 欠陥ラベル
+- **nodes.csv**: 座標 (x,y,z), 応力 (s11,s22,s12), 変位 (ux,uy,uz), **温度 (NT11)**, 欠陥ラベル
 - **elements.csv**: 要素接続
 - **metadata.csv**: 欠陥パラメータ
+
+### データセット生成進捗
+
+| 状態 | 件数 |
+|------|------|
+| **品質検証済み** | 32/100 (変位・温度ともに正しく抽出) |
+| **未完了** | 68/100 |
+
+```bash
+python scripts/verify_dataset_quality.py   # 品質スコア確認
+```
+
+詳細: [wiki_repo/Dataset-Generation-Status.md](wiki_repo/Dataset-Generation-Status.md)
 
 ## クイックスタート
 
@@ -178,7 +191,7 @@ MODEL_CHECKPOINT=runs/<run>/best_model.pt uvicorn src.predict_api:app --port 800
 ## Wiki & Advanced Documentation
 
 *   **[Technical Wiki](WIKI.md)**: H3 Specifications, Launch History, and F8 Accident Analysis.
+*   **[Wiki ページ](wiki_repo/Home.md)**: クイックナビ・プロジェクトステータス・全ページ一覧。
+*   **[データセット生成進捗](wiki_repo/Dataset-Generation-Status.md)**: 32/100 品質検証済み、熱パッチ・NT11 抽出。
 *   **[Advanced ML Strategy](docs/ML_STRATEGY_AND_IMPLEMENTATION.md)**: Detailed roadmap for Geometry-Aware GNNs, FNO, and PINNs implementation.
 *   **[Literature Review](LITERATURE_REVIEW.md)**: Competitor analysis and novelty.
-
-## ディレクトリ構成
