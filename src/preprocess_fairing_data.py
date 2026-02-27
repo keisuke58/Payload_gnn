@@ -280,7 +280,7 @@ def split_dataset(data_list, train_ratio=0.7, val_ratio=0.15, seed=42):
     return train_data, val_data, test_data, ood_data
 
 
-def process_dataset(raw_dir, output_dir, mesh_size=50.0, height=5000.0):
+def process_dataset(raw_dir, output_dir, mesh_size=50.0, height=10400.0):
     """Process all samples and save as PyG dataset."""
     os.makedirs(output_dir, exist_ok=True)
 
@@ -345,7 +345,7 @@ if __name__ == '__main__':
     parser.add_argument('--output_dir', type=str, default='dataset/processed',
                         help='Output directory for processed PyG data')
     parser.add_argument('--mesh_size', type=float, default=50.0)
-    parser.add_argument('--height', type=float, default=5000.0)
+    parser.add_argument('--height', type=float, default=10400.0)
     args = parser.parse_args()
 
     process_dataset(args.raw_dir, args.output_dir, args.mesh_size, args.height)
