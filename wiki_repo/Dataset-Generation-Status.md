@@ -63,38 +63,38 @@ python src/run_batch.py --doe doe_100.json --output_dir dataset_output --force
 
 ### サマリダッシュボード
 
-![Dataset Summary Dashboard](images/progress/01_summary_dashboard.png)
+![Dataset Summary Dashboard](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/progress/01_summary_dashboard.png)
 
 ### 特徴量分布
 
-![Feature Distributions](images/progress/02_feature_distributions.png)
+![Feature Distributions](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/progress/02_feature_distributions.png)
 
 ### 代表サンプル 3D 可視化（変位・温度・欠陥ラベルで色分け）
 
 **Sample 0001** — 変位 / 温度 / 欠陥
 
-![3D Sample 0001 displacement](images/progress/03_3d_sample0001_displacement.png)
-![3D Sample 0001 temp](images/progress/03_3d_sample0001_temp.png)
-![3D Sample 0001 defect](images/progress/03_3d_sample0001_defect.png)
+![3D Sample 0001 displacement](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/progress/03_3d_sample0001_displacement.png)
+![3D Sample 0001 temp](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/progress/03_3d_sample0001_temp.png)
+![3D Sample 0001 defect](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/progress/03_3d_sample0001_defect.png)
 
 **Sample 0003** — 変位 / 温度 / 欠陥
 
-![3D Sample 0003 displacement](images/progress/03_3d_sample0003_displacement.png)
-![3D Sample 0003 temp](images/progress/03_3d_sample0003_temp.png)
-![3D Sample 0003 defect](images/progress/03_3d_sample0003_defect.png)
+![3D Sample 0003 displacement](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/progress/03_3d_sample0003_displacement.png)
+![3D Sample 0003 temp](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/progress/03_3d_sample0003_temp.png)
+![3D Sample 0003 defect](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/progress/03_3d_sample0003_defect.png)
 
 **Sample 0010** — 変位 / 温度 / 欠陥
 
-![3D Sample 0010 displacement](images/progress/03_3d_sample0010_displacement.png)
-![3D Sample 0010 temp](images/progress/03_3d_sample0010_temp.png)
-![3D Sample 0010 defect](images/progress/03_3d_sample0010_defect.png)
+![3D Sample 0010 displacement](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/progress/03_3d_sample0010_displacement.png)
+![3D Sample 0010 temp](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/progress/03_3d_sample0010_temp.png)
+![3D Sample 0010 defect](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/progress/03_3d_sample0010_defect.png)
 
 ### 展開図（円筒を平面に展開、欠陥位置が直感的）
 
 **Sample 0003** — 変位 / 欠陥
 
-![Unfolded Sample 0003 displacement](images/progress/04_unfolded_sample0003_displacement.png)
-![Unfolded Sample 0003 defect](images/progress/04_unfolded_sample0003_defect.png)
+![Unfolded Sample 0003 displacement](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/progress/04_unfolded_sample0003_displacement.png)
+![Unfolded Sample 0003 defect](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/progress/04_unfolded_sample0003_defect.png)
 
 ### 再生成コマンド
 
