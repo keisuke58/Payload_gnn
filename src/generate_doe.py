@@ -21,12 +21,13 @@ from scipy.stats.qmc import LatinHypercube
 THETA_RANGE = (5.0, 55.0)   # deg, margin from symmetry edges
 Z_RANGE = (800.0, 4200.0)   # mm, Barrel section, avoid clamp/top
 
-# Size tiers: (name, r_min, r_max, fraction) — mesh-appropriate for h=50mm
+# Size tiers: (name, r_min, r_max, fraction)
+# Minimum r=50mm ensures ~35 defect nodes at GLOBAL_SEED=50mm + DEFECT_SEED=15mm
 SIZE_TIERS = [
-    ('Small', 20.0, 50.0, 0.30),    # Detection limit for h=50mm
-    ('Medium', 50.0, 80.0, 0.40),   # In-service detectable
-    ('Large', 80.0, 150.0, 0.25),   # Significant, growth risk
-    ('Critical', 150.0, 250.0, 0.05),  # Pre-failure
+    ('Small', 50.0, 100.0, 0.25),     # ~35-300 defect nodes
+    ('Medium', 100.0, 150.0, 0.40),   # ~300-700 defect nodes
+    ('Large', 150.0, 250.0, 0.30),    # ~700-2000 defect nodes
+    ('Critical', 250.0, 400.0, 0.05), # Pre-failure scale
 ]
 
 
@@ -123,7 +124,7 @@ def main():
     print("Generated DOE: %d defective samples" % doe['n_defective'])
     print("  theta_deg: [%.1f, %.1f]" % tuple(doe['bounds']['theta_deg']))
     print("  z_center:  [%.1f, %.1f] mm" % tuple(doe['bounds']['z_center']))
-    print("  Size tiers: Small 20-50, Medium 50-80, Large 80-150, Critical 150-250 mm")
+    print("  Size tiers: Small 50-100, Medium 100-150, Large 150-250, Critical 250-400 mm")
     print("Saved to: %s" % args.output)
 
 
