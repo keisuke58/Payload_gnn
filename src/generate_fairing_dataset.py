@@ -31,11 +31,17 @@ import sys
 MODEL_NAME = 'Fairing_Sandwich'
 JOB_NAME = 'Fairing_Healthy'
 
-RADIUS = 2000.0          # mm  outer skin mid-surface radius
-HEIGHT = 5000.0          # mm
-ANGLE = 60.0             # 1/6 section
+# JAXA H3 Fairing Dimensions (Type S/L)
+# Ref: JAXA H3 Launch Vehicle Brochure / Wikipedia
+# Diameter: 5.2 m -> Radius = 2600 mm
+# Length: ~10.4 m (Type S) / ~16.4 m (Type L)
+# For local SHM simulation, we model a 5m height section.
+RADIUS = 2600.0          # mm  (H3 Standard Diameter 5.2m)
+HEIGHT = 5000.0          # mm  (Modeled Section Height)
+ANGLE = 60.0             # 1/6 section (Symmetry)
 
-# CFRP T300/914
+# CFRP T300/914 (Representative Aerospace CFRP)
+# Actual H3 uses Toray T1000G class for high performance.
 E1, E2, Nu12 = 135000.0, 10000.0, 0.3
 G12, G13, G23 = 5000.0, 5000.0, 3000.0
 

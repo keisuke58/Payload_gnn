@@ -30,6 +30,14 @@ The payload fairing protects the satellite from aerodynamic forces, acoustic noi
 
 ---
 
+### 1.3 H3 Rocket Fairing Specifications & Design Data
+*   **Design Authority**: Mitsubishi Heavy Industries (MHI) & JAXA.
+*   **Manufacturing**: Kawasaki Heavy Industries (KHI) Harima Works (Fairing).
+*   **Blueprints & Schematics**:
+    *   Detailed manufacturing blueprints (ply schedules, exact joint geometries) are **Proprietary/Classified (EAR/ITAR restricted or Commercial Confidential)**.
+    *   **Publicly Available Data**: Outer mold line (OML) geometry, general separation mechanisms, and acoustic protection schemes are available in the *H3 Launch Vehicle User's Manual*.
+    *   **Structural Model for SHM**: Our simulation uses the *Standard Type-S/L* dimensions (5.2m diameter) based on public interface control documents (ICDs).
+
 ## 2. Launch Environmental Loads (The SHM Context)
 
 Understanding these loads is crucial for defining SHM requirements (i.e., *when* does damage occur?).

@@ -216,6 +216,8 @@ def train(args, train_data, val_data, fold=None):
                 'val_f1': best_val_f1,
                 'val_metrics': val_m,
                 'args': vars(args),
+                'in_channels': in_channels,
+                'edge_attr_dim': edge_attr_dim,
             }, os.path.join(run_dir, 'best_model.pt'))
         else:
             patience_counter += 1

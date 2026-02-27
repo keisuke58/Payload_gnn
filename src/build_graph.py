@@ -60,7 +60,7 @@ def parse_mesh(df_nodes, df_elems):
         n1 = node_id_map[int(row['n1'])]
         n2 = node_id_map[int(row['n2'])]
         n3 = node_id_map[int(row['n3'])]
-        if etype == 'S4R' and int(row['n4']) >= 0:
+        if etype in ('S4R', 'S4RT') and int(row['n4']) >= 0:
             n4 = node_id_map[int(row['n4'])]
             elements.append((n1, n2, n3, n4))
         else:
@@ -369,6 +369,17 @@ def build_curvature_graph(df_nodes, df_elems, compute_geodesic=True):
     else:
         stress_tensor = torch.zeros(n_nodes, 4)
 
+    # Thermal features (optional — backward compatible with non-thermal CSV)
+    thermal_features = []
+    for col in ['temperature', 'thermal_smises']:
+        if col in df_nodes.columns:
+            thermal_features.append(
+                torch.tensor(df_nodes[col].values, dtype=torch.float).unsqueeze(1))
+    if thermal_features:
+        thermal_tensor = torch.cat(thermal_features, dim=1)
+    else:
+        thermal_tensor = None
+
     # Node type (from position)
     z_coords = coords[:, 2]
     mesh_size = 50.0  # default
@@ -385,13 +396,16 @@ def build_curvature_graph(df_nodes, df_elems, compute_geodesic=True):
     curvature_tensor = torch.tensor(
         np.stack([kappa1, kappa2, H, K], axis=1), dtype=torch.float)
 
-    x = torch.cat([
+    feature_list = [
         pos,                # 3: x, y, z
         normal_tensor,      # 3: nx, ny, nz
         curvature_tensor,   # 4: k1, k2, H, K
         stress_tensor,      # 4: s11, s22, s12, dspss
         node_type,          # 2: boundary, loaded
-    ], dim=1)
+    ]
+    if thermal_tensor is not None:
+        feature_list.append(thermal_tensor)  # +2: temperature, thermal_smises
+    x = torch.cat(feature_list, dim=1)
 
     # Defect labels
     if 'defect_label' in df_nodes.columns:
