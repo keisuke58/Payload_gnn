@@ -322,8 +322,10 @@ def build_curvature_graph(df_nodes, df_elems, compute_geodesic=True, verbose=Tru
     """
     Build a PyG Data object with curvature-aware features.
 
-    Node features (dim=16):
-      [x, y, z, nx, ny, nz, k1, k2, H, K, s11, s22, s12, dspss,
+    Node features (dim=20):
+      [x, y, z, nx, ny, nz, k1, k2, H, K,
+       ux, uy, uz, temp,
+       s11, s22, s12, smises,
        node_type_boundary, node_type_loaded]
 
     Edge features (dim=5 or 6):
@@ -364,27 +366,50 @@ def build_curvature_graph(df_nodes, df_elems, compute_geodesic=True, verbose=Tru
     else:
         print("  Skipping geodesic distances (mesh too large or disabled)")
 
-    # Stress features
+    # Displacement features (ux, uy, uz) — key physical signal for defect detection
+    disp_features = []
+    for col in ['ux', 'uy', 'uz']:
+        if col in df_nodes.columns:
+            disp_features.append(
+                torch.tensor(df_nodes[col].values, dtype=torch.float).unsqueeze(1))
+    if disp_features:
+        disp_tensor = torch.cat(disp_features, dim=1)
+    else:
+        disp_tensor = torch.zeros(n_nodes, 3)
+
+    # Temperature feature
+    temp_tensor = None
+    for col in ['temp', 'temperature']:
+        if col in df_nodes.columns:
+            temp_tensor = torch.tensor(
+                df_nodes[col].values, dtype=torch.float).unsqueeze(1)
+            break
+    if temp_tensor is None:
+        temp_tensor = torch.zeros(n_nodes, 1)
+
+    # Stress features (s11, s22, s12, smises/dspss)
     stress_features = []
-    for col in ['s11', 's22', 's12', 'dspss']:
+    for col in ['s11', 's22', 's12']:
         if col in df_nodes.columns:
             stress_features.append(
                 torch.tensor(df_nodes[col].values, dtype=torch.float).unsqueeze(1))
+    # Accept either 'smises' or 'dspss' for von Mises
+    smises_col = None
+    for col in ['smises', 'dspss']:
+        if col in df_nodes.columns:
+            smises_col = col
+            break
+    if smises_col:
+        stress_features.append(
+            torch.tensor(df_nodes[smises_col].values, dtype=torch.float).unsqueeze(1))
     if stress_features:
         stress_tensor = torch.cat(stress_features, dim=1)
+        # Pad to 4 if fewer columns
+        if stress_tensor.shape[1] < 4:
+            pad = torch.zeros(n_nodes, 4 - stress_tensor.shape[1])
+            stress_tensor = torch.cat([stress_tensor, pad], dim=1)
     else:
         stress_tensor = torch.zeros(n_nodes, 4)
-
-    # Thermal features (optional — backward compatible with non-thermal CSV)
-    thermal_features = []
-    for col in ['temperature', 'thermal_smises']:
-        if col in df_nodes.columns:
-            thermal_features.append(
-                torch.tensor(df_nodes[col].values, dtype=torch.float).unsqueeze(1))
-    if thermal_features:
-        thermal_tensor = torch.cat(thermal_features, dim=1)
-    else:
-        thermal_tensor = None
 
     # Node type (from position)
     z_coords = coords[:, 2]
@@ -406,11 +431,11 @@ def build_curvature_graph(df_nodes, df_elems, compute_geodesic=True, verbose=Tru
         pos,                # 3: x, y, z
         normal_tensor,      # 3: nx, ny, nz
         curvature_tensor,   # 4: k1, k2, H, K
-        stress_tensor,      # 4: s11, s22, s12, dspss
+        disp_tensor,        # 3: ux, uy, uz
+        temp_tensor,        # 1: temp
+        stress_tensor,      # 4: s11, s22, s12, smises
         node_type,          # 2: boundary, loaded
     ]
-    if thermal_tensor is not None:
-        feature_list.append(thermal_tensor)  # +2: temperature, thermal_smises
     x = torch.cat(feature_list, dim=1)
 
     # Defect labels

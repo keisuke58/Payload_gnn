@@ -80,34 +80,41 @@ def extract_results(odb_path, output_dir, defect_params=None):
     # We will extract data for the Outer Skin as it's the primary surface for inspection
     
     instance_name = 'PART-OUTERSKIN-1'
-    if instance_name not in odb.rootAssembly.instances.keys():
-         # Fallback to keys if case doesn't match or using different naming
-         instance_name = odb.rootAssembly.instances.keys()[0]
-         
+    all_keys = list(odb.rootAssembly.instances.keys())
+    if instance_name not in all_keys:
+        # Fallback: find OuterSkin variant or use first instance
+        for k in all_keys:
+            if 'OUTER' in k.upper():
+                instance_name = k
+                break
+        else:
+            instance_name = all_keys[0]
+
     instance = odb.rootAssembly.instances[instance_name]
-    
-    # Field Outputs (NT11/NT12/NT=nodal temp, TEMP=element temp)
+    print("Extracting instance: " + instance_name)
+
+    # Field Outputs
     disp_field = frame.fieldOutputs['U']
     temp_field = None
     for key in ('NT11', 'NT12', 'NT', 'TEMP'):
         if key in frame.fieldOutputs:
             temp_field = frame.fieldOutputs[key]
             break
-    
+
+    # Stress field (per-node averaging)
+    stress_field = None
+    if 'S' in frame.fieldOutputs:
+        stress_field = frame.fieldOutputs['S']
+
     # Subset to instance
     disp_sub = disp_field.getSubset(region=instance)
     temp_sub = temp_field.getSubset(region=instance) if temp_field else None
-    
-    node_data = []
-    
-    # Map Node Labels to Values
-    # Note: iterating bulk data is faster but this is clearer for script
-    
+
     # Create a map for displacements
     disp_values = {}
     for val in disp_sub.values:
         disp_values[val.nodeLabel] = val.data
-        
+
     temp_values = {}
     if temp_sub:
         for val in temp_sub.values:
@@ -116,11 +123,33 @@ def extract_results(odb_path, output_dir, defect_params=None):
                 d = val.data
                 t = d if isinstance(d, (int, float)) else (d[0] if d else 0.0)
                 temp_values[nid] = t
-            
-    # Iterate nodes to get coordinates and defect labels
-    # Coordinates in ODB are usually original. Deformed = Original + U
-    # defect_label: 0=healthy, 1=inside defect zone (from defect_params geometry)
 
+    # Per-node stress: average ELEMENT_NODAL values across contributing elements
+    # {node_label: [sum_s11, sum_s22, sum_s12, sum_mises, count]}
+    node_stress = {}
+    if stress_field:
+        try:
+            stress_sub = stress_field.getSubset(region=instance, position=ELEMENT_NODAL)
+            for val in stress_sub.values:
+                nid = val.nodeLabel
+                # val.data = (S11, S22, S33, S12, S13, S23) for 3D
+                # For shells: (S11, S22, S12) — indices depend on element type
+                s = val.data
+                mises = val.mises
+                s11 = s[0] if len(s) > 0 else 0.0
+                s22 = s[1] if len(s) > 1 else 0.0
+                s12 = s[3] if len(s) > 3 else (s[2] if len(s) > 2 else 0.0)
+                if nid not in node_stress:
+                    node_stress[nid] = [0.0, 0.0, 0.0, 0.0, 0]
+                node_stress[nid][0] += s11
+                node_stress[nid][1] += s22
+                node_stress[nid][2] += s12
+                node_stress[nid][3] += mises
+                node_stress[nid][4] += 1
+        except Exception as e:
+            print("Warning: Stress extraction: " + str(e)[:80])
+
+    # Iterate nodes to get coordinates and defect labels
     node_rows = []
     n_defect = 0
     for node in instance.nodes:
@@ -130,18 +159,30 @@ def extract_results(odb_path, output_dir, defect_params=None):
         u = disp_values.get(nid, (0.0, 0.0, 0.0))
         t = temp_values.get(nid, 0.0)
 
+        # Average stress at node
+        if nid in node_stress and node_stress[nid][4] > 0:
+            cnt = node_stress[nid][4]
+            s11 = node_stress[nid][0] / cnt
+            s22 = node_stress[nid][1] / cnt
+            s12 = node_stress[nid][2] / cnt
+            smises = node_stress[nid][3] / cnt
+        else:
+            s11 = s22 = s12 = smises = 0.0
+
         defect_label = 0
         if defect_params:
             if _is_node_in_defect(x, y, z, defect_params):
                 defect_label = 1
                 n_defect += 1
 
-        node_rows.append([nid, x, y, z, u[0], u[1], u[2], t, defect_label])
+        node_rows.append([nid, x, y, z, u[0], u[1], u[2], t,
+                          s11, s22, s12, smises, defect_label])
 
     csv_nodes = os.path.join(output_dir, 'nodes.csv')
     with open(csv_nodes, 'w', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow(['node_id', 'x', 'y', 'z', 'ux', 'uy', 'uz', 'temp', 'defect_label'])
+        writer.writerow(['node_id', 'x', 'y', 'z', 'ux', 'uy', 'uz', 'temp',
+                          's11', 's22', 's12', 'smises', 'defect_label'])
         writer.writerows(node_rows)
 
     print("Saved nodes to " + csv_nodes + " (n_defect_nodes=%d)" % n_defect)
@@ -153,6 +194,8 @@ def extract_results(odb_path, output_dir, defect_params=None):
         writer.writerow(['key', 'value'])
         writer.writerow(['defect_type', 'debonding' if defect_params else 'healthy'])
         writer.writerow(['n_defect_nodes', str(n_defect)])
+        writer.writerow(['n_total_nodes', str(len(node_rows))])
+        writer.writerow(['instance', instance_name])
         if defect_params:
             writer.writerow(['theta_deg', str(defect_params['theta_deg'])])
             writer.writerow(['z_center', str(defect_params['z_center'])])
@@ -162,25 +205,20 @@ def extract_results(odb_path, output_dir, defect_params=None):
     # ---------------------------------------------------------
     # 2. Element Data (Connectivity, Stress)
     # ---------------------------------------------------------
-    stress_field = frame.fieldOutputs['S']
-    stress_sub = stress_field.getSubset(region=instance, position=ELEMENT_NODAL) 
-    # ELEMENT_NODAL gives stress at nodes per element. 
-    # For simple GNN, CENTROID or INTEGRATION_POINT might be easier, 
-    # but let's stick to simple connectivity for now.
-    
-    # Actually, for GNN structure, we just need the topology (connectivity).
-    # Stress is a feature we might want.
-    
     csv_elems = os.path.join(output_dir, 'elements.csv')
     with open(csv_elems, 'w', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(['elem_id', 'elem_type', 'n1', 'n2', 'n3', 'n4', 'mises_avg'])
 
         # Build stress map (average Mises per element for simplicity)
-        stress_vals = stress_field.getSubset(region=instance, position=CENTROID).values
         elem_stress = {}
-        for val in stress_vals:
-            elem_stress[val.elementLabel] = val.mises
+        if stress_field:
+            try:
+                stress_vals = stress_field.getSubset(region=instance, position=CENTROID).values
+                for val in stress_vals:
+                    elem_stress[val.elementLabel] = val.mises
+            except Exception as e:
+                print("Warning: Element stress: " + str(e)[:60])
 
         for elem in instance.elements:
             eid = elem.label
@@ -192,9 +230,9 @@ def extract_results(odb_path, output_dir, defect_params=None):
             mises = elem_stress.get(eid, 0.0)
             row = [eid, etype] + n_list[:4] + [mises]
             writer.writerow(row)
-            
+
     print("Saved elements to " + csv_elems)
-    
+
     odb.close()
 
 if __name__ == '__main__':
