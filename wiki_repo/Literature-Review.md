@@ -2,6 +2,26 @@
 
 # Literature Review: Guided Wave SHM for Composite Structures
 
+> 最終更新: 2026-02-28
+
+---
+
+## 日本語版（概要）
+
+本ドキュメントは、CFRP ペイロードフェアリングの構造ヘルスモニタリング（SHM）に Graph Neural Networks（GNN）と有限要素法（FEM）を適用するうえで関連する主要文献をまとめたものである。
+
+### 主なトピック
+
+1. **Open Guided Waves (OGW) データセット** — 誘導波 SHM のベンチマーク用プラットフォーム。CFRP 平板、温度変動データ、オメガストリンガー剥離データを含む。
+2. **GNN による波ベース SHM** — 深層学習を用いた逆問題（損傷位置推定）の解法。
+3. **フェアリング構造の FEM モデリング** — ハニカムサンドイッチ、シェル要素、グローバル・ローカル解析の戦略。
+4. **航空宇宙分野の GNN アプローチ** — スパースセンサ vs 高密度メッシュグラフ、振動モード vs 誘導波の比較。
+5. **本研究の新規性** — 幾何情報付きグラフ構築、高密度メッシュグラフ、物理に基づく異方性、UV マッピング vs 多様体学習のベンチマーク。
+
+---
+
+## English Version
+
 This document summarizes key literature relevant to applying Graph Neural Networks (GNNs) and Finite Element Method (FEM) for Structural Health Monitoring (SHM) of CFRP Payload Fairings.
 
 ## 1. Open Guided Waves (OGW) Dataset & Benchmarks
@@ -41,6 +61,34 @@ The Open Guided Waves platform is the primary data source for benchmarking guide
         *   **Shell Elements**: Conventional shell elements (S4R) for facesheets.
         *   **Solid/Continuum Shell**: For the honeycomb core to capture transverse shear and crushing.
         *   **Global-Local Approach**: Global shell model for buckling loads $\rightarrow$ Local solid model for defect analysis.
+
+## 4. Recent GNN Approaches in Aerospace (Competitor Analysis)
+
+Recent studies have begun applying Graph Neural Networks to aerospace structures, but significant gaps remain regarding curved, anisotropic sandwich structures.
+
+*   **"Real-Time Damage Detection and Localization on Aerospace Structures" (2024)**
+    *   **Method**: Uses GNNs on a graph where nodes are strain sensors and edges represent spatial proximity.
+    *   **Limitation**: Relies on a **sparse sensor network**. The graph connectivity is artificial (sensor-to-sensor), not physical (material continuity).
+    *   **Contrast**: Our approach uses the **entire FEM mesh (or high-density point cloud)** as the graph. This allows the GNN to learn the actual wave propagation physics through the continuum, rather than just correlating sparse sensor outputs.
+
+*   **"Semi-supervised vibration-based structural health monitoring via deep graph neural network"**
+    *   **Method**: Combines 1D-CNN for time-series vibration data with a Transformer-based Graph Neural Network for spatial correlation.
+    *   **Limitation**: Primarily focused on global vibration modes (low frequency) rather than guided waves (high frequency, local scattering).
+    *   **Contrast**: We target **guided waves (50-300 kHz)** which are sensitive to small, local defects like skin-core debonding, whereas vibration modes are often insensitive to such local damage in large stiff structures.
+
+*   **"G-Twin: Graph neural network-based digital twin" (2025)**
+    *   **Method**: Reconstructs full stress fields from sparse sensor data using GNNs for offshore wind turbines.
+    *   **Relevance**: Similar concept of "Mesh-to-Graph" reconstruction.
+    *   **Contrast**: Our work introduces **Geometry-Aware Node Features** (Surface Normals, Curvature, Fiber Orientation) specifically to handle the **mode conversion** that occurs in cylindrical/ogive payload fairings, which is not a primary concern in beam/plate-like wind turbine structures.
+
+## 5. Novelty of Our Research (Selling Points)
+
+Based on the review above, our research introduces the following unique contributions:
+
+1.  **Geometry-Aware Graph Construction**: Unlike standard GNNs that only use $(x,y,z)$ coordinates, we explicitly encode **Surface Normal Vectors** and **Principal Curvatures** into the node features. This is critical for payload fairings where curvature causes wave focusing/defocusing and mode conversion.
+2.  **High-Density Mesh Graph**: We treat the structure as a continuous manifold (thousands of nodes) rather than a sparse sensor graph (dozens of nodes). This enables high-resolution defect localization.
+3.  **Physics-Informed Anisotropy**: We incorporate the **Fiber Orientation Vector** at each node to account for the direction-dependent wave velocity in CFRP, which standard isotropic GNNs fail to capture.
+4.  **Systematic Benchmark**: We provide the first direct comparison of **UV-Mapping (2D CNN)** vs. **Manifold Learning (GNN / Point Transformer)** for defect detection on complex aerospace shells.
 
 ## Action Plan for Research
 1.  **Validation**: Use OGW Dataset 1 (Flat Plate) to validate the "Wave-to-Graph" conversion pipeline.

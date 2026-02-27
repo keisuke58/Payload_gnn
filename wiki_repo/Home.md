@@ -223,11 +223,11 @@ H3 フェアリングの製造には 2 つの革新技術が導入された:
 
 **2D 断面 (R-z)**
 
-![Fairing 2D cross-section](figures/fairing_h3_check.png)
+![Fairing 2D cross-section](images/fairing_h3_check.png)
 
 **3D 表示 (1/6 セクション)**
 
-![Fairing 3D view](figures/fairing_3d.png)
+![Fairing 3D view](images/fairing_3d.png)
 
 可視化スクリプト:
 ```bash
