@@ -7,6 +7,12 @@
 
 ---
 
+## 日本語概要
+
+本プロジェクトの論文・学会投稿先を整理。**短期**: 日本航空宇宙学会 (JSASS) 年会・構造強度講演会、日本複合材料会議 (JCCM)。**中期**: IWSHM 2027、Structural Health Monitoring 誌 (SAGE, IF 5.7)。**長期**: JAXA 共同論文、NDT & E International。難解な略語は [用語集](Vocabulary) を参照。
+
+---
+
 ## 1. 学会・国際会議
 
 ### 1.1 構造ヘルスモニタリング (SHM)

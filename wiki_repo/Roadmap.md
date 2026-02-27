@@ -9,6 +9,12 @@ JAXA H3 ロケット CFRP/Al-Honeycomb フェアリングの GNN ベース構造
 
 ---
 
+## 日本語概要
+
+Phase 1 (データ生成) 完了。Phase 2 (ベンチマーク) が現在地。Phase 3 で 1,000→5,000 サンプル、Phase 7 でマルチクラス 4 クラス、Phase 8 で Sim-to-Real (DANN)、Phase 9 で FNO・PINN。用語は [用語集](Vocabulary) を参照。
+
+---
+
 ## 全体概要
 
 ```
@@ -94,6 +100,7 @@ done
 |--------|-------|------|
 | UV-Net (U-Net) | 2D CNN (円筒展開) | 実装済 |
 | Point Transformer | 3D 点群 | 要実装 |
+| **Graph Mamba** | State Space Model | 要実装 → [Cutting-Edge-ML](Cutting-Edge-ML) |
 
 ### 2c. ハイパーパラメータ探索 (GPU 4枚並列)
 

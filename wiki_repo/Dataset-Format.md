@@ -5,6 +5,14 @@
 > **関連**: [Dataset-Comparison](Dataset-Comparison) — 欠陥あり vs 欠陥なし の可視化・比較統計  
 > **欠陥生成**: [Defect-Generation-and-Labeling](Defect-Generation-and-Labeling) — 欠陥パラメータと defect_label 付与ルール
 
+---
+
+## 日本語概要
+
+FEM (Abaqus) 出力の CSV 形式と PyTorch Geometric (PyG) の Data 形式を定義。**nodes.csv**: 座標、応力、温度、defect_label。**elements.csv**: 要素接続。**PyG Data**: ノード特徴 16–18 次元（法線、曲率、応力、温度）、エッジ特徴 5 次元。用語は [用語集](Vocabulary) を参照。
+
+---
+
 ## 1. CSV フォーマット（FEM出力）
 
 ### nodes.csv

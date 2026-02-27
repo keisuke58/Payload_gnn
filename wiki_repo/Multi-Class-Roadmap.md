@@ -8,6 +8,12 @@
 
 ---
 
+## 日本語概要
+
+2 クラス (defect/healthy) から 4 クラス (debond/delam/impact/healthy) へ拡張。Phase A: healthy 追加。Phase B: デラミネーション FEM。Phase C: 衝撃損傷 FEM。Phase D: 4 クラス GNN。defect_type カラム追加、マクロ F1 > 0.70 目標。用語は [用語集](Vocabulary) を参照。
+
+---
+
 ## 1. 目標
 
 | 現状 | 目標 (2年後) |

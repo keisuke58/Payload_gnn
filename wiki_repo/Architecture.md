@@ -2,6 +2,10 @@
 
 # Architecture: H3 フェアリング GNN-SHM パイプライン
 
+> **日本語概要**: FEM (Abaqus) → CSV 抽出 → 曲率対応グラフ構築 (build_graph.py) → PyG Data → GNN 4 種 (GCN/GAT/GIN/SAGE) 学習 → 推論 API。Shell-Solid-Shell サンドイッチ構造、熱解析 (CTE 不整合) を含む。用語は [用語集](Vocabulary) を参照。
+
+---
+
 ## 全体パイプライン
 
 ```
