@@ -1,0 +1,3 @@
+[submodule "references/MeshPhysicsGNN-NeuralOps"]
+	path = references/MeshPhysicsGNN-NeuralOps
+	url = https://github.com/ZeqingJin/MeshPhysicsGNN-NeuralOps.git
