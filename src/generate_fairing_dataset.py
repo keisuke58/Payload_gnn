@@ -48,10 +48,23 @@ JOB_NAME = 'H3_Healthy'
 # JAXA H3 Fairing Dimensions (Target for CFRP Study)
 # Diameter: 5.2 m (Type-S/L) -> Radius = 2600 mm
 # Length: 10.4 m (S) / 16.4 m (L)
-# For local SHM simulation, we model a 5m height representative section.
-RADIUS = 2600.0          # mm  (H3 Standard Diameter 5.2m)
-HEIGHT = 5000.0          # mm  (Modeled Section Height)
+# For local SHM simulation, we model a representative section: Barrel + Ogive
+RADIUS = 2600.0          # mm  (Base Radius)
+H_BARREL = 5000.0        # mm  (Cylindrical Section)
+H_NOSE = 5400.0          # mm  (Ogive Section - Type-S approx)
+HEIGHT = H_BARREL + H_NOSE # Total Height
 ANGLE = 60.0             # 1/6 section (Symmetry)
+
+# Ogive Geometry Calculation (Tangent Ogive Approximation)
+# Center of curvature (xc, zc) relative to the start of the ogive (z=H_BARREL)
+# The center is on the line z=H_BARREL (horizontal line from transition point)
+# because the tangent at transition is vertical.
+# Formula: xc = (R^2 - H_nose^2) / (2*R)
+# rho (Radius of curvature) = R - xc
+OGIVE_XC = (RADIUS**2 - H_NOSE**2) / (2 * RADIUS)
+OGIVE_RHO = RADIUS - OGIVE_XC
+# Note: xc is typically negative for an ogive.
+# Center in Global Coords: (OGIVE_XC, H_BARREL) assuming axis is x=0
 
 # CFRP Toray T1000G (High Performance Aerospace Grade)
 # Typically used in H3 Fairing Skins
@@ -89,11 +102,39 @@ R_CORE_I  = RADIUS - FACE_T / 2.0 - CORE_T
 R_INNER   = RADIUS - FACE_T - CORE_T
 
 # =========================================================================
-# Helper — arc end point
+# Helper — Geometry
 # =========================================================================
-def arc_end(r, angle_deg):
-    return (r * math.cos(math.radians(angle_deg)),
-            r * math.sin(math.radians(angle_deg)))
+def get_radius_at_z(z):
+    """
+    Calculate the outer radius of the fairing at a given height z.
+    """
+    if z <= H_BARREL:
+        return RADIUS
+    else:
+        # Ogive section
+        # Equation: (x - xc)^2 + (z - H_BARREL)^2 = rho^2
+        # x = xc + sqrt(rho^2 - (z - H_BARREL)^2)
+        # Note: x is the radius. xc is typically negative.
+        dz = z - H_BARREL
+        term = OGIVE_RHO**2 - dz**2
+        if term < 0:
+            return 0.0 # Should not happen within H_NOSE
+        return OGIVE_XC + math.sqrt(term)
+
+def get_ogive_tip_z(radius_offset):
+    """
+    Calculate the Z coordinate where an offset surface (e.g. inner skin)
+    intersects the axis (radius=0).
+    Offset surface radius: rho_offset = OGIVE_RHO - radius_offset
+    Equation: (0 - xc)^2 + (z - H_BARREL)^2 = rho_offset^2
+    z = H_BARREL + sqrt(rho_offset^2 - xc^2)
+    """
+    rho_eff = OGIVE_RHO - radius_offset
+    term = rho_eff**2 - OGIVE_XC**2
+    if term < 0:
+        # Does not reach axis (hole at top)
+        return None
+    return H_BARREL + math.sqrt(term)
 
 # =========================================================================
 # Debonding — Geometry Partitioning
@@ -102,20 +143,24 @@ def partition_debonding_zone(p_core, defect_params):
     """
     Partition the core solid to isolate the debonding zone.
 
-    Uses 4 Datum Planes (2 theta-cuts + 2 z-cuts) to create a rectangular
-    patch on the outer core surface. After partitioning, the core has up to
-    9 cells; the central cell's outer face corresponds to the debonded region.
-
-    Args:
-        p_core: Abaqus Part object for the core
-        defect_params: dict with keys 'theta_deg', 'z_center', 'radius'
+    Uses 4 Datum Planes (2 theta-cuts + 2 z-cuts).
     """
     theta_c = math.radians(defect_params['theta_deg'])
     z_c = defect_params['z_center']
     r_def = defect_params['radius']
 
+    # Local radius at the defect center (Outer surface of core ~ Outer Skin Radius)
+    # The debonding is at the Skin-Core interface.
+    # The radius of that interface is approx get_radius_at_z(z_c) - FACE_T/2.0
+    # Or simply get_radius_at_z(z_c) is close enough for angular width calc.
+    r_local = get_radius_at_z(z_c)
+    
     # Convert radius to angular and axial half-extents
-    d_theta = r_def / R_CORE_O      # half-angle (rad) on cylinder surface
+    if r_local > 1.0:
+        d_theta = r_def / r_local
+    else:
+        d_theta = math.radians(10.0) # Fallback if near tip
+
     d_z = r_def                      # half-height (mm)
 
     theta1 = theta_c - d_theta
@@ -135,6 +180,7 @@ def partition_debonding_zone(p_core, defect_params):
           (math.degrees(theta1), math.degrees(theta2), z1, z2))
 
     # --- Theta-direction cuts (radial planes through z-axis) ---
+    # We can use fixed R_CORE_I/O for defining the plane orientation
     for theta in [theta1, theta2]:
         ct, st = math.cos(theta), math.sin(theta)
         p1 = (R_CORE_I * ct, R_CORE_I * st, 0.0)
@@ -175,10 +221,17 @@ def _apply_debonding_outer(model, a, i_out, i_core, surf_skin_out,
     theta_c = math.radians(defect_params['theta_deg'])
     z_c = defect_params['z_center']
     r_def = defect_params['radius']
-    d_theta = r_def / R_CORE_O
+    
+    # Local radius for angular extent
+    r_local_core = get_radius_at_z(z_c) - FACE_T / 2.0
+    if r_local_core > 1.0:
+        d_theta = r_def / r_local_core
+    else:
+        d_theta = math.radians(10.0)
+
     d_z = r_def
 
-    tol_r = 2.0
+    tol_r = 5.0 # Increased tolerance for curvature approximation
     bonded_faces = None
     debonded_faces = None
     n_bonded = 0
@@ -187,12 +240,21 @@ def _apply_debonding_outer(model, a, i_out, i_core, surf_skin_out,
     for f in i_core.faces:
         pt = f.pointOn[0]
         r = math.sqrt(pt[0]**2 + pt[1]**2)
-        if abs(r - R_CORE_O) > tol_r:
+        z = pt[2]
+        
+        # Check if face is on the outer surface of the core
+        r_target = get_radius_at_z(z) - FACE_T / 2.0
+        
+        if abs(r - r_target) > tol_r:
             continue
 
         idx = f.index
         theta = math.atan2(pt[1], pt[0])
-        z = pt[2]
+        # z is already obtained
+        
+        # Normalize theta to [0, 2pi] if needed, but our model is [0, 60 deg]
+        # atan2 returns [-pi, pi]. Since we are in 1st quadrant (mostly), it's fine.
+        
         in_theta = (theta_c - d_theta) <= theta <= (theta_c + d_theta)
         in_z = (z_c - d_z) <= z <= (z_c + d_z)
 
@@ -335,41 +397,80 @@ def build_model(defect_params=None):
     # ------------------------------------------------------------------
     # Parts
     # ------------------------------------------------------------------
+    # Helper to draw ogive profile
+    def draw_profile(sk, r_base, z_tip, is_closed=False, r_inner=None, z_tip_inner=None):
+        # Barrel line
+        sk.Line(point1=(r_base, 0.0), point2=(r_base, H_BARREL))
+        
+        # Ogive arc (Outer/Main)
+        # Center: (OGIVE_XC, H_BARREL)
+        # Start: (r_base, H_BARREL)
+        # End: (0.0, z_tip)
+        sk.ArcByCenterEnds(center=(OGIVE_XC, H_BARREL),
+                           point1=(r_base, H_BARREL),
+                           point2=(0.0, z_tip),
+                           direction=COUNTERCLOCKWISE)
+        
+        if is_closed:
+            # For Core Solid: Close the loop
+            # Top Line on Axis
+            sk.Line(point1=(0.0, z_tip), point2=(0.0, z_tip_inner))
+            
+            # Inner Arc (Downwards)
+            # Center: (OGIVE_XC, H_BARREL)
+            # Start: (0.0, z_tip_inner)
+            # End: (r_inner, H_BARREL)
+            sk.ArcByCenterEnds(center=(OGIVE_XC, H_BARREL),
+                               point1=(0.0, z_tip_inner),
+                               point2=(r_inner, H_BARREL),
+                               direction=CLOCKWISE)
+            
+            # Inner Barrel Line
+            sk.Line(point1=(r_inner, H_BARREL), point2=(r_inner, 0.0))
+            
+            # Bottom Line
+            sk.Line(point1=(r_inner, 0.0), point2=(r_base, 0.0))
+
     # Outer skin (shell)
-    sk = model.ConstrainedSketch(name='sk_outer', sheetSize=6000.0)
-    sk.ArcByCenterEnds(center=(0, 0), point1=(R_OUTER, 0),
-                       point2=arc_end(R_OUTER, ANGLE),
-                       direction=COUNTERCLOCKWISE)
+    sk = model.ConstrainedSketch(name='sk_outer', sheetSize=20000.0)
+    # R_OUTER is RADIUS
+    z_tip_out = H_BARREL + H_NOSE
+    draw_profile(sk, R_OUTER, z_tip_out, is_closed=False)
+    
     p_out = model.Part(name='Skin_Outer', dimensionality=THREE_D,
                        type=DEFORMABLE_BODY)
-    p_out.BaseShellExtrude(sketch=sk, depth=HEIGHT)
+    p_out.BaseShellRevolve(sketch=sk, angle=ANGLE, flipRevolveDirection=OFF)
 
     # Inner skin (shell)
-    sk2 = model.ConstrainedSketch(name='sk_inner', sheetSize=6000.0)
-    sk2.ArcByCenterEnds(center=(0, 0), point1=(R_INNER, 0),
-                        point2=arc_end(R_INNER, ANGLE),
-                        direction=COUNTERCLOCKWISE)
+    # Calculate tip Z for inner skin (offset by FACE_T + CORE_T)
+    offset_in = FACE_T + CORE_T
+    z_tip_in = get_ogive_tip_z(offset_in)
+    if z_tip_in is None:
+        z_tip_in = H_BARREL # Fallback
+        
+    sk2 = model.ConstrainedSketch(name='sk_inner', sheetSize=20000.0)
+    draw_profile(sk2, R_INNER, z_tip_in, is_closed=False)
+    
     p_in = model.Part(name='Skin_Inner', dimensionality=THREE_D,
                       type=DEFORMABLE_BODY)
-    p_in.BaseShellExtrude(sketch=sk2, depth=HEIGHT)
+    p_in.BaseShellRevolve(sketch=sk2, angle=ANGLE, flipRevolveDirection=OFF)
 
     # Core (solid)
-    sk3 = model.ConstrainedSketch(name='sk_core', sheetSize=6000.0)
-    sk3.ArcByCenterEnds(center=(0, 0),
-                        point1=(R_CORE_O, 0),
-                        point2=arc_end(R_CORE_O, ANGLE),
-                        direction=COUNTERCLOCKWISE)
-    sk3.Line(point1=arc_end(R_CORE_O, ANGLE),
-             point2=arc_end(R_CORE_I, ANGLE))
-    sk3.ArcByCenterEnds(center=(0, 0),
-                        point1=arc_end(R_CORE_I, ANGLE),
-                        point2=(R_CORE_I, 0),
-                        direction=CLOCKWISE)
-    sk3.Line(point1=(R_CORE_I, 0), point2=(R_CORE_O, 0))
+    # Outer Offset: FACE_T/2.0
+    # Inner Offset: FACE_T/2.0 + CORE_T
+    offset_c_out = FACE_T / 2.0
+    offset_c_in = offset_c_out + CORE_T
+    
+    z_tip_c_out = get_ogive_tip_z(offset_c_out)
+    z_tip_c_in = get_ogive_tip_z(offset_c_in)
+    
+    sk3 = model.ConstrainedSketch(name='sk_core', sheetSize=20000.0)
+    draw_profile(sk3, R_CORE_O, z_tip_c_out, is_closed=True,
+                 r_inner=R_CORE_I, z_tip_inner=z_tip_c_in)
 
     p_core = model.Part(name='Core', dimensionality=THREE_D,
                         type=DEFORMABLE_BODY)
-    p_core.BaseSolidExtrude(sketch=sk3, depth=HEIGHT)
+    p_core.BaseSolidRevolve(sketch=sk3, angle=ANGLE, flipRevolveDirection=OFF)
 
     # ------------------------------------------------------------------
     # Debonding partition (before meshing, after part creation)
