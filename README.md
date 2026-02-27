@@ -175,6 +175,10 @@ MODEL_CHECKPOINT=runs/<run>/best_model.pt uvicorn src.predict_api:app --port 800
 - [Open Guided Waves (Zenodo)](https://zenodo.org/records/5105861) — 実験データベンチマーク
 - JAXA F8 調査 — [公式対応状況](https://www.jaxa.jp/hq-disclosure/h3f8/index_j.html)
 
-## Wiki
+## Wiki & Advanced Documentation
 
-詳細な技術ドキュメント (H3仕様・打ち上げ全履歴・SHMコンテキスト・GNN設計根拠・F8事故分析) は **[WIKI.md](WIKI.md)** を参照してください。
+*   **[Technical Wiki](WIKI.md)**: H3 Specifications, Launch History, and F8 Accident Analysis.
+*   **[Advanced ML Strategy](docs/ML_STRATEGY_AND_IMPLEMENTATION.md)**: Detailed roadmap for Geometry-Aware GNNs, FNO, and PINNs implementation.
+*   **[Literature Review](LITERATURE_REVIEW.md)**: Competitor analysis and novelty.
+
+## ディレクトリ構成

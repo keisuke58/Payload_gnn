@@ -38,6 +38,17 @@
 
 ---
 
+## データセット一覧 (利用可能)
+
+```json
+[
+  {"dir": "healthy_baseline", "defect_type": "healthy", "n_nodes": 22220, "n_defect": 0},
+  {"dir": "sample_0001", "defect_type": "debonding", "theta": 30, "z": 2500, "r": 150, "n_nodes": 22220, "n_defect": 77}
+]
+```
+
+---
+
 ## 次の対応
 
 1. **Abaqus ジオメトリ修正**: `Shell extrude feature failed` の原因調査

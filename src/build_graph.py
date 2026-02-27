@@ -55,13 +55,15 @@ def parse_mesh(df_nodes, df_elems):
     coords = df_nodes[['x', 'y', 'z']].values.astype(np.float64)
 
     elements = []
+    has_elem_type = 'elem_type' in df_elems.columns
     for _, row in df_elems.iterrows():
-        etype = row['elem_type']
+        etype = row['elem_type'] if has_elem_type else 'S4R'
+        n4_val = int(row.get('n4', -1)) if 'n4' in df_elems.columns else -1
         n1 = node_id_map[int(row['n1'])]
         n2 = node_id_map[int(row['n2'])]
         n3 = node_id_map[int(row['n3'])]
-        if etype in ('S4R', 'S4RT') and int(row['n4']) >= 0:
-            n4 = node_id_map[int(row['n4'])]
+        if etype in ('S4R', 'S4RT') and n4_val > 0 and n4_val in node_id_map:
+            n4 = node_id_map[n4_val]
             elements.append((n1, n2, n3, n4))
         else:
             elements.append((n1, n2, n3))
@@ -316,7 +318,7 @@ def compute_geodesic_distances(coords, adj, edge_index):
 # =========================================================================
 # Full graph construction
 # =========================================================================
-def build_curvature_graph(df_nodes, df_elems, compute_geodesic=True):
+def build_curvature_graph(df_nodes, df_elems, compute_geodesic=True, verbose=True):
     """
     Build a PyG Data object with curvature-aware features.
 
@@ -327,18 +329,22 @@ def build_curvature_graph(df_nodes, df_elems, compute_geodesic=True):
     Edge features (dim=5 or 6):
       [dx, dy, dz, euclidean_dist, normal_angle, (geodesic_dist)]
     """
+    def log(msg):
+        if verbose:
+            print(msg)
+
     coords, node_ids, elements, node_id_map = parse_mesh(df_nodes, df_elems)
     n_nodes = len(coords)
 
-    print("  Nodes: %d | Elements: %d" % (n_nodes, len(elements)))
+    log("  Nodes: %d | Elements: %d" % (n_nodes, len(elements)))
 
     # Surface normals
     normals = compute_node_normals(coords, elements)
-    print("  Computed node normals")
+    log("  Computed node normals")
 
     # Adjacency
     adj, node_to_elems = build_adjacency(n_nodes, elements)
-    print("  Built adjacency (avg degree: %.1f)" %
+    log("  Built adjacency (avg degree: %.1f)" %
           (sum(len(v) for v in adj.values()) / max(n_nodes, 1)))
 
     # Curvature
@@ -428,7 +434,7 @@ def build_curvature_graph(df_nodes, df_elems, compute_geodesic=True):
     data.mean_curvature = torch.tensor(H, dtype=torch.float)
     data.gaussian_curvature = torch.tensor(K, dtype=torch.float)
 
-    print("  Node features: %d dims | Edge features: %d dims" %
+    log("  Node features: %d dims | Edge features: %d dims" %
           (x.shape[1], edge_attr.shape[1]))
 
     return data

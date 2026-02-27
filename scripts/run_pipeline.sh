@@ -44,7 +44,7 @@ python src/preprocess_fairing_data.py \
     --raw_dir dataset_output \
     --output_dir dataset/processed \
     --mesh_size 50.0 \
-    --height 5000.0
+    --height 10400.0
 
 # ----- Phase 3: Training (all architectures) -----
 echo ""

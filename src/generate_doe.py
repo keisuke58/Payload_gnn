@@ -21,10 +21,10 @@ from scipy.stats.qmc import LatinHypercube
 THETA_RANGE = (5.0, 55.0)   # deg, margin from symmetry edges
 Z_RANGE = (800.0, 4200.0)   # mm, Barrel section, avoid clamp/top
 
-# Size tiers: (low, high) mm, (fraction of samples)
+# Size tiers: (name, r_min, r_max, fraction) — mesh-appropriate for h=50mm
 SIZE_TIERS = [
-    ('Small', 10.0, 30.0, 0.30),    # BVID-like, detection limit
-    ('Medium', 30.0, 80.0, 0.40),   # In-service detectable
+    ('Small', 20.0, 50.0, 0.30),    # Detection limit for h=50mm
+    ('Medium', 50.0, 80.0, 0.40),   # In-service detectable
     ('Large', 80.0, 150.0, 0.25),   # Significant, growth risk
     ('Critical', 150.0, 250.0, 0.05),  # Pre-failure
 ]
@@ -123,7 +123,7 @@ def main():
     print("Generated DOE: %d defective samples" % doe['n_defective'])
     print("  theta_deg: [%.1f, %.1f]" % tuple(doe['bounds']['theta_deg']))
     print("  z_center:  [%.1f, %.1f] mm" % tuple(doe['bounds']['z_center']))
-    print("  Size tiers: Small 10-30, Medium 30-80, Large 80-150, Critical 150-250 mm")
+    print("  Size tiers: Small 20-50, Medium 50-80, Large 80-150, Critical 150-250 mm")
     print("Saved to: %s" % args.output)
 
 

@@ -16,11 +16,14 @@ Usage:
 """
 
 import os
+import sys
 import json
 import time
 import argparse
 import csv as csv_module
 from datetime import datetime
+
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 import numpy as np
 import torch
@@ -282,7 +285,8 @@ def cross_validate(args, all_data):
 def main():
     parser = argparse.ArgumentParser(description='Train GNN for defect localization')
     # Data
-    parser.add_argument('--data_dir', type=str, default='dataset/processed')
+    parser.add_argument('--data_dir', type=str, default='data/processed_50mm_100',
+                        help='Dir with train.pt, val.pt (from prepare_ml_data.py)')
     parser.add_argument('--output_dir', type=str, default='runs')
     # Model
     parser.add_argument('--arch', type=str, default='gat',
@@ -313,11 +317,18 @@ def main():
     os.makedirs(args.output_dir, exist_ok=True)
 
     # Load data
-    print("Loading data from %s ..." % args.data_dir)
-    train_data = torch.load(os.path.join(args.data_dir, 'train.pt'),
-                            weights_only=False)
-    val_data = torch.load(os.path.join(args.data_dir, 'val.pt'),
-                          weights_only=False)
+    data_dir = os.path.join(PROJECT_ROOT, args.data_dir) if not os.path.isabs(args.data_dir) else args.data_dir
+    train_path = os.path.join(data_dir, 'train.pt')
+    val_path = os.path.join(data_dir, 'val.pt')
+
+    if not os.path.exists(train_path) or not os.path.exists(val_path):
+        print("Error: train.pt or val.pt not found in %s" % data_dir)
+        print("Run: python src/prepare_ml_data.py --input dataset_output_100 --output %s" % args.data_dir)
+        sys.exit(1)
+
+    print("Loading data from %s ..." % data_dir)
+    train_data = torch.load(train_path, weights_only=False)
+    val_data = torch.load(val_path, weights_only=False)
     print("Train: %d samples | Val: %d samples" % (len(train_data), len(val_data)))
 
     if args.cross_val > 1:
