@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pdftotext \"/home/nishioka/Payload2026/JAXA_LIBRARY/JAXA-JMR-002E.pdf\" -)",
+      "Bash(pdftotext \"/home/nishioka/Payload2026/JAXA_LIBRARY/EpsilonUsersManual_e.pdf\" -)"
+    ]
+  }
+}

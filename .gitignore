@@ -1,0 +1,24 @@
+# Data
+data/
+*.zip
+*.h5
+*.odb
+*.lck
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Abaqus work directory
+abaqus_work/
+*.log
+*.sta
+*.msg
+*.dat
+*.com
+*.sim
+*.prt
+*.abq
+*.stt
