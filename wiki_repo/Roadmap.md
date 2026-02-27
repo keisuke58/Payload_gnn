@@ -17,6 +17,7 @@ Phase 3  データ拡張・大規模学習
 Phase 4  図表作成
 Phase 5  アブレーション
 Phase 6  ロバスト性評価
+Phase 7  マルチクラス (debond / delam / impact / healthy)  ← 目標
 ```
 
 ## 計算環境
