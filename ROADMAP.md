@@ -1,64 +1,58 @@
-# Payload Fairing GNN Project Roadmap
+# Payload Fairing SHM Development Roadmap
 
-このプロジェクトは、ペイロードフェアリングの構造ヘルスモニタリング (SHM) のために、GNNとFEMを統合した欠陥位置特定手法を開発することを目的としています。
-現在の最優先事項は、**高品質な学習データセットの作成** です。
+This roadmap outlines the development of a Graph Neural Network (GNN) based Structural Health Monitoring (SHM) system for JAXA Epsilon/H3 class payload fairings, focusing on guided wave propagation in CFRP honeycomb sandwich structures.
 
-## フェーズ 1: データセット生成 (Current Focus)
-Abaqus/Pythonスクリプトを使用して、以下の仕様でデータセットを生成します。
+## Phase 1: High-Fidelity Data Generation (Current Focus)
+**Goal**: Create a comprehensive dataset of guided wave propagation in curved honeycomb sandwich panels using FEM (Abaqus) and surrogate experimental data (Open Guided Waves).
 
-### 1. 形状モデリング (Geometry)
-- **対象**: ペイロードフェアリング 1/6 円筒バレルセクション
-- **構造**: CFRPハニカムサンドイッチパネル
-  - Facesheet: CFRP積層板 (Shell Elements: S4R/S3)
-  - Core: アルミ/Nomexハニカム (Solid Elements: C3D8R or Equivalent Homogenized Shell)
-- **寸法**: 半径 $R$, 高さ $H$, 厚さ $t_{face}$, $t_{core}$ (パラメータ化)
+*   [x] **Open Guided Waves Dataset**:
+    *   Download and inspect `OGW_CFRP_Stringer_Wavefield_Intact.zip`.
+    *   Develop parser for HDF5 wavefield data.
+*   [ ] **Abaqus Simulation (Fairing Model)**:
+    *   **Geometry**: 1/6th cylindrical shell (Radius ~1.3m for Epsilon S / ~2.7m for H3).
+    *   **Material**:
+        *   Skin: CFRP (Quasi-isotropic or Cross-ply).
+        *   Core: Aluminum Honeycomb (Homogenized or detailed shell-element representation).
+    *   **Physics**: Dynamic Explicit (Guided Lamb Waves, 50-300 kHz).
+    *   **Defects**: Face sheet debonding (separation from core).
+*   [ ] **Data Formatting**:
+    *   Convert FEM outputs (ODB) to Graph format (Nodes, Edges, Features).
 
-### 2. 欠陥導入 (Defect Injection)
-- **種類**:
-  - Facesheet-Core Disbond (剥離)
-  - Impact Damage (衝撃損傷 - 剛性低下領域としてモデル化)
-- **パラメータ**:
-  - 位置 $(x, y)$
-  - サイズ (半径 $r$)
-  - 深刻度 (剛性低減率)
+## Phase 2: Graph Construction & Feature Engineering
+**Goal**: Represent the continuous curved shell structure as a graph suitable for GNNs, preserving geometric information.
 
-### 3. 荷重条件 (Loading)
-- **圧縮荷重 (Axial Compression)**: 座屈挙動を模擬
-- **音響圧 (Acoustic Pressure)**: ランダムな圧力分布
-- **境界条件**: 下端固定、上端自由または拘束
+*   **Graph Topology**:
+    *   Nodes: FEM mesh nodes or sensor locations.
+    *   Edges: k-nearest neighbors (k-NN) or Delaunay triangulation based on geodesic distance.
+*   **Node Features**:
+    *   $(x, y, z)$ coordinates (normalized).
+    *   Surface normals $(n_x, n_y, n_z)$ to encode curvature.
+    *   Material orientation vectors (critical for CFRP anisotropy).
+*   **Edge Features**:
+    *   Geodesic distance.
+    *   Relative angle between surface normals (local curvature).
 
-### 4. FEM解析 & 出力 (Simulation & Output)
-- **Solver**: Abaqus/Standard
-- **出力データ**:
-  - ノード座標 $(x, y, z)$
-  - 要素コネクティビティ
-  - 表面主応力和 (DSPSS)
-  - 歪み分布 (Strain Field)
+## Phase 3: GNN Architecture Development
+**Goal**: Develop a Physics-Informed GNN to detect and localize debonding.
 
-## フェーズ 2: グラフ構築 (Graph Construction)
-- **ノード定義**: FEMメッシュのノード、または要素中心
-- **エッジ定義**:
-  - メッシュ接続性に基づくエッジ
-  - 距離に基づく近傍エッジ (k-NN)
-  - 曲率を考慮したエッジ属性 (Geodesic Distance)
-- **特徴量**:
-  - ノード特徴量: 座標、DSPSS、歪み
-  - エッジ特徴量: 相対位置、距離
+*   **Baseline Model**: GraphSAGE or GAT (Graph Attention Network) for transductive learning.
+*   **Curvature-Awareness**: Implement **StructGNN**-inspired architecture or Coordinate-based MLPs (like PointNet++) integrated into message passing.
+*   **Physics-Informed Loss**:
+    *   Incorporate wave equation constraints or dispersion relation consistency.
+*   **Input**: Time-series wave signals at sensor nodes.
+*   **Output**: Probability map of defect presence on the fairing surface.
 
-## フェーズ 3: GNNモデル開発 (Model Development)
-- **アーキテクチャ**:
-  - Graph Attention Network (GAT)
-  - Graph Isomorphism Network (GIN) for topology awareness
-- **タスク**: ノード分類 (欠陥あり/なし) または 回帰 (欠陥中心座標の予測)
+## Phase 4: Sim-to-Real Domain Adaptation
+**Goal**: Bridge the gap between idealized FEM data and real-world experimental noise/attenuation.
 
-## フェーズ 4: 検証と実証 (Validation)
-- **Split**: Training / Validation / Test sets
-- **Metrics**: Accuracy, IoU (Intersection over Union), Localization Error
-- **Visualization**: 欠陥予測ヒートマップの可視化
+*   **Domain Adaptation (DA)**:
+    *   Use **Transfer Component Analysis (TCA)** or Adversarial Domain Adaptation.
+    *   **Source Domain**: Abaqus FEM data (CFRP Honeycomb).
+    *   **Target Domain**: Open Guided Waves data (CFRP Stringer) as a proxy for real experiments.
+*   **Validation**:
+    *   Train on FEM, test on OGW dataset.
+    *   Quantify performance drop and recover using unlabeled target data.
 
----
-
-## Wiki への追加事項
-- [ ] Abaqus Python Scripting Guide for Composites
-- [ ] Dataset Format Specification (CSV/HDF5)
-- [ ] GNN Architecture Diagrams
+## Phase 5: Deployment & Visualization
+*   **Visualization**: 3D interactive mapping of damage probabilities on the fairing mesh.
+*   **Inference**: Real-time processing of sensor array data.
