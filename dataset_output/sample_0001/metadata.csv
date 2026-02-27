@@ -1,10 +1,6 @@
 key,value
 defect_type,debonding
-defect_theta_deg,30.0
-defect_z_center,2500.0
-defect_radius,150.0
-interface,outer
-odb_file,H3_Debond_Test.odb
-n_nodes,22220
-n_elements,16200
-n_defect_nodes,77
+n_defect_nodes,1
+theta_deg,7.07
+z_center,2986.29
+radius,29.01

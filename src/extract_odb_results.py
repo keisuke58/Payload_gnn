@@ -1,294 +1,216 @@
 # -*- coding: utf-8 -*-
-# ODB Result Extraction - H3 Fairing FEM to CSV
+# extract_odb_results.py
+# Abaqus Python script to extract nodal and element data from ODB
 #
-# Extracts nodal field outputs (stress, displacement, coordinates) from an
-# Abaqus ODB file and writes CSV files compatible with the GNN preprocessing
-# pipeline (preprocess_fairing_data.py).
-#
-# Stress is extracted at ELEMENT_NODAL position (extrapolated from integration
-# points to nodes), then averaged across elements sharing each node.
-#
-# Uses streaming writes per instance to avoid Abaqus Python memory/GC segfault.
-#
-# Runs in Abaqus Python environment:
-#   cd abaqus_work
-#   abaqus python ../src/extract_odb_results.py H3_Healthy.odb ../dataset_output/healthy_baseline
-#   abaqus python ../src/extract_odb_results.py H3_Debond.odb ../dataset_output/sample_0001 --defect_json params.json
+# Usage: abaqus python extract_odb_results.py --odb <odb_path> --output <output_dir>
+#        abaqus python extract_odb_results.py --odb <odb> --output <dir> --defect_json <params.json>
 
-from odbAccess import *
-from abaqusConstants import *
-import math
-import os
 import sys
+import os
 import csv
 import json
-
-# Geometry constants (must match generate_fairing_dataset.py)
-RADIUS = 2600.0
-H_BARREL = 5000.0
-H_NOSE = 5400.0
-OGIVE_XC = (RADIUS**2 - H_NOSE**2) / (2 * RADIUS)
-OGIVE_RHO = RADIUS - OGIVE_XC
-
-FACE_T = 0.125 * 8  # 1.0 mm
-CORE_T = 38.0
-R_CORE_O = RADIUS - FACE_T / 2.0
-R_CORE_I = R_CORE_O - CORE_T
-R_OUTER = RADIUS
-R_INNER = RADIUS - FACE_T - CORE_T
-
-def get_radius_at_z(z):
-    if z <= H_BARREL:
-        return RADIUS
-    else:
-        dz = z - H_BARREL
-        term = OGIVE_RHO**2 - dz**2
-        if term < 0: return 0.0
-        return OGIVE_XC + math.sqrt(term)
-
-ELEM_TYPE_MAP = {
-    'S4R': 'S4R', 'S4RT': 'S4RT', 'S3': 'S3', 'S3R': 'S3',
-    'C3D8R': 'C3D8R', 'C3D8': 'C3D8',
-    'C3D6': 'C3D6', 'C3D4': 'C3D4',
-}
-
-LABEL_OFFSETS = {
-    'Skin_Outer': 0,
-    'Skin_Inner': 100000,
-    'Core': 200000,
-}
+import math
+import argparse
+from odbAccess import *
+from abaqusConstants import *
 
 
-def _get_part_name(inst_name):
-    upper = inst_name.upper()
-    if 'SKIN_OUTER' in upper:
-        return 'Skin_Outer'
-    elif 'SKIN_INNER' in upper:
-        return 'Skin_Inner'
-    elif 'CORE' in upper:
-        return 'Core'
-    return inst_name
+def _is_node_in_defect(x, y, z, defect_params):
+    """
+    Check if node (x,y,z) lies inside the circular defect zone on the cylindrical surface.
+    Abaqus Revolve: Y=axial, XZ=radial. r=sqrt(x^2+z^2), theta=atan2(z,x), axial=y.
+    """
+    theta_deg = defect_params['theta_deg']
+    z_center = defect_params['z_center']
+    radius = defect_params['radius']
 
-
-def _is_in_debonding_zone(x, y, z, defect_params, surface_tol=5.0):
-    r_node = math.sqrt(x**2 + y**2)
-    r_outer_at_z = get_radius_at_z(z)
-    
-    # Check if node is on the relevant surfaces (Outer Skin or Core Outer Surface)
-    # Note: R_CORE_O is offset from R_OUTER by FACE_T/2
-    r_core_o_at_z = r_outer_at_z - FACE_T / 2.0
-    
-    near_outer_skin = abs(r_node - r_outer_at_z) < surface_tol
-    near_core_outer = abs(r_node - r_core_o_at_z) < surface_tol
-    
-    if not (near_outer_skin or near_core_outer):
+    r_node = math.sqrt(x * x + z * z)
+    if r_node < 1.0:
         return False
+    theta_node_rad = math.atan2(z, x)
+    theta_center_rad = math.radians(theta_deg)
+    arc_mm = r_node * abs(theta_node_rad - theta_center_rad)
+    dy = y - z_center
+    dist = math.sqrt(arc_mm * arc_mm + dy * dy)
+    return dist <= radius
 
-    theta = math.atan2(y, x)
-    theta_c = math.radians(defect_params['theta_deg'])
-    z_c = defect_params['z_center']
-    r_def = defect_params['radius']
+
+def extract_results(odb_path, output_dir, defect_params=None):
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+        
+    print("Opening ODB: " + odb_path)
+    try:
+        odb = openOdb(path=odb_path)
+    except Exception as e:
+        print("Error opening ODB: " + str(e))
+        sys.exit(1)
+        
+    # Get the last frame of the first analysis step (skip Initial if present)
+    step_keys = list(odb.steps.keys())
+    if not step_keys:
+        print("Error: ODB has no steps (job may have failed)")
+        sys.exit(1)
+    # Prefer first non-Initial step
+    step_name = step_keys[0]
+    for k in step_keys:
+        if k.upper() != 'INITIAL':
+            step_name = k
+            break
+    step_obj = odb.steps[step_name]
+    if len(step_obj.frames) == 0:
+        # Try first step with frames
+        for k in step_keys:
+            if len(odb.steps[k].frames) > 0:
+                step_name = k
+                step_obj = odb.steps[k]
+                break
+    if len(step_obj.frames) == 0:
+        print("Error: No frames in any step (job may have failed)")
+        sys.exit(1)
+    frame = step_obj.frames[-1]
     
-    # Calculate angular width based on the radius at the defect center
-    r_center = get_radius_at_z(z_c) - FACE_T / 2.0
-    if r_center <= 0.001: return False
-
-    d_theta = r_def / r_center
-    d_z = r_def
+    print("Extracting data from Step: " + step_name + ", Frame: " + str(frame.frameId))
     
-    in_theta = (theta_c - d_theta) <= theta <= (theta_c + d_theta)
-    in_z = (z_c - d_z) <= z <= (z_c + d_z)
-    return in_theta and in_z
+    # ---------------------------------------------------------
+    # 1. Nodal Data (Coordinates, Displacement, Temperature)
+    # ---------------------------------------------------------
+    # Get the instance (assuming one assembly instance or specific parts)
+    # For this model, we have 'Part-OuterSkin-1', 'Part-Core-1', 'Part-InnerSkin-1'
+    # We will extract data for the Outer Skin as it's the primary surface for inspection
+    
+    instance_name = 'PART-OUTERSKIN-1'
+    if instance_name not in odb.rootAssembly.instances.keys():
+         # Fallback to keys if case doesn't match or using different naming
+         instance_name = odb.rootAssembly.instances.keys()[0]
+         
+    instance = odb.rootAssembly.instances[instance_name]
+    
+    # Field Outputs (NT11/NT12/NT=nodal temp, TEMP=element temp)
+    disp_field = frame.fieldOutputs['U']
+    temp_field = None
+    for key in ('NT11', 'NT12', 'NT', 'TEMP'):
+        if key in frame.fieldOutputs:
+            temp_field = frame.fieldOutputs[key]
+            break
+    
+    # Subset to instance
+    disp_sub = disp_field.getSubset(region=instance)
+    temp_sub = temp_field.getSubset(region=instance) if temp_field else None
+    
+    node_data = []
+    
+    # Map Node Labels to Values
+    # Note: iterating bulk data is faster but this is clearer for script
+    
+    # Create a map for displacements
+    disp_values = {}
+    for val in disp_sub.values:
+        disp_values[val.nodeLabel] = val.data
+        
+    temp_values = {}
+    if temp_sub:
+        for val in temp_sub.values:
+            nid = getattr(val, 'nodeLabel', None)
+            if nid is not None:
+                d = val.data
+                t = d if isinstance(d, (int, float)) else (d[0] if d else 0.0)
+                temp_values[nid] = t
+            
+    # Iterate nodes to get coordinates and defect labels
+    # Coordinates in ODB are usually original. Deformed = Original + U
+    # defect_label: 0=healthy, 1=inside defect zone (from defect_params geometry)
 
-
-def extract_odb(odb_path, output_dir, defect_params=None):
-    os.makedirs(output_dir, exist_ok=True)
-
-    print("Opening ODB: %s" % odb_path)
-    sys.stdout.flush()
-    odb = openOdb(path=odb_path, readOnly=True)
-
-    step_names = list(odb.steps.keys())
-    step_name = step_names[-1]
-    step = odb.steps[step_name]
-    frame = step.frames[-1]
-    print("Step: %s, Frame: %d" % (step_name, frame.incrementNumber))
-    sys.stdout.flush()
-
-    stress_field = frame.fieldOutputs['S']
-
-    # ------------------------------------------------------------------
-    # nodes.csv - stream per instance to control memory
-    # ------------------------------------------------------------------
-    nodes_path = os.path.join(output_dir, 'nodes.csv')
-    n_nodes = 0
+    node_rows = []
     n_defect = 0
+    for node in instance.nodes:
+        nid = node.label
+        x, y, z = node.coordinates
 
-    with open(nodes_path, 'w') as f:
-        w = csv.writer(f)
-        w.writerow(['node_id', 'x', 'y', 'z',
-                     's11', 's22', 's12', 'dspss', 'defect_label'])
+        u = disp_values.get(nid, (0.0, 0.0, 0.0))
+        t = temp_values.get(nid, 0.0)
 
-        for inst_name in sorted(odb.rootAssembly.instances.keys()):
-            instance = odb.rootAssembly.instances[inst_name]
-            if inst_name.upper() == 'ASSEMBLY':
-                continue
-
-            part_name = _get_part_name(inst_name)
-            label_offset = LABEL_OFFSETS.get(part_name, 0)
-
-            print("Instance: %s (%d nodes, %d elems)" %
-                  (inst_name, len(instance.nodes), len(instance.elements)))
-            sys.stdout.flush()
-
-            # Stress: running sums per node
-            sub = stress_field.getSubset(
-                region=instance, position=ELEMENT_NODAL)
-            node_sums = {}
-            for v in sub.values:
-                label = v.nodeLabel
-                data = v.data
-                s11 = float(data[0]) if len(data) > 0 else 0.0
-                s22 = float(data[1]) if len(data) > 1 else 0.0
-                if len(data) >= 6:
-                    s12 = float(data[3])
-                elif len(data) >= 3:
-                    s12 = float(data[2])
-                else:
-                    s12 = 0.0
-                mises = float(v.mises)
-                if label in node_sums:
-                    s = node_sums[label]
-                    s[0] += s11
-                    s[1] += s22
-                    s[2] += s12
-                    s[3] += mises
-                    s[4] += 1
-                else:
-                    node_sums[label] = [s11, s22, s12, mises, 1]
-
-            print("  Stress: %d nodes" % len(node_sums))
-            sys.stdout.flush()
-
-            # Write node rows directly to CSV
-            count = 0
-            for node in instance.nodes:
-                label = node.label
-                x = float(node.coordinates[0])
-                y = float(node.coordinates[1])
-                z = float(node.coordinates[2])
-
-                sv = node_sums.get(label)
-                if sv:
-                    n = sv[4]
-                    s11 = sv[0] / n
-                    s22 = sv[1] / n
-                    s12 = sv[2] / n
-                    dspss = sv[3] / n
-                else:
-                    s11 = s22 = s12 = dspss = 0.0
-
-                dl = 0
-                if defect_params:
-                    if _is_in_debonding_zone(x, y, z, defect_params):
-                        dl = 1
-                        n_defect += 1
-
-                w.writerow([label + label_offset, x, y, z,
-                            s11, s22, s12, dspss, dl])
-                count += 1
-
-            n_nodes += count
-            # Free memory before next instance
-            del node_sums
-            del sub
-            print("  Written: %d (total: %d)" % (count, n_nodes))
-            sys.stdout.flush()
-
-    print("nodes.csv: %d nodes" % n_nodes)
-    sys.stdout.flush()
-
-    # ------------------------------------------------------------------
-    # elements.csv - stream directly
-    # ------------------------------------------------------------------
-    elems_path = os.path.join(output_dir, 'elements.csv')
-    n_elems = 0
-
-    with open(elems_path, 'w') as f:
-        w = csv.writer(f)
-        w.writerow(['elem_id', 'elem_type',
-                     'n1', 'n2', 'n3', 'n4', 'n5', 'n6', 'n7', 'n8',
-                     'part_name'])
-        for inst_name in sorted(odb.rootAssembly.instances.keys()):
-            instance = odb.rootAssembly.instances[inst_name]
-            if inst_name.upper() == 'ASSEMBLY':
-                continue
-            part_name = _get_part_name(inst_name)
-            label_offset = LABEL_OFFSETS.get(part_name, 0)
-            for elem in instance.elements:
-                etype = ELEM_TYPE_MAP.get(elem.type, elem.type)
-                conn = elem.connectivity
-                nc = len(conn)
-                nodes = []
-                for k in range(8):
-                    if k < nc:
-                        nodes.append(conn[k] + label_offset)
-                    else:
-                        nodes.append(-1)
-                if etype in ('S3', 'S3R'):
-                    nodes[3:] = [-1] * 5
-                elif etype in ('S4R', 'S4RT'):
-                    nodes[4:] = [-1] * 4
-                w.writerow([elem.label, etype] + nodes + [part_name])
-                n_elems += 1
-
-    print("elements.csv: %d elements" % n_elems)
-    sys.stdout.flush()
-
-    # ------------------------------------------------------------------
-    # metadata.csv
-    # ------------------------------------------------------------------
-    meta_path = os.path.join(output_dir, 'metadata.csv')
-    with open(meta_path, 'w') as f:
-        w = csv.writer(f)
-        w.writerow(['key', 'value'])
+        defect_label = 0
         if defect_params:
-            w.writerow(['defect_type', 'debonding'])
-            w.writerow(['defect_theta_deg', str(defect_params['theta_deg'])])
-            w.writerow(['defect_z_center', str(defect_params['z_center'])])
-            w.writerow(['defect_radius', str(defect_params['radius'])])
-            w.writerow(['interface', 'outer'])
-        else:
-            w.writerow(['defect_type', 'healthy'])
-            w.writerow(['defect_radius', '0'])
-        w.writerow(['odb_file', os.path.basename(odb_path)])
-        w.writerow(['n_nodes', str(n_nodes)])
-        w.writerow(['n_elements', str(n_elems)])
-        w.writerow(['n_defect_nodes', str(n_defect)])
+            if _is_node_in_defect(x, y, z, defect_params):
+                defect_label = 1
+                n_defect += 1
 
-    print("metadata.csv written")
-    print("  Defect nodes: %d / %d (%.1f%%)" % (
-        n_defect, n_nodes, 100.0 * n_defect / max(n_nodes, 1)))
-    sys.stdout.flush()
+        node_rows.append([nid, x, y, z, u[0], u[1], u[2], t, defect_label])
 
+    csv_nodes = os.path.join(output_dir, 'nodes.csv')
+    with open(csv_nodes, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(['node_id', 'x', 'y', 'z', 'ux', 'uy', 'uz', 'temp', 'defect_label'])
+        writer.writerows(node_rows)
+
+    print("Saved nodes to " + csv_nodes + " (n_defect_nodes=%d)" % n_defect)
+
+    # metadata.csv
+    meta_path = os.path.join(output_dir, 'metadata.csv')
+    with open(meta_path, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(['key', 'value'])
+        writer.writerow(['defect_type', 'debonding' if defect_params else 'healthy'])
+        writer.writerow(['n_defect_nodes', str(n_defect)])
+        if defect_params:
+            writer.writerow(['theta_deg', str(defect_params['theta_deg'])])
+            writer.writerow(['z_center', str(defect_params['z_center'])])
+            writer.writerow(['radius', str(defect_params['radius'])])
+    print("Saved metadata to " + meta_path)
+
+    # ---------------------------------------------------------
+    # 2. Element Data (Connectivity, Stress)
+    # ---------------------------------------------------------
+    stress_field = frame.fieldOutputs['S']
+    stress_sub = stress_field.getSubset(region=instance, position=ELEMENT_NODAL) 
+    # ELEMENT_NODAL gives stress at nodes per element. 
+    # For simple GNN, CENTROID or INTEGRATION_POINT might be easier, 
+    # but let's stick to simple connectivity for now.
+    
+    # Actually, for GNN structure, we just need the topology (connectivity).
+    # Stress is a feature we might want.
+    
+    csv_elems = os.path.join(output_dir, 'elements.csv')
+    with open(csv_elems, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(['elem_id', 'elem_type', 'n1', 'n2', 'n3', 'n4', 'mises_avg'])
+
+        # Build stress map (average Mises per element for simplicity)
+        stress_vals = stress_field.getSubset(region=instance, position=CENTROID).values
+        elem_stress = {}
+        for val in stress_vals:
+            elem_stress[val.elementLabel] = val.mises
+
+        for elem in instance.elements:
+            eid = elem.label
+            nodes = elem.connectivity
+            n_list = list(nodes)
+            while len(n_list) < 4:
+                n_list.append(-1)
+            etype = 'S4R' if len(nodes) >= 4 else 'S3'
+            mises = elem_stress.get(eid, 0.0)
+            row = [eid, etype] + n_list[:4] + [mises]
+            writer.writerow(row)
+            
+    print("Saved elements to " + csv_elems)
+    
     odb.close()
-    print("Done.")
-
 
 if __name__ == '__main__':
-    if len(sys.argv) < 3:
-        print("Usage: abaqus python extract_odb_results.py "
-              "<odb_file> <output_dir> [--defect_json <path>]")
-        sys.exit(1)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--odb', type=str, required=True)
+    parser.add_argument('--output', type=str, required=True)
+    parser.add_argument('--defect_json', type=str, default=None,
+                        help='Path to JSON with defect_params (theta_deg, z_center, radius)')
 
-    odb_path = sys.argv[1]
-    output_dir = sys.argv[2]
+    args, unknown = parser.parse_known_args()
 
     defect_params = None
-    if '--defect_json' in sys.argv:
-        idx = sys.argv.index('--defect_json')
-        if idx + 1 < len(sys.argv):
-            with open(sys.argv[idx + 1], 'r') as f:
-                defect_params = json.load(f)
+    if args.defect_json and os.path.exists(args.defect_json):
+        with open(args.defect_json, 'r') as f:
+            defect_params = json.load(f)
+        print("Defect params: theta=%.1f z=%.0f r=%.0f" %
+              (defect_params['theta_deg'], defect_params['z_center'], defect_params['radius']))
 
-    extract_odb(odb_path, output_dir, defect_params)
+    extract_results(args.odb, args.output, defect_params=defect_params)

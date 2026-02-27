@@ -84,7 +84,7 @@ class FairingPredictor:
         data = process_single_sample(
             sample_dir, self.baseline_dspss,
             mesh_size=getattr(self.args, 'mesh_size', 50.0),
-            height=getattr(self.args, 'height', 5000.0),
+            height=getattr(self.args, 'height', 10400.0),
         )
         if data is None:
             return {'error': 'Failed to process sample directory'}

@@ -64,7 +64,7 @@ def setup_logging(log_file):
     return logger
 
 
-def run_sample(sample, output_dir, n_cpus=4, logger=None, dry_run=False):
+def run_sample(sample, output_dir, n_cpus=4, logger=None, dry_run=False, keep_inp=False, force=False):
     """
     Run a single FEM sample (Abaqus model generation + ODB extraction).
 
@@ -88,8 +88,8 @@ def run_sample(sample, output_dir, n_cpus=4, logger=None, dry_run=False):
     else:
         sample_dir = os.path.join(output_dir, 'sample_%04d' % sample_id)
 
-    # Skip if already completed
-    if os.path.exists(os.path.join(sample_dir, 'nodes.csv')):
+    # Skip if already completed (unless --force)
+    if not force and os.path.exists(os.path.join(sample_dir, 'nodes.csv')):
         if logger:
             logger.info("Sample %04d: already completed, skipping" % sample_id)
         return True
@@ -117,6 +117,10 @@ def run_sample(sample, output_dir, n_cpus=4, logger=None, dry_run=False):
         abaqus_args = ['--param_file', param_file, '--job_name', job_name]
     else:
         abaqus_args = ['--job_name', job_name]
+    abaqus_args.extend(['--project_root', PROJECT_ROOT])
+
+    env = os.environ.copy()
+    env['PROJECT_ROOT'] = PROJECT_ROOT
 
     cmd_gen = [
         'abaqus', 'cae', 'noGUI=%s' % GEN_SCRIPT,
@@ -131,7 +135,7 @@ def run_sample(sample, output_dir, n_cpus=4, logger=None, dry_run=False):
     t0 = time.time()
     try:
         result = subprocess.run(
-            cmd_gen, cwd=WORK_DIR,
+            cmd_gen, cwd=WORK_DIR, env=env,
             capture_output=True, text=True, timeout=1800)  # 30 min timeout
 
         if result.returncode != 0:
@@ -157,6 +161,10 @@ def run_sample(sample, output_dir, n_cpus=4, logger=None, dry_run=False):
 
     # --- Step 3: Extract ODB results ---
     odb_path = os.path.join(WORK_DIR, '%s.odb' % job_name)
+    for _ in range(30):  # Wait up to 30 sec for ODB
+        if os.path.exists(odb_path):
+            break
+        time.sleep(1)
     if not os.path.exists(odb_path):
         if logger:
             logger.error("Sample %04d: ODB not found: %s" %
@@ -165,7 +173,7 @@ def run_sample(sample, output_dir, n_cpus=4, logger=None, dry_run=False):
 
     cmd_extract = [
         'abaqus', 'python', EXTRACT_SCRIPT,
-        odb_path, sample_dir,
+        '--odb', odb_path, '--output', sample_dir,
     ]
     if defect_params and param_file:
         cmd_extract.extend(['--defect_json', param_file])
@@ -192,7 +200,12 @@ def run_sample(sample, output_dir, n_cpus=4, logger=None, dry_run=False):
     if logger:
         logger.info("  Total: %.1f sec" % t_total)
 
-    # --- Step 4: Clean up intermediate files ---
+    # --- Step 4: Optionally copy INP to sample dir (for archival) ---
+    inp_path = os.path.join(WORK_DIR, '%s.inp' % job_name)
+    if os.path.exists(inp_path) and keep_inp:
+        shutil.copy2(inp_path, os.path.join(sample_dir, 'model.inp'))
+
+    # --- Step 5: Clean up intermediate files ---
     for ext in ['.odb', '.dat', '.msg', '.com', '.prt', '.sim',
                 '.sta', '.lck', '.023', '.mdl', '.stt', '.res']:
         fpath = os.path.join(WORK_DIR, '%s%s' % (job_name, ext))
@@ -210,8 +223,8 @@ def main():
         description='Batch FEM generation for debonding dataset')
     parser.add_argument('--doe', type=str, required=True,
                         help='DOE parameters JSON file')
-    parser.add_argument('--output_dir', type=str, default='dataset_output',
-                        help='Output directory for CSV samples')
+    parser.add_argument('--output_dir', type=str, default=None,
+                        help='Output dir (default: dataset_output_<mesh>mm_<n>)')
     parser.add_argument('--n_cpus', type=int, default=4,
                         help='CPUs per Abaqus job (default: 4)')
     parser.add_argument('--resume', action='store_true',
@@ -222,6 +235,10 @@ def main():
                         help='End at sample index (exclusive)')
     parser.add_argument('--dry_run', action='store_true',
                         help='Print commands without executing')
+    parser.add_argument('--keep_inp', action='store_true',
+                        help='Copy .inp to each sample dir')
+    parser.add_argument('--force', action='store_true',
+                        help='Overwrite existing samples (re-generate)')
     args = parser.parse_args()
 
     # Load DOE
@@ -229,6 +246,12 @@ def main():
         doe = json.load(f)
 
     samples = doe['samples']
+
+    # Default output_dir: dataset_output_<mesh>mm_<n> (mesh from generate_fairing_dataset GLOBAL_SEED)
+    if args.output_dir is None:
+        mesh_mm = 50  # match generate_fairing_dataset.GLOBAL_SEED
+        n = doe.get('n_defective', doe.get('n_total', len(samples)))
+        args.output_dir = 'dataset_output_%dmm_%d' % (mesh_mm, n)
     if args.end is not None:
         samples = samples[args.start:args.end]
     else:
@@ -264,7 +287,9 @@ def main():
             sample, output_dir,
             n_cpus=args.n_cpus,
             logger=logger,
-            dry_run=args.dry_run)
+            dry_run=args.dry_run,
+            keep_inp=getattr(args, 'keep_inp', False),
+            force=getattr(args, 'force', False))
 
         if success:
             n_success += 1
