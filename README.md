@@ -53,19 +53,39 @@ The **H3 F8 accident (Dec 2025)** identified CFRP/Al-Honeycomb interface debondi
 
 ## 🏗 Pipeline
 
-```
-┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
-│  Abaqus FEM     │     │  PyG Graph       │     │  GNN Training    │
-│  H3 Fairing     │     │  Curvature-Aware │     │  GCN/GAT/GIN/    │
-│  Thermal + 120°C│ ──► │  18-dim node     │ ──► │  SAGE           │
-│  Debonding      │ CSV │    5-dim edge    │ .pt │  Focal Loss     │
-└─────────────────┘     └──────────────────┘     └────────┬────────┘
-                                                          │
-                                                          ▼
-┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
-│  FastAPI        │     │  Defect Prob     │     │  Inference      │
-│  REST API       │ ◄── │  Heatmap         │ ◄── │  Checkpoint     │
-└─────────────────┘     └──────────────────┘     └─────────────────┘
+```mermaid
+flowchart LR
+    subgraph DataGen["📦 Data Generation"]
+        DOE[generate_doe.py<br/>DOE params]
+        BATCH[run_batch.py<br/>Abaqus FEM]
+        DOE --> BATCH
+    end
+
+    subgraph FEM["🔬 FEM"]
+        ABAQUS[Abaqus FEM<br/>H3 Fairing<br/>Thermal + 120°C<br/>Debonding]
+    end
+
+    subgraph Graph["📊 Graph"]
+        EXTRACT[extract_odb<br/>CSV]
+        BUILD[prepare_ml_data<br/>Curvature-Aware Graph]
+        EXTRACT --> BUILD
+    end
+
+    subgraph Train["🧠 GNN Training"]
+        GNN[GCN / GAT / GIN / SAGE<br/>Focal Loss]
+    end
+
+    subgraph Deploy["🚀 Inference"]
+        INFER[Checkpoint]
+        HEATMAP[Defect Prob<br/>Heatmap]
+        API[FastAPI<br/>REST API]
+        INFER --> HEATMAP --> API
+    end
+
+    BATCH --> ABAQUS
+    ABAQUS --> EXTRACT
+    BUILD --> GNN
+    GNN --> INFER
 ```
 
 ---
