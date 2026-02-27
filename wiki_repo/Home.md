@@ -11,7 +11,7 @@
 |----------|--------|
 | **概要** | [H3ロケット総覧](H3-Rocket-Overview), [フェアリング仕様](JAXA-Fairing-Specs) |
 | **技術** | [アーキテクチャ](Architecture), [ML戦略](ML-Strategy), [熱解析](Thermal-Analysis) |
-| **データ** | [データセット形式](Dataset-Format), [欠陥生成](Defect-Generation-and-Labeling), [生成状況](Dataset-Generation-Status) |
+| **データ** | [データセット形式](Dataset-Format), [欠陥生成](Defect-Generation-and-Labeling), [生成状況](Dataset-Generation-Status), [外部データセット調査](Dataset-Survey) |
 | **事故分析** | [F8事故](F8-Accident-Analysis), [SHM文脈](SHM-Context) |
 | **研究** | [文献レビュー](Literature-Review), [ロードマップ](Roadmap), [研究レポート](Research-Report) |
 
@@ -23,8 +23,10 @@
 |------|------|
 | **FEM モデル** | ✅ H3 Type-S 整合 (Barrel + Ogive, 1/6 セクション) |
 | **熱荷重** | ✅ 初期 20°C、Step-1 外板 120°C 適用・検証済み |
-| **データセット** | 100 サンプル (32 サンプル: 変位・温度ともに正しく抽出済み) |
-| **GNN** | GCN / GAT / GIN / SAGE 4 種実装 |
+| **データセット** | ✅ 100 サンプル生成完了 (train 81 + val 20, 10,897 nodes/graph) |
+| **GNN** | ✅ GCN / GAT / GIN / SAGE 4 種実装・初回学習済 |
+| **計算環境** | CPU + **GPU 24GB × 4枚** |
+| **現フェーズ** | **Phase 2: ベンチマーク学習** → [ロードマップ](Roadmap) |
 | **検証** | `scripts/verify_odb_thermal.py`, `scripts/verify_dataset_quality.py` |
 
 ---
