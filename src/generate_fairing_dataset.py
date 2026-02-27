@@ -1,16 +1,29 @@
 # -*- coding: utf-8 -*-
 """
-Payload Fairing Dataset Generation — Shell-Solid-Shell Sandwich Model
+Payload Fairing Dataset Generation — H3 Rocket (CFRP/Al-Honeycomb)
+
+The H3 Launch Vehicle is the first JAXA rocket to adopt a CFRP Skin / Aluminum Honeycomb Core
+fairing structure, replacing the Aluminum structures used in H-IIA/B and Epsilon.
 
 Three-part sandwich:
-  Outer Facesheet  (S4R shell)   CFRP [45/0/-45/90]s
-  Honeycomb Core   (C3D8R solid) Orthotropic homogenised
-  Inner Facesheet  (S4R shell)   CFRP [45/0/-45/90]s
+  Outer Facesheet  (S4R shell)   CFRP Toray T1000G [45/0/-45/90]s
+  Honeycomb Core   (C3D8R solid) Al-5052 Honeycomb (Orthotropic)
+  Inner Facesheet  (S4R shell)   CFRP Toray T1000G [45/0/-45/90]s
 Connected via Tie Constraints.
+
+Supports debonding injection: partial Tie removal on the outer skin-core interface.
 
 Usage:
   cd abaqus_work
+
+  # Healthy baseline
   abaqus cae noGUI=../src/generate_fairing_dataset.py
+
+  # With debonding (theta_deg, z_center_mm, radius_mm)
+  abaqus cae noGUI=../src/generate_fairing_dataset.py -- --defect 30.0 2500.0 150.0
+
+  # From JSON parameter file
+  abaqus cae noGUI=../src/generate_fairing_dataset.py -- --param_file params.json
 """
 
 from abaqus import *
@@ -24,79 +37,56 @@ import load
 import math
 import os
 import sys
+import json
 
 # =========================================================================
 # Configuration
 # =========================================================================
-MODEL_NAME = 'Fairing_Sandwich'
-JOB_NAME = 'Fairing_Healthy'
+MODEL_NAME = 'H3_Fairing_CFRP'
+JOB_NAME = 'H3_Healthy'
 
-# JAXA H3 Fairing Dimensions (Type S/L)
-# Ref: JAXA H3 Launch Vehicle Brochure / Wikipedia
-# Diameter: 5.2 m -> Radius = 2600 mm
-# Length: ~10.4 m (Type S) / ~16.4 m (Type L)
-# For local SHM simulation, we model a 5m height section.
+# JAXA H3 Fairing Dimensions (Target for CFRP Study)
+# Diameter: 5.2 m (Type-S/L) -> Radius = 2600 mm
+# Length: 10.4 m (S) / 16.4 m (L)
+# For local SHM simulation, we model a 5m height representative section.
 RADIUS = 2600.0          # mm  (H3 Standard Diameter 5.2m)
 HEIGHT = 5000.0          # mm  (Modeled Section Height)
 ANGLE = 60.0             # 1/6 section (Symmetry)
 
-# CFRP T300/914 (Representative Aerospace CFRP)
-# Actual H3 uses Toray T1000G class for high performance.
-E1, E2, Nu12 = 135000.0, 10000.0, 0.3
-G12, G13, G23 = 5000.0, 5000.0, 3000.0
+# CFRP Toray T1000G (High Performance Aerospace Grade)
+# Typically used in H3 Fairing Skins
+E1, E2, Nu12 = 160000.0, 10000.0, 0.32  # T1000G class
+G12, G13, G23 = 5500.0, 5500.0, 3200.0
 
 LAYUP = [45.0, 0.0, -45.0, 90.0, 90.0, -45.0, 0.0, 45.0]
-PLY_T = 0.15
-FACE_T = PLY_T * len(LAYUP)   # 1.2 mm
+PLY_T = 0.125                   # Thinner, high-performance ply
+FACE_T = PLY_T * len(LAYUP)     # 1.0 mm
 
 # Honeycomb core — orthotropic (HexWeb CR-III 3/16-5052-.001)
-CORE_T = 20.0
+# Panel total ~40 mm (KHI public data) - 2 x 1.0 mm skins = 38 mm core
+CORE_T = 38.0
 CORE_E = {
     'E1': 10.0, 'E2': 10.0, 'E3': 1380.0,
     'Nu12': 0.001, 'Nu13': 0.001, 'Nu23': 0.001,
     'G12': 3.85, 'G13': 310.0, 'G23': 180.0,
 }
 
-MESH_SHELL = 80.0        # mm — coarser for first test
-MESH_CORE  = 80.0
+MESH_SHELL = 50.0        # mm
+MESH_CORE  = 50.0
 
 # =========================================================================
-# Thermal Environment — JAXA Epsilon/H3 Ascent (Literature Values)
-# Ref: Epsilon Users Manual, WIKI.md Section 2.4
+# Thermal Environment — JAXA H3 Ascent
+# Ref: H3 User's Manual
 # =========================================================================
-T_REF          = 25.0       # deg C — stress-free reference (pre-launch ambient)
-T_OUTER_SKIN   = 150.0      # deg C — outer skin peak (100-200 C range midpoint)
-T_INNER_SKIN   = 50.0       # deg C — inner skin (shielded cavity)
-
-# CFRP T300/914 — Thermal Properties
-# Units: mm-t-s-C consistent system
-CFRP_DENSITY         = 1.58e-9      # t/mm^3  (1580 kg/m^3)
-CFRP_CONDUCTIVITY_11 = 7.0e-3       # mW/(mm C) — fiber direction
-CFRP_CONDUCTIVITY_22 = 0.8e-3       # mW/(mm C) — transverse
-CFRP_SPECIFIC_HEAT   = 9.0e+8       # mm^2/(s^2 C)  (900 J/(kg C))
-CFRP_CTE_1           = -0.3e-6      # /C — fiber direction (negative, carbon fiber)
-CFRP_CTE_2           = 28.0e-6      # /C — transverse
-
-# Temperature-dependent CFRP elastic properties
-# (E1, E2, Nu12, G12, G13, G23, Temperature)
-CFRP_ELASTIC_TEMP = [
-    (135000., 10000., 0.30, 5000., 5000., 3000.,  25.),
-    (133000.,  9000., 0.30, 4500., 4500., 2700., 100.),
-    (130000.,  7000., 0.29, 3800., 3800., 2300., 150.),
-    (125000.,  5500., 0.28, 3200., 3200., 1800., 200.),
-]
-
-# Honeycomb Core (Al 5052) — Thermal Properties
-CORE_DENSITY       = 4.8e-11        # t/mm^3  (48 kg/m^3)
-CORE_CONDUCTIVITY  = 1.5e-3         # mW/(mm C) — homogenised
-CORE_SPECIFIC_HEAT = 9.0e+8         # mm^2/(s^2 C)  (900 J/(kg C))
-CORE_CTE           = 23.0e-6        # /C — isotropic (aluminium)
+T_REF          = 25.0       # deg C
+T_OUTER_SKIN   = 150.0      # deg C — Aerodynamic heating
+T_INNER_SKIN   = 50.0       # deg C
 
 # Radii
-R_OUTER   = RADIUS                                 # outer skin mid-surface
-R_CORE_O  = RADIUS - FACE_T / 2.0                  # core outer face
-R_CORE_I  = RADIUS - FACE_T / 2.0 - CORE_T         # core inner face
-R_INNER   = RADIUS - FACE_T - CORE_T               # inner skin mid-surface
+R_OUTER   = RADIUS
+R_CORE_O  = RADIUS - FACE_T / 2.0
+R_CORE_I  = RADIUS - FACE_T / 2.0 - CORE_T
+R_INNER   = RADIUS - FACE_T - CORE_T
 
 # =========================================================================
 # Helper — arc end point
@@ -106,9 +96,206 @@ def arc_end(r, angle_deg):
             r * math.sin(math.radians(angle_deg)))
 
 # =========================================================================
+# Debonding — Geometry Partitioning
+# =========================================================================
+def partition_debonding_zone(p_core, defect_params):
+    """
+    Partition the core solid to isolate the debonding zone.
+
+    Uses 4 Datum Planes (2 theta-cuts + 2 z-cuts) to create a rectangular
+    patch on the outer core surface. After partitioning, the core has up to
+    9 cells; the central cell's outer face corresponds to the debonded region.
+
+    Args:
+        p_core: Abaqus Part object for the core
+        defect_params: dict with keys 'theta_deg', 'z_center', 'radius'
+    """
+    theta_c = math.radians(defect_params['theta_deg'])
+    z_c = defect_params['z_center']
+    r_def = defect_params['radius']
+
+    # Convert radius to angular and axial half-extents
+    d_theta = r_def / R_CORE_O      # half-angle (rad) on cylinder surface
+    d_z = r_def                      # half-height (mm)
+
+    theta1 = theta_c - d_theta
+    theta2 = theta_c + d_theta
+    z1 = z_c - d_z
+    z2 = z_c + d_z
+
+    # Clamp to model bounds
+    theta_min = math.radians(1.0)
+    theta_max = math.radians(ANGLE - 1.0)
+    theta1 = max(theta1, theta_min)
+    theta2 = min(theta2, theta_max)
+    z1 = max(z1, 1.0)
+    z2 = min(z2, HEIGHT - 1.0)
+
+    print("Debonding partition: theta=[%.2f, %.2f] deg, z=[%.1f, %.1f] mm" %
+          (math.degrees(theta1), math.degrees(theta2), z1, z2))
+
+    # --- Theta-direction cuts (radial planes through z-axis) ---
+    for theta in [theta1, theta2]:
+        ct, st = math.cos(theta), math.sin(theta)
+        p1 = (R_CORE_I * ct, R_CORE_I * st, 0.0)
+        p2 = (R_CORE_O * ct, R_CORE_O * st, 0.0)
+        p3 = (R_CORE_O * ct, R_CORE_O * st, HEIGHT)
+        datum = p_core.DatumPlaneByThreePoints(
+            point1=p1, point2=p2, point3=p3)
+        try:
+            p_core.PartitionCellByDatumPlane(
+                datumPlane=p_core.datums[datum.id],
+                cells=p_core.cells)
+        except Exception as e:
+            print("Warning: theta-cut at %.2f deg failed: %s" %
+                  (math.degrees(theta), str(e)))
+
+    # --- Z-direction cuts (XY planes) ---
+    for z in [z1, z2]:
+        datum = p_core.DatumPlaneByPrincipalPlane(
+            principalPlane=XYPLANE, offset=z)
+        try:
+            p_core.PartitionCellByDatumPlane(
+                datumPlane=p_core.datums[datum.id],
+                cells=p_core.cells)
+        except Exception as e:
+            print("Warning: z-cut at %.1f mm failed: %s" % (z, str(e)))
+
+    print("Core partitioned: %d cells" % len(p_core.cells))
+
+
+def _apply_debonding_outer(model, a, i_out, i_core, surf_skin_out,
+                           defect_params):
+    """
+    Apply selective Tie on the outer interface with debonding.
+
+    Bonded region: Tie constraint (same as healthy).
+    Debonded region: Frictionless hard contact (prevents penetration).
+    """
+    theta_c = math.radians(defect_params['theta_deg'])
+    z_c = defect_params['z_center']
+    r_def = defect_params['radius']
+    d_theta = r_def / R_CORE_O
+    d_z = r_def
+
+    tol_r = 2.0
+    bonded_faces = None
+    debonded_faces = None
+    n_bonded = 0
+    n_debonded = 0
+
+    for f in i_core.faces:
+        pt = f.pointOn[0]
+        r = math.sqrt(pt[0]**2 + pt[1]**2)
+        if abs(r - R_CORE_O) > tol_r:
+            continue
+
+        idx = f.index
+        theta = math.atan2(pt[1], pt[0])
+        z = pt[2]
+        in_theta = (theta_c - d_theta) <= theta <= (theta_c + d_theta)
+        in_z = (z_c - d_z) <= z <= (z_c + d_z)
+
+        if in_theta and in_z:
+            if debonded_faces is None:
+                debonded_faces = i_core.faces[idx:idx+1]
+            else:
+                debonded_faces += i_core.faces[idx:idx+1]
+            n_debonded += 1
+        else:
+            if bonded_faces is None:
+                bonded_faces = i_core.faces[idx:idx+1]
+            else:
+                bonded_faces += i_core.faces[idx:idx+1]
+            n_bonded += 1
+
+    print("Outer interface: %d bonded faces, %d debonded faces" %
+          (n_bonded, n_debonded))
+
+    # --- Bonded surface: Tie constraint ---
+    if bonded_faces is not None:
+        surf_core_bonded = a.Surface(
+            side1Faces=bonded_faces, name='S_CoreOuter_Bonded')
+        model.Tie(name='Tie_Outer', main=surf_skin_out,
+                  secondary=surf_core_bonded,
+                  positionToleranceMethod=COMPUTED, adjust=ON,
+                  tieRotations=ON, thickness=ON)
+
+    # --- Debonded surface: Frictionless hard contact ---
+    if debonded_faces is not None:
+        surf_core_debond = a.Surface(
+            side1Faces=debonded_faces, name='S_CoreOuter_Debond')
+
+        model.ContactProperty('Debond_IntProp')
+        model.interactionProperties['Debond_IntProp'].NormalBehavior(
+            pressureOverclosure=HARD, allowSeparation=ON,
+            constraintEnforcementMethod=DEFAULT)
+        model.interactionProperties['Debond_IntProp'].TangentialBehavior(
+            formulation=FRICTIONLESS)
+
+        model.SurfaceToSurfaceContactStd(
+            name='Debond_Contact', createStepName='Load',
+            main=surf_skin_out, secondary=surf_core_debond,
+            sliding=SMALL, interactionProperty='Debond_IntProp',
+            enforcement=SURFACE_TO_SURFACE)
+
+
+# =========================================================================
+# CLI argument parsing
+# =========================================================================
+def parse_defect_args():
+    """
+    Parse command-line arguments for defect parameters.
+
+    Returns:
+        defect_params: dict or None
+        job_name: str
+    """
+    args = sys.argv[1:]
+
+    # Find arguments after Abaqus '--' separator
+    try:
+        sep_idx = args.index('--')
+        args = args[sep_idx + 1:]
+    except ValueError:
+        pass
+
+    defect_params = None
+    job_name = JOB_NAME
+
+    i = 0
+    while i < len(args):
+        if args[i] == '--defect' and i + 3 < len(args):
+            defect_params = {
+                'theta_deg': float(args[i + 1]),
+                'z_center': float(args[i + 2]),
+                'radius': float(args[i + 3]),
+            }
+            i += 4
+        elif args[i] == '--param_file' and i + 1 < len(args):
+            with open(args[i + 1], 'r') as f:
+                defect_params = json.load(f)
+            i += 2
+        elif args[i] == '--job_name' and i + 1 < len(args):
+            job_name = args[i + 1]
+            i += 2
+        else:
+            i += 1
+
+    return defect_params, job_name
+
+
+# =========================================================================
 # Build model
 # =========================================================================
-def build_model():
+def build_model(defect_params=None):
+    """
+    Build the H3 fairing FEM model.
+
+    Args:
+        defect_params: dict with debonding parameters, or None for healthy.
+            Keys: 'theta_deg' (float), 'z_center' (float), 'radius' (float)
+    """
     # Clean
     if MODEL_NAME in mdb.models:
         del mdb.models[MODEL_NAME]
@@ -117,7 +304,7 @@ def build_model():
     # ------------------------------------------------------------------
     # Materials
     # ------------------------------------------------------------------
-    mat = model.Material(name='CFRP_T300')
+    mat = model.Material(name='CFRP_T1000G')
     mat.Elastic(type=LAMINA,
                 table=((E1, E2, Nu12, G12, G13, G23),))
 
@@ -133,7 +320,7 @@ def build_model():
     layers = []
     for i, ang in enumerate(LAYUP):
         layers.append(section.SectionLayer(
-            material='CFRP_T300', thickness=PLY_T,
+            material='CFRP_T1000G', thickness=PLY_T,
             orientAngle=ang, numIntPts=3, plyName='P%d' % i))
     model.CompositeShellSection(
         name='Skin_Sec', preIntegrate=OFF,
@@ -166,22 +353,18 @@ def build_model():
                       type=DEFORMABLE_BODY)
     p_in.BaseShellExtrude(sketch=sk2, depth=HEIGHT)
 
-    # Core (solid) — closed cross-section extruded along z
+    # Core (solid)
     sk3 = model.ConstrainedSketch(name='sk_core', sheetSize=6000.0)
-    # outer arc
     sk3.ArcByCenterEnds(center=(0, 0),
                         point1=(R_CORE_O, 0),
                         point2=arc_end(R_CORE_O, ANGLE),
                         direction=COUNTERCLOCKWISE)
-    # line at theta=ANGLE
     sk3.Line(point1=arc_end(R_CORE_O, ANGLE),
              point2=arc_end(R_CORE_I, ANGLE))
-    # inner arc (clockwise = towards theta=0)
     sk3.ArcByCenterEnds(center=(0, 0),
                         point1=arc_end(R_CORE_I, ANGLE),
                         point2=(R_CORE_I, 0),
                         direction=CLOCKWISE)
-    # line at theta=0
     sk3.Line(point1=(R_CORE_I, 0), point2=(R_CORE_O, 0))
 
     p_core = model.Part(name='Core', dimensionality=THREE_D,
@@ -189,7 +372,13 @@ def build_model():
     p_core.BaseSolidExtrude(sketch=sk3, depth=HEIGHT)
 
     # ------------------------------------------------------------------
-    # Section assignment + material orientation
+    # Debonding partition (before meshing, after part creation)
+    # ------------------------------------------------------------------
+    if defect_params:
+        partition_debonding_zone(p_core, defect_params)
+
+    # ------------------------------------------------------------------
+    # Section assignment (works on all cells, including partitioned)
     # ------------------------------------------------------------------
     for p_s in (p_out, p_in):
         csys = p_s.DatumCsysByThreePoints(
@@ -221,70 +410,36 @@ def build_model():
         additionalRotationField='', stackDirection=STACK_3)
 
     # ------------------------------------------------------------------
-    # Core face sets (identify outer / inner curved faces)
-    # ------------------------------------------------------------------
-    tol_r = 2.0   # mm tolerance for radius check
-    core_outer_faces = []
-    core_inner_faces = []
-    for f in p_core.faces:
-        pt = f.pointOn[0]
-        r = math.sqrt(pt[0]**2 + pt[1]**2)
-        if abs(r - R_CORE_O) < tol_r:
-            core_outer_faces.append(f)
-        elif abs(r - R_CORE_I) < tol_r:
-            core_inner_faces.append(f)
-
-    if core_outer_faces:
-        p_core.Surface(side1Faces=p_core.faces[
-            core_outer_faces[0].index:core_outer_faces[0].index + 1],
-            name='Surf_Outer')
-    if core_inner_faces:
-        p_core.Surface(side1Faces=p_core.faces[
-            core_inner_faces[0].index:core_inner_faces[0].index + 1],
-            name='Surf_Inner')
-
-    # ------------------------------------------------------------------
     # Mesh
     # ------------------------------------------------------------------
     for p_s in (p_out, p_in):
-        p_s.seedPart(size=MESH_SHELL, deviationFactor=0.1,
-                     minSizeFactor=0.1)
+        p_s.seedPart(size=MESH_SHELL, deviationFactor=0.1, minSizeFactor=0.1)
         et = mesh.ElemType(elemCode=S4R, elemLibrary=STANDARD,
-                           secondOrderAccuracy=OFF,
-                           hourglassControl=DEFAULT)
+                           secondOrderAccuracy=OFF, hourglassControl=DEFAULT)
         et3 = mesh.ElemType(elemCode=S3, elemLibrary=STANDARD)
-        p_s.setElementType(
-            regions=p_s.sets['AllFaces'], elemTypes=(et, et3))
+        p_s.setElementType(regions=p_s.sets['AllFaces'], elemTypes=(et, et3))
         p_s.generateMesh()
 
-    p_core.seedPart(size=MESH_CORE, deviationFactor=0.1,
-                    minSizeFactor=0.1)
-    # Seed through-thickness: 1 element
+    p_core.seedPart(size=MESH_CORE, deviationFactor=0.1, minSizeFactor=0.1)
+    # Seed through-thickness: 1 element for all radial edges (~CORE_T length)
     for e in p_core.edges:
-        pt = e.pointOn[0]
-        r = math.sqrt(pt[0]**2 + pt[1]**2)
-        # Radial edges connect R_CORE_O to R_CORE_I
-        if abs(pt[2]) < 1.0 or abs(pt[2] - HEIGHT) < 1.0:
-            nodes_on = e.getNodes()
-            # If edge length ~ CORE_T, it's a radial edge
-            verts = e.getVertices()
-            if len(verts) == 2:
-                v0 = p_core.vertices[verts[0]]
-                v1 = p_core.vertices[verts[1]]
-                p0 = v0.pointOn[0]
-                p1 = v1.pointOn[0]
-                length = math.sqrt((p0[0]-p1[0])**2 + (p0[1]-p1[1])**2 + (p0[2]-p1[2])**2)
-                if abs(length - CORE_T) < 5.0:
-                    p_core.seedEdgeByNumber(edges=(e,), number=1)
+        verts = e.getVertices()
+        if len(verts) == 2:
+            v0 = p_core.vertices[verts[0]]
+            v1 = p_core.vertices[verts[1]]
+            p0 = v0.pointOn[0]
+            p1 = v1.pointOn[0]
+            length = math.sqrt((p0[0]-p1[0])**2 + (p0[1]-p1[1])**2 +
+                                (p0[2]-p1[2])**2)
+            if abs(length - CORE_T) < 5.0:
+                p_core.seedEdgeByNumber(edges=(e,), number=1)
 
     et_hex = mesh.ElemType(elemCode=C3D8R, elemLibrary=STANDARD,
-                           kinematicSplit=AVERAGE_STRAIN,
-                           hourglassControl=ENHANCED)
+                           kinematicSplit=AVERAGE_STRAIN, hourglassControl=ENHANCED)
     et_wed = mesh.ElemType(elemCode=C3D6, elemLibrary=STANDARD)
     et_tet = mesh.ElemType(elemCode=C3D4, elemLibrary=STANDARD)
-    p_core.setElementType(
-        regions=p_core.sets['AllCells'],
-        elemTypes=(et_hex, et_wed, et_tet))
+    p_core.setElementType(regions=p_core.sets['AllCells'],
+                          elemTypes=(et_hex, et_wed, et_tet))
     p_core.generateMesh()
 
     print("Mesh: Outer=%d, Inner=%d, Core=%d nodes" %
@@ -300,246 +455,236 @@ def build_model():
     i_core = a.Instance(name='Core-1',       part=p_core, dependent=ON)
 
     # ------------------------------------------------------------------
-    # Tie constraints — use findAt for face selection
-    # ------------------------------------------------------------------
-    # Reference points on core curved faces (mid-height, mid-angle)
-    theta_mid = math.radians(ANGLE / 2.0)
-    z_mid = HEIGHT / 2.0
-
-    pt_core_outer = (R_CORE_O * math.cos(theta_mid),
-                     R_CORE_O * math.sin(theta_mid), z_mid)
-    pt_core_inner = (R_CORE_I * math.cos(theta_mid),
-                     R_CORE_I * math.sin(theta_mid), z_mid)
-
-    # Outer skin surface
-    surf_skin_out = a.Surface(
-        side1Faces=i_out.faces, name='S_SkinOuter')
-
-    # Core outer curved face
-    co_face = i_core.faces.findAt((pt_core_outer,))
-    if co_face:
-        surf_core_out = a.Surface(
-            side1Faces=co_face, name='S_CoreOuter')
-        model.Tie(name='Tie_Outer', main=surf_skin_out,
-                  secondary=surf_core_out,
-                  positionToleranceMethod=COMPUTED,
-                  adjust=ON, tieRotations=ON, thickness=ON)
-        print("Tie_Outer: skin outer <-> core outer face")
-
-    # Inner skin surface
-    surf_skin_in = a.Surface(
-        side1Faces=i_in.faces, name='S_SkinInner')
-
-    # Core inner curved face
-    ci_face = i_core.faces.findAt((pt_core_inner,))
-    if ci_face:
-        surf_core_in = a.Surface(
-            side1Faces=ci_face, name='S_CoreInner')
-        model.Tie(name='Tie_Inner', main=surf_skin_in,
-                  secondary=surf_core_in,
-                  positionToleranceMethod=COMPUTED,
-                  adjust=ON, tieRotations=ON, thickness=ON)
-        print("Tie_Inner: skin inner <-> core inner face")
-
-    # ------------------------------------------------------------------
-    # Step
+    # Step (must be defined before contact interactions)
     # ------------------------------------------------------------------
     model.StaticStep(name='Load', previous='Initial',
                      nlgeom=OFF, maxNumInc=200,
-                     initialInc=0.1, minInc=1e-8, maxInc=0.5,
-                     stabilizationMagnitude=1e-8,
-                     stabilizationMethod=DISSIPATED_ENERGY_FRACTION,
-                     adaptiveDampingRatio=0.05,
-                     continueDampingFactors=False)
+                     initialInc=0.1, minInc=1e-8, maxInc=0.5)
     model.FieldOutputRequest(name='F-Output-1',
                              createStepName='Load',
                              variables=('S', 'E', 'U', 'COORD'))
 
     # ------------------------------------------------------------------
+    # Tie constraints (with debonding support)
+    # ------------------------------------------------------------------
+    theta_mid = math.radians(ANGLE / 2.0)
+    z_mid = HEIGHT / 2.0
+    tol_r = 2.0
+
+    # --- Inner interface: always fully tied ---
+    surf_skin_in = a.Surface(side1Faces=i_in.faces, name='S_SkinInner')
+    inner_faces = None
+    for f in i_core.faces:
+        pt = f.pointOn[0]
+        r = math.sqrt(pt[0]**2 + pt[1]**2)
+        if abs(r - R_CORE_I) < tol_r:
+            idx = f.index
+            if inner_faces is None:
+                inner_faces = i_core.faces[idx:idx+1]
+            else:
+                inner_faces += i_core.faces[idx:idx+1]
+    if inner_faces is not None:
+        surf_core_in = a.Surface(
+            side1Faces=inner_faces, name='S_CoreInner')
+        model.Tie(name='Tie_Inner', main=surf_skin_in,
+                  secondary=surf_core_in,
+                  positionToleranceMethod=COMPUTED, adjust=ON,
+                  tieRotations=ON, thickness=ON)
+        print("Tie_Inner: %d faces" % len(inner_faces))
+
+    # --- Outer interface: selective tie if debonding ---
+    surf_skin_out = a.Surface(side1Faces=i_out.faces, name='S_SkinOuter')
+
+    if defect_params:
+        _apply_debonding_outer(model, a, i_out, i_core, surf_skin_out,
+                               defect_params)
+    else:
+        # Healthy: full tie on outer interface
+        outer_faces = None
+        for f in i_core.faces:
+            pt = f.pointOn[0]
+            r = math.sqrt(pt[0]**2 + pt[1]**2)
+            if abs(r - R_CORE_O) < tol_r:
+                idx = f.index
+                if outer_faces is None:
+                    outer_faces = i_core.faces[idx:idx+1]
+                else:
+                    outer_faces += i_core.faces[idx:idx+1]
+        if outer_faces is not None:
+            surf_core_out = a.Surface(
+                side1Faces=outer_faces, name='S_CoreOuter')
+            model.Tie(name='Tie_Outer', main=surf_skin_out,
+                      secondary=surf_core_out,
+                      positionToleranceMethod=COMPUTED, adjust=ON,
+                      tieRotations=ON, thickness=ON)
+            print("Tie_Outer (healthy): %d faces" % len(outer_faces))
+
+    # ------------------------------------------------------------------
     # BCs — fix z=0 (clamped bottom)
     # ------------------------------------------------------------------
     # Outer skin bottom edge
-    pt_out_bot = (R_OUTER * math.cos(theta_mid),
-                  R_OUTER * math.sin(theta_mid), 0.0)
+    pt_out_bot = (R_OUTER * math.cos(theta_mid), R_OUTER * math.sin(theta_mid), 0.0)
     e_out_bot = i_out.edges.findAt((pt_out_bot,))
     if e_out_bot:
         set_out_bot = a.Set(edges=e_out_bot, name='BC_bot_outer')
-        model.DisplacementBC(
-            name='Fix_Outer', createStepName='Initial',
-            region=set_out_bot,
-            u1=0, u2=0, u3=0, ur1=0, ur2=0, ur3=0)
+        model.DisplacementBC(name='Fix_Outer', createStepName='Initial',
+                             region=set_out_bot, u1=0, u2=0, u3=0, ur1=0, ur2=0, ur3=0)
 
     # Inner skin bottom edge
-    pt_in_bot = (R_INNER * math.cos(theta_mid),
-                 R_INNER * math.sin(theta_mid), 0.0)
+    pt_in_bot = (R_INNER * math.cos(theta_mid), R_INNER * math.sin(theta_mid), 0.0)
     e_in_bot = i_in.edges.findAt((pt_in_bot,))
     if e_in_bot:
         set_in_bot = a.Set(edges=e_in_bot, name='BC_bot_inner')
-        model.DisplacementBC(
-            name='Fix_Inner', createStepName='Initial',
-            region=set_in_bot,
-            u1=0, u2=0, u3=0, ur1=0, ur2=0, ur3=0)
+        model.DisplacementBC(name='Fix_Inner', createStepName='Initial',
+                             region=set_in_bot, u1=0, u2=0, u3=0, ur1=0, ur2=0, ur3=0)
 
-    # Core bottom face (z=0)
-    r_core_mid = (R_CORE_O + R_CORE_I) / 2.0
-    pt_core_bot = (r_core_mid * math.cos(theta_mid),
-                   r_core_mid * math.sin(theta_mid), 0.0)
-    f_core_bot = i_core.faces.findAt((pt_core_bot,))
-    if f_core_bot:
-        set_core_bot = a.Set(faces=f_core_bot, name='BC_bot_core')
-        model.DisplacementBC(
-            name='Fix_Core', createStepName='Initial',
-            region=set_core_bot, u1=0, u2=0, u3=0)
+    # Core bottom face(s) (z=0) — may be multiple after partitioning
+    core_bot_faces = None
+    for f in i_core.faces:
+        pt = f.pointOn[0]
+        if abs(pt[2]) < 1.0:
+            idx = f.index
+            if core_bot_faces is None:
+                core_bot_faces = i_core.faces[idx:idx+1]
+            else:
+                core_bot_faces += i_core.faces[idx:idx+1]
+    if core_bot_faces is not None:
+        set_core_bot = a.Set(faces=core_bot_faces, name='BC_bot_core')
+        model.DisplacementBC(name='Fix_Core', createStepName='Initial',
+                             region=set_core_bot, u1=0, u2=0, u3=0)
 
     # ------------------------------------------------------------------
-    # Loads
+    # BCs — Symmetry on θ=0° and θ=60° edges (1/6 cyclic sector)
+    # In cylindrical CSYS: Uθ=0 constrains circumferential displacement
     # ------------------------------------------------------------------
-    # Axial compression on outer skin top edge (z = HEIGHT)
-    pt_out_top = (R_OUTER * math.cos(theta_mid),
-                  R_OUTER * math.sin(theta_mid), HEIGHT)
-    e_out_top = i_out.edges.findAt((pt_out_top,))
-    if e_out_top:
-        top_surf = a.Surface(side1Edges=e_out_top, name='Top_Edge')
-        model.ShellEdgeLoad(
-            name='Axial_Comp', createStepName='Load',
-            region=top_surf, magnitude=-50.0,
-            directionVector=((0, 0, 0), (0, 0, 1)),
-            distributionType=UNIFORM, localCsys=None)
+    cyl_csys = a.DatumCsysByThreePoints(
+        name='CylCS_Assy', coordSysType=CYLINDRICAL,
+        origin=(0, 0, 0), point1=(1, 0, 0), point2=(0, 1, 0))
+    cyl_datum = a.datums[cyl_csys.id]
 
-    # External pressure on outer skin face (Aerodynamic Max Q)
-    # 30-40 kPa typical for Epsilon/H3
-    pt_out_face = (R_OUTER * math.cos(theta_mid),
-                   R_OUTER * math.sin(theta_mid), z_mid)
+    # --- θ=0° edges (Y=0 plane) ---
+    pt_out_t0 = (R_OUTER, 0.0, z_mid)
+    e_out_t0 = i_out.edges.findAt((pt_out_t0,))
+    if e_out_t0:
+        set_out_t0 = a.Set(edges=e_out_t0, name='Sym_t0_outer')
+        model.DisplacementBC(name='Sym_t0_Outer', createStepName='Initial',
+                             region=set_out_t0, u2=0, ur1=0, ur3=0,
+                             localCsys=cyl_datum)
+
+    pt_in_t0 = (R_INNER, 0.0, z_mid)
+    e_in_t0 = i_in.edges.findAt((pt_in_t0,))
+    if e_in_t0:
+        set_in_t0 = a.Set(edges=e_in_t0, name='Sym_t0_inner')
+        model.DisplacementBC(name='Sym_t0_Inner', createStepName='Initial',
+                             region=set_in_t0, u2=0, ur1=0, ur3=0,
+                             localCsys=cyl_datum)
+
+    # Core θ=0 faces (Y≈0 plane) — may be multiple after partitioning
+    core_t0_faces = None
+    for f in i_core.faces:
+        pt = f.pointOn[0]
+        if abs(pt[1]) < 1.0:  # Y≈0 → θ≈0
+            idx = f.index
+            if core_t0_faces is None:
+                core_t0_faces = i_core.faces[idx:idx+1]
+            else:
+                core_t0_faces += i_core.faces[idx:idx+1]
+    if core_t0_faces is not None:
+        set_core_t0 = a.Set(faces=core_t0_faces, name='Sym_t0_core')
+        model.DisplacementBC(name='Sym_t0_Core', createStepName='Initial',
+                             region=set_core_t0, u2=0,
+                             localCsys=cyl_datum)
+
+    # --- θ=ANGLE edges ---
+    cos_a = math.cos(math.radians(ANGLE))
+    sin_a = math.sin(math.radians(ANGLE))
+
+    pt_out_ta = (R_OUTER * cos_a, R_OUTER * sin_a, z_mid)
+    e_out_ta = i_out.edges.findAt((pt_out_ta,))
+    if e_out_ta:
+        set_out_ta = a.Set(edges=e_out_ta, name='Sym_ta_outer')
+        model.DisplacementBC(name='Sym_ta_Outer', createStepName='Initial',
+                             region=set_out_ta, u2=0, ur1=0, ur3=0,
+                             localCsys=cyl_datum)
+
+    pt_in_ta = (R_INNER * cos_a, R_INNER * sin_a, z_mid)
+    e_in_ta = i_in.edges.findAt((pt_in_ta,))
+    if e_in_ta:
+        set_in_ta = a.Set(edges=e_in_ta, name='Sym_ta_inner')
+        model.DisplacementBC(name='Sym_ta_Inner', createStepName='Initial',
+                             region=set_in_ta, u2=0, ur1=0, ur3=0,
+                             localCsys=cyl_datum)
+
+    # Core θ=ANGLE faces — may be multiple after partitioning
+    core_ta_faces = None
+    for f in i_core.faces:
+        pt = f.pointOn[0]
+        r = math.sqrt(pt[0]**2 + pt[1]**2)
+        if r > 1.0:  # exclude origin-adjacent
+            theta_f = math.atan2(pt[1], pt[0])
+            if abs(theta_f - math.radians(ANGLE)) < math.radians(1.0):
+                idx = f.index
+                if core_ta_faces is None:
+                    core_ta_faces = i_core.faces[idx:idx+1]
+                else:
+                    core_ta_faces += i_core.faces[idx:idx+1]
+    if core_ta_faces is not None:
+        set_core_ta = a.Set(faces=core_ta_faces, name='Sym_ta_core')
+        model.DisplacementBC(name='Sym_ta_Core', createStepName='Initial',
+                             region=set_core_ta, u2=0,
+                             localCsys=cyl_datum)
+
+    print("Symmetry BCs applied on theta=0 and theta=%.0f deg edges" % ANGLE)
+
+    # ------------------------------------------------------------------
+    # Loads — H3 Max Q external pressure
+    # ------------------------------------------------------------------
+    pt_out_face = (R_OUTER * math.cos(theta_mid), R_OUTER * math.sin(theta_mid), z_mid)
     f_out = i_out.faces.findAt((pt_out_face,))
     if f_out:
         press_surf = a.Surface(side1Faces=f_out, name='Press_Surf')
         model.Pressure(name='ExtPressure', createStepName='Load',
-                       region=press_surf, magnitude=0.03, # 30 kPa
+                       region=press_surf, magnitude=0.05,  # 50 kPa
                        distributionType=UNIFORM)
 
     return model
 
 # =========================================================================
-# JAXA Specific Load Implementations
-# =========================================================================
-
-def apply_acoustic_load(model, magnitude_db=147.0):
-    """
-    Applies random acoustic pressure field simulating launch environment.
-    Reference: JAXA Epsilon Manual (147 dB OASPL).
-    P_rms = 20e-6 * 10^(dB/20)  (Pa)
-    147 dB -> ~4500 Pa RMS
-    """
-    # Create Dynamic Step
-    model.ExplicitDynamicsStep(
-        name='Acoustic_Step', previous='Load',
-        timePeriod=0.05,  # Short duration for demo
-        maxIncrement=1e-5
-    )
-    
-    # Calculate Pressure Amplitude (Simplified sinusoidal for demo)
-    p_rms = 20e-6 * (10**(magnitude_db/20.0))
-    p_peak = p_rms * 1.414  # Sqrt(2)
-    
-    # Apply as periodic pressure on outer skin
-    # In reality, this should be a PSD (Random Response), but using 
-    # explicit time-domain pressure for direct integration.
-    a = model.rootAssembly
-    s_name = 'Press_Surf' # Re-use surface from static load
-    if s_name in a.surfaces:
-        region = a.surfaces[s_name]
-        # Create Amplitude (1000 Hz tone for acoustic center freq)
-        model.TabularAmplitude(
-            name='Ac_Amp', timeSpan=STEP,
-            smooth=SOLVER_DEFAULT,
-            data=((0.0, 0.0), (0.00025, 1.0), (0.0005, 0.0), (0.00075, -1.0), (0.001, 0.0)) # 1kHz approx
-        )
-        model.Pressure(
-            name='Acoustic_Press', createStepName='Acoustic_Step',
-            region=region, magnitude=p_peak/1e6, # Pa -> MPa
-            amplitude='Ac_Amp', distributionType=UNIFORM
-        )
-    print("Applied Acoustic Load: %f dB (%.4f MPa Peak)" % (magnitude_db, p_peak/1e6))
-
-def apply_separation_shock(model, peak_g=2000.0):
-    """
-    Applies impulsive shock load simulating fairing separation (Notched Bolt).
-    Reference: High frequency, high G (>1000G), short duration (<10ms).
-    """
-    # Create Shock Step (if not already existing, or subsequent)
-    step_name = 'Shock_Step'
-    if 'Acoustic_Step' in model.steps:
-        prev = 'Acoustic_Step'
-    else:
-        prev = 'Load'
-        
-    model.ExplicitDynamicsStep(
-        name=step_name, previous=prev,
-        timePeriod=0.01, # 10ms
-        maxIncrement=1e-6
-    )
-    
-    # Apply acceleration to the base
-    a = model.rootAssembly
-    if 'BC_bot_outer' in a.sets:
-        region = a.sets['BC_bot_outer']
-        
-        # Shock Amplitude: Half-sine pulse, 1ms duration
-        model.TabularAmplitude(
-            name='Shock_Amp', timeSpan=STEP,
-            smooth=SOLVER_DEFAULT,
-            data=((0.0, 0.0), (0.0005, 1.0), (0.001, 0.0), (0.01, 0.0))
-        )
-        
-        # 2000G -> ~2000 * 9800 mm/s^2 = 1.96e7 mm/s^2
-        acc_mag = peak_g * 9800.0
-        
-        model.BoundaryCondition(
-            name='Shock_Base_Excitation', createStepName=step_name,
-            region=region, type=ACCELERATION,
-            a1=acc_mag, a2=acc_mag, a3=acc_mag, # Omni-directional shock
-            amplitude='Shock_Amp'
-        )
-    print("Applied Separation Shock: %.1f G" % peak_g)
-
-def introduce_debonding(model, location_z, size_r):
-    """
-    Simulates Skin-Core Debonding (JAXA primary defect target).
-    Removes the 'Tie' constraint in a specific region.
-    """
-    # This requires partitioning the surface or defining a specific region 
-    # where the tie is NOT applied. 
-    # For simplicity in this script, we print the strategy.
-    print("To implement Debonding: Define a surface region at z=%f with radius %f and exclude it from the Tie constraint." % (location_z, size_r))
-    # Actual implementation would require re-defining the Tie surfaces.
-
-# =========================================================================
 # Main
 # =========================================================================
 if __name__ == '__main__':
-    model = build_model()
+    defect_params, job_name = parse_defect_args()
 
-    # Phase 1: Static analysis only (axial compression + external pressure)
-    # Acoustic and shock loads require Abaqus/Explicit — add after
-    # static validation succeeds.
-    #
-    # TODO Phase 2: apply_acoustic_load(model, magnitude_db=147.0)
-    # TODO Phase 3: apply_separation_shock(model, peak_g=1500.0)
+    if defect_params:
+        print("\n=== Debonding Mode ===")
+        print("  theta = %.2f deg" % defect_params['theta_deg'])
+        print("  z     = %.1f mm" % defect_params['z_center'])
+        print("  radius= %.1f mm" % defect_params['radius'])
+    else:
+        print("\n=== Healthy Baseline Mode ===")
 
-    # Create Job
-    mdb.Job(name=JOB_NAME, model=MODEL_NAME,
-            description='Fairing Sandwich — static validation',
+    model = build_model(defect_params=defect_params)
+
+    desc = 'H3 CFRP/Al-HC Fairing'
+    if defect_params:
+        desc += ' — debonding theta=%.1f z=%.0f r=%.0f' % (
+            defect_params['theta_deg'], defect_params['z_center'],
+            defect_params['radius'])
+    else:
+        desc += ' — healthy baseline'
+
+    mdb.Job(name=job_name, model=MODEL_NAME,
+            description=desc,
             numCpus=4, numDomains=4,
             multiprocessingMode=DEFAULT)
 
-    print("\nSubmitting job '%s'..." % JOB_NAME)
-    mdb.jobs[JOB_NAME].submit(consistencyChecking=OFF)
-    mdb.jobs[JOB_NAME].waitForCompletion()
+    print("\nSubmitting job '%s'..." % job_name)
+    mdb.jobs[job_name].submit(consistencyChecking=OFF)
+    mdb.jobs[job_name].waitForCompletion()
 
-    # Check status
-    if mdb.jobs[JOB_NAME].status == COMPLETED:
+    if mdb.jobs[job_name].status == COMPLETED:
         print("\n=== Job COMPLETED ===")
-        print("ODB: %s.odb" % JOB_NAME)
+        print("ODB: %s.odb" % job_name)
     else:
-        print("\n=== Job FAILED (status: %s) ===" % mdb.jobs[JOB_NAME].status)
-        print("Check %s.dat and %s.msg for details" % (JOB_NAME, JOB_NAME))
+        print("\n=== Job FAILED (status: %s) ===" % mdb.jobs[job_name].status)
+        print("Check %s.dat and %s.msg for details" % (job_name, job_name))

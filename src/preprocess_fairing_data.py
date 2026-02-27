@@ -55,20 +55,48 @@ def tris_to_edges(tris):
 def elements_to_edge_index(df_elems, node_id_map):
     """
     Convert element connectivity to PyG edge_index (2 x num_edges).
-    Handles mixed S4R / S3 meshes.
+    Handles mixed S4R / S3 / C3D8R meshes.
     """
     all_edges = []
 
     for _, row in df_elems.iterrows():
         etype = row['elem_type']
-        n1 = node_id_map[int(row['n1'])]
-        n2 = node_id_map[int(row['n2'])]
-        n3 = node_id_map[int(row['n3'])]
+        n1_id = int(row['n1'])
+        if n1_id not in node_id_map:
+            continue
 
-        if etype in ('S4R', 'S4RT') and int(row['n4']) >= 0:
+        if etype in ('C3D8R', 'C3D8'):
+            # 8-node hex: bottom(n1-n4), top(n5-n8), columns
+            nids = []
+            for col in ['n1', 'n2', 'n3', 'n4', 'n5', 'n6', 'n7', 'n8']:
+                if col in row and int(row[col]) >= 0:
+                    nid = int(row[col])
+                    if nid in node_id_map:
+                        nids.append(node_id_map[nid])
+            if len(nids) == 8:
+                n = nids
+                # Bottom face
+                all_edges.extend([(n[0], n[1]), (n[1], n[2]),
+                                  (n[2], n[3]), (n[3], n[0])])
+                # Top face
+                all_edges.extend([(n[4], n[5]), (n[5], n[6]),
+                                  (n[6], n[7]), (n[7], n[4])])
+                # Columns (through-thickness)
+                all_edges.extend([(n[0], n[4]), (n[1], n[5]),
+                                  (n[2], n[6]), (n[3], n[7])])
+
+        elif etype in ('S4R', 'S4RT') and int(row.get('n4', -1)) >= 0:
+            n1 = node_id_map[n1_id]
+            n2 = node_id_map[int(row['n2'])]
+            n3 = node_id_map[int(row['n3'])]
             n4 = node_id_map[int(row['n4'])]
             all_edges.extend([(n1, n2), (n2, n3), (n3, n4), (n4, n1)])
+
         else:
+            # Tri (S3) or fallback
+            n1 = node_id_map[n1_id]
+            n2 = node_id_map[int(row['n2'])]
+            n3 = node_id_map[int(row['n3'])]
             all_edges.extend([(n1, n2), (n2, n3), (n3, n1)])
 
     if not all_edges:

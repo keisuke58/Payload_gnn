@@ -60,3 +60,26 @@ Since specific H3 manuals are restricted, these values are estimated based on he
 *   **Critical Failure Mode**: Debonding between CFRP skin and Al-Honeycomb core due to acoustic fatigue or impact.
 *   **Geometry**: Large surface area (Type-W is >5m diameter), requiring scalable sensor networks.
 *   **Material**: The CFRP/Honeycomb sandwich is highly attenuative to high-frequency ultrasound, necessitating optimized sensor placement (30-50 cm spacing estimated).
+
+## 5. Launch History & Current Status (As of Feb 2026)
+
+### 5.1 Launch Record
+The H3 has entered its operational phase, though it faces ongoing challenges with upper stage reliability.
+
+| Flight | Date | Outcome | Payload | Note |
+| :--- | :--- | :--- | :--- | :--- |
+| **TF1** | 2023/03/07 | **Failure** | ALOS-3 (Daichi-3) | 2nd stage ignition failure. Destruct command issued. |
+| **TF2** | 2024/02/17 | **Success** | VEP-4, CE-SAT-IE | 2nd stage ignition confirmed. Orbit achieved. |
+| **F3** | 2024/07/01 | **Success** | ALOS-4 (Daichi-4) | First operational flight success. |
+| **F4** | 2024/11/04 | **Success** | DSN-3 (Kirameki-3) | Defense communication satellite. |
+| **F5** | 2025/02/02 | **Success** | QZS-6 (Michibiki-6) | Quasi-Zenith Satellite. |
+| **F7** | 2025/10/26 | **Success** | HTV-X1 | New cargo transporter to ISS. First use of **Type-W** fairing? |
+| **F8** | 2025/12/22 | **Failure** | QZS-5 (Michibiki-5) | 2nd stage anomaly (ignition/combustion). Orbit insertion failed. |
+| **F9** | (Postponed) | Pending | QZS-7 (Michibiki-7) | Delayed due to F8 failure investigation. |
+
+*(Note: Flight F6 (H3-30S configuration) appears to have been rescheduled or delayed out of sequence)*
+
+### 5.2 Current Issues (Feb 2026)
+*   **Reliability Focus**: The failure of Flight F8 (Dec 2025) has brought renewed scrutiny to the **LE-5B-3** second stage engine, similar to the initial failure of TF1.
+*   **Schedule Impact**: The launch of F9 (originally planned for Feb 2026) is currently on hold pending the investigation results.
+
