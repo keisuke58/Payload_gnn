@@ -108,9 +108,18 @@ python scripts/validate_healthy_baseline.py
 
 詳細: [docs/HEALTHY_BASELINE_CHECKLIST.md](docs/HEALTHY_BASELINE_CHECKLIST.md)
 
+## 欠陥挿入 (デボンディング)
+
+JAXA H3 研究者向け計画 ([docs/DEFECT_PLAN.md](docs/DEFECT_PLAN.md)) に基づく層化サンプリング:
+
+```bash
+python src/generate_doe.py --n_samples 50 --output doe_phase1.json
+python src/run_batch.py --doe doe_phase1.json --output_dir dataset_output
+```
+
 ## データセット
 
-`dataset_output/` にサンプルデータ（healthy_baseline, sample_0001）が含まれています。詳細は [dataset_output/README.md](dataset_output/README.md) を参照してください。
+`dataset_output/` にサンプルデータ（healthy_baseline, sample_0001 等）が含まれています。詳細は [dataset_output/README.md](dataset_output/README.md) を参照してください。
 
 - **nodes.csv**: 座標 (x,y,z), 応力 (s11,s22,s12), 変位 (dspss), 欠陥ラベル
 - **elements.csv**: 要素接続

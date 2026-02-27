@@ -48,11 +48,13 @@ python scripts/validate_healthy_baseline.py
 ## データ生成
 
 ```bash
-# DOE パラメータ生成
-python src/generate_doe.py --n_samples 500 --output doe_params.json
+# DOE パラメータ生成 (JAXA 計画: 層化サンプリング)
+python src/generate_doe.py --n_samples 50 --output doe_phase1.json
 
 # バッチ実行（Abaqus 必要）
-python src/run_batch.py --doe doe_params.json --output_dir dataset_output
+python src/run_batch.py --doe doe_phase1.json --output_dir dataset_output
 ```
+
+欠陥計画: [docs/DEFECT_PLAN.md](../docs/DEFECT_PLAN.md)
 
 個別サンプルの抽出は `extract_odb_results.py` を参照してください。

@@ -244,6 +244,24 @@ python scripts/validate_healthy_baseline.py --report figures/healthy_validation_
 
 ---
 
+## 3.8 デボンディング欠陥挿入計画
+
+JAXA H3 研究者が妥当と認める欠陥パラメータに基づく。詳細: [docs/DEFECT_PLAN.md](docs/DEFECT_PLAN.md)
+
+| 項目 | 仕様 |
+|------|------|
+| **界面** | 外スキン-コア (F8 PSS と類似) |
+| **サイズ階層** | Small 10–30 mm, Medium 30–80, Large 80–150, Critical 150–250 mm |
+| **位置** | θ 5–55°, z 800–4200 mm (Barrel) |
+| **割合** | Small 30%, Medium 40%, Large 25%, Critical 5% |
+
+```bash
+python src/generate_doe.py --n_samples 50 --output doe_phase1.json
+python src/run_batch.py --doe doe_phase1.json --output_dir dataset_output
+```
+
+---
+
 ## 4. F8 事故と本研究の関連性
 
 ### 4.1 事故概要
