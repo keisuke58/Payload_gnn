@@ -1,197 +1,188 @@
-# Payload Fairing Defect Localization using GNN
+<p align="center">
+  <img src="https://img.shields.io/badge/JAXA%20H3-CFRP%20Fairing%20SHM-0066CC?style=for-the-badge&logo=spacex" alt="JAXA H3" />
+  <img src="https://img.shields.io/badge/GNN-PyTorch%20Geometric-EE4C2C?style=for-the-badge&logo=pytorch" alt="PyTorch Geometric" />
+  <img src="https://img.shields.io/badge/FEM-Abaqus%202024-00BFFF?style=for-the-badge" alt="Abaqus" />
+  <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License" />
+</p>
 
-[![Status](https://img.shields.io/badge/Status-In%20Progress-yellow)]()
-[![Python](https://img.shields.io/badge/Python-3.x-blue)]()
-[![PyTorch](https://img.shields.io/badge/PyTorch_Geometric-2.4+-orange)]()
-[![FEM](https://img.shields.io/badge/FEM-Abaqus%202024-green)]()
+<h1 align="center">🚀 GNN-SHM: Graph Neural Networks for H3 Rocket Fairing Structural Health Monitoring</h1>
 
-**JAXA H3ロケットのCFRPハニカムサンドイッチフェアリング**を対象に、GNN（Graph Neural Network）とFEM（Abaqus）を統合した**スキン-コア界面デボンディング位置特定システム**を開発するプロジェクトです。
+<p align="center">
+  <strong>Debonding detection on CFRP/Al-Honeycomb sandwich structures using Geometry-Aware GNNs</strong>
+</p>
 
-## 背景: なぜこの研究が必要か
+<p align="center">
+  <a href="#-quick-start">Quick Start</a> •
+  <a href="#-features">Features</a> •
+  <a href="#-pipeline">Pipeline</a> •
+  <a href="#-citation">Citation</a> •
+  <a href="wiki_repo/Home.md">📚 Wiki</a> •
+  <a href="#-contributing">Contributing</a>
+</p>
 
-H3 は JAXA 初の **CFRP スキン / Al-Honeycomb コア** フェアリングを採用した基幹ロケットです。従来の全アルミ構造 (H-IIA/B, Epsilon) と異なり、CFRP-Al 間の **CTE 不整合** (CFRP: −0.3×10⁻⁶ vs Al: 23×10⁻⁶ /°C) がデボンディングの主要駆動力となります。
+---
 
-**2025年12月の H3 8号機事故**では、CFRP/Al-HC サンドイッチ構造の衛星搭載構造 (PSS) で製造時の接着不良 (デボンディング) が飛行中に進展し破壊に至ったことが有力要因とされており、本研究テーマの喫緊性が現実の事故によって裏付けられました。
+## 🌟 Overview
 
-| 特性 | H-IIA/B, Epsilon (従来) | H3 (本プロジェクト対象) |
-|------|----------------------|----------------------|
-| **スキン材** | Al 7075 | **CFRP** (T1000クラス, AFP) |
-| **コア材** | Al Honeycomb | Al Honeycomb |
-| **直径** | 4.0 m / 2.6 m | **5.2 m** |
-| **CTE不整合** | ≈0 | **巨大** → 熱応力デボンディング |
-| **SHMニーズ** | 低 (成熟40年) | **高** (新材料系, F8事故で顕在化) |
+**GNN-SHM** is a research project that combines **Graph Neural Networks (GNN)** with **Finite Element Method (FEM)** to detect and localize **skin-core debonding** in the JAXA H3 rocket's CFRP/Aluminum Honeycomb payload fairing.
 
-## パイプライン
+> **日本語**: JAXA H3 ロケットの CFRP ハニカムサンドイッチフェアリングにおいて、GNN と FEM を統合したスキン-コア界面デボンディング位置特定システムを開発。2025年 F8 事故で顕在化した CFRP/Al-HC 接着健全性モニタリングの実用化を目指す。
 
-```
-Abaqus FEM (H3フェアリング: φ5.2m, CFRP [45/0/-45/90]s / Al-HC)
-    ↓  CSV (節点座標 + 応力テンソル + 温度 + CTE熱応力)
-PyTorch Geometric Graph 変換
-    ↓  18次元ノード特徴量 (座標 + 法線 + 曲率 + 応力 + 温度 + タイプ)
-    ↓  エッジ: k-NN / Delaunay (測地線距離ベース)
-GNN 学習 (GCN / GAT / GIN / SAGE)
-    ↓  Focal Loss + CosineAnnealing + EarlyStopping + 5-fold CV
-    ↓  ノードレベル欠陥確率マップ
-推論 API (FastAPI)
-    ↓  REST endpoint → 3Dヒートマップ可視化
-```
+### Why This Matters
 
-## 主な機能
+| | H-IIA/B, Epsilon (Legacy) | H3 (This Project) |
+|:---|:---|:---|
+| **Skin** | Al 7075 | **CFRP** (T1000, AFP) |
+| **CTE Mismatch** | ≈0 | **Severe** (−0.3 vs 23 ×10⁻⁶/°C) |
+| **SHM Need** | Low (40yr mature) | **High** (F8 accident, 2025) |
 
-### 1. Shell-Solid-Shell サンドイッチ FEM
+The **H3 F8 accident (Dec 2025)** identified CFRP/Al-Honeycomb interface debonding as a likely cause. This project aims to enable **Condition-Based Maintenance (CBM)** via guided-wave SHM + GNN-based defect localization.
 
-- H3仕様: φ5.2m, CFRP [45/0/-45/90]s + Al-Honeycomb (~40mm パネル)
-- 熱解析統合: JAXA文献値ベースの温度場 → CTE不整合熱応力
-- 荷重: 軸圧縮 + 外圧 30kPa (Max Q) + 音響 147–148 dB
-- 欠陥モデリング: スキン-コア界面のデボンディング領域
+---
 
-### 2. 曲率対応グラフ構築
+## ✨ Features
 
-- 非ユークリッド多様体上で直接動作 (2D投影による歪みなし)
-- 表面法線・主曲率・測地線距離をエッジ/ノード特徴量に反映
-- ノード特徴量 18次元 (座標 + 法線 + 曲率 + 応力 + 温度 + ノードタイプ)
+- **Geometry-Aware Graph Construction**: Surface normals, principal curvature, geodesic distance — no UV-mapping distortion
+- **4 GNN Architectures**: GCN, GAT, GIN, GraphSAGE with Focal Loss for class imbalance
+- **H3-Spec FEM**: Barrel + Ogive (φ5.2m), thermal load (CTE mismatch), debonding defects
+- **Cutting-Edge ML Roadmap**: Graph Mamba, E(3)-Equivariant GNN, FNO surrogate, PINN
+- **Multi-Class Target**: debond / delam / impact / healthy (2-year roadmap)
+- **JAXA Collaboration**: Real PSS test data validation planned
 
-### 3. 4種GNNアーキテクチャ比較
+---
 
-- **GCN**: スペクトルフィルタ — 大域パターン
-- **GAT**: アテンション — 欠陥近傍への適応的重み付け
-- **GIN**: 最大表現力 — 微細構造差の弁別
-- **GraphSAGE**: サンプリング+集約 — スケーラビリティ
-- Focal Loss (クラス不均衡対策), CosineAnnealing, Early Stopping, 5-fold CV
-
-### 4. 推論API
-
-- FastAPI REST エンドポイント
-- チェックポイントからのモデル復元
-- JSON 入力 → 欠陥確率マップ出力
-
-## ディレクトリ構成
+## 🏗 Pipeline
 
 ```
-Payload2026/
-├── src/
-│   ├── generate_fairing_dataset.py  # Abaqus: H3 FEM (Barrel+Ogive) + CSV出力
-│   ├── extract_odb_results.py      # ODB → nodes/elements CSV 抽出
-│   ├── run_batch.py                # バッチ FEM 生成
-│   ├── build_graph.py              # 曲率対応グラフ構築 (18次元特徴量)
-│   ├── preprocess_fairing_data.py  # FEM CSV → PyG Data
-│   ├── models.py                   # GNN (GCN/GAT/GIN/SAGE)
-│   ├── train.py                    # 学習 (Focal Loss, CV, Early Stopping)
-│   ├── evaluate.py                 # 評価・ヒートマップ・比較
-│   └── predict_api.py              # 推論 API (FastAPI)
-├── dataset_output/                 # FEM 抽出 CSV（サンプルデータ付き）
-│   ├── healthy_baseline/           # 健全ベースライン
-│   ├── sample_0001/                # デボンディングサンプル
-│   └── README.md                   # データセット仕様
-├── runs/                           # 学習済みモデル
-├── scripts/
-│   ├── run_pipeline.sh             # パイプライン一括実行
-│   ├── inspect_pyg_data.py         # PyG データ構造確認
-│   └── visualize_fairing_h3_check.py  # フェアリング形状可視化・H3整合性チェック
-├── figures/                        # 可視化出力
-├── JAXA_LIBRARY/                   # JAXA技術文書
-├── WIKI.md                         # 技術Wiki
-├── LITERATURE_REVIEW.md            # 文献レビュー
-├── RESEARCH_REPORT.md              # リサーチレポート
-├── ROADMAP.md                      # 開発ロードマップ
-└── requirements.txt
+┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
+│  Abaqus FEM     │     │  PyG Graph       │     │  GNN Training    │
+│  H3 Fairing     │     │  Curvature-Aware │     │  GCN/GAT/GIN/    │
+│  Thermal + 120°C│ ──► │  18-dim node     │ ──► │  SAGE           │
+│  Debonding      │ CSV │    5-dim edge    │ .pt │  Focal Loss     │
+└─────────────────┘     └──────────────────┘     └────────┬────────┘
+                                                          │
+                                                          ▼
+┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
+│  FastAPI        │     │  Defect Prob     │     │  Inference      │
+│  REST API       │ ◄── │  Heatmap         │ ◄── │  Checkpoint     │
+└─────────────────┘     └──────────────────┘     └─────────────────┘
 ```
 
-## 健全ベースライン検証 (重要)
+---
 
-**欠陥挿入前に必ず実行** — 健全データの精度が GNN 学習の成否を決める。
+## 🚀 Quick Start
 
 ```bash
-python scripts/validate_healthy_baseline.py
-# → 20/20 passed を確認してから run_batch.py でデボンディング生成
-```
+# Clone
+git clone https://github.com/keisuke58/Payload_gnn.git
+cd Payload_gnn
 
-詳細: [docs/HEALTHY_BASELINE_CHECKLIST.md](docs/HEALTHY_BASELINE_CHECKLIST.md)
-
-## 欠陥挿入 (デボンディング)
-
-JAXA H3 研究者向け計画 ([docs/DEFECT_PLAN.md](docs/DEFECT_PLAN.md)) に基づく層化サンプリング:
-
-```bash
-python src/generate_doe.py --n_samples 50 --output doe_phase1.json
-python src/run_batch.py --doe doe_phase1.json --output_dir dataset_output
-```
-
-## データセット
-
-`dataset_output/` にサンプルデータ（healthy_baseline, sample_0001 等）が含まれています。詳細は [dataset_output/README.md](dataset_output/README.md) を参照してください。
-
-- **nodes.csv**: 座標 (x,y,z), 応力 (s11,s22,s12), 変位 (ux,uy,uz), **温度 (NT11)**, 欠陥ラベル
-- **elements.csv**: 要素接続
-- **metadata.csv**: 欠陥パラメータ
-
-### データセット生成進捗
-
-| 状態 | 件数 |
-|------|------|
-| **品質検証済み** | 32/100 (変位・温度ともに正しく抽出) |
-| **未完了** | 68/100 |
-
-```bash
-python scripts/verify_dataset_quality.py   # 品質スコア確認
-```
-
-詳細: [wiki_repo/Dataset-Generation-Status.md](wiki_repo/Dataset-Generation-Status.md)
-
-## クイックスタート
-
-```bash
+# Install
 pip install -r requirements.txt
 
-# フルパイプライン
-bash scripts/run_pipeline.sh
+# Train (existing data)
+python src/train.py --arch gat --epochs 200 --cross_val 5
 
-# Abaqusなしで実行（既存CSV使用）
-bash scripts/run_pipeline.sh --skip-abaqus
-
-# 個別実行
-python src/train.py --arch gat --data_dir dataset/processed --epochs 200
-python src/evaluate.py --checkpoint runs/<run>/best_model.pt --eval_ood
-
-# 推論API
+# Inference API
 MODEL_CHECKPOINT=runs/<run>/best_model.pt uvicorn src.predict_api:app --port 8000
 ```
 
-## H3 ロケット打ち上げ履歴
+### Full Pipeline (with Abaqus)
 
-| # | 日付 | 構成 | ペイロード | 結果 |
-|:---:|:---|:---|:---|:---:|
-| TF1 | 2023/03 | H3-22S | ALOS-3 | **失敗** |
-| TF2 | 2024/02 | H3-22S | VEP-4 | 成功 |
-| F3 | 2024/07 | H3-22S | ALOS-4 | 成功 |
-| F4 | 2024/11 | H3-22S | DSN-3 | 成功 |
-| F5 | 2025/02 | H3-22S | QZS-6 | 成功 |
-| F6 | 2025 | **H3-30S** | 技術実証 | 成功 |
-| F7 | 2025/10 | **H3-24W** | HTV-X1 | 成功 |
-| F8 | 2025/12 | H3-22S | QZS-5 | **失敗** |
+```bash
+python src/generate_doe.py --n_samples 50 --output doe.json
+python src/run_batch.py --doe doe.json --output_dir dataset_output
+python src/build_graph.py --data_dir dataset_output
+python src/train.py --arch gat --epochs 200
+```
 
-8号機の PSS (CFRP/Al-HC サンドイッチ) 破壊が本プロジェクトの研究対象と直接関連 → [詳細はWiki参照](WIKI.md#4-f8-事故と本研究の関連性)
+---
 
-## 開発環境
+## 📁 Project Structure
 
-- **FEM**: Abaqus/Standard 2024
-- **GNN**: PyTorch Geometric 2.4+
-- **Language**: Python 3.x
-- **API**: FastAPI + Uvicorn
+```
+Payload2026/
+├── src/                    # Core pipeline
+│   ├── generate_fairing_dataset.py   # Abaqus FEM
+│   ├── build_graph.py               # Curvature-aware graph
+│   ├── train.py                     # GNN training
+│   └── predict_api.py              # FastAPI inference
+├── wiki_repo/              # 📚 Full documentation
+│   ├── Home.md             # Wiki index
+│   ├── Cutting-Edge-ML.md  # Graph Mamba, Equivariant GNN
+│   ├── Vocabulary.md       # Technical glossary
+│   └── ...
+├── .github/
+│   ├── ISSUES.md           # Task index
+│   └── ...
+└── requirements.txt
+```
 
-## 参考文献
+---
 
-- Epsilon Users Manual (JAXA) — 環境荷重データ ([JAXA_LIBRARY/](JAXA_LIBRARY/))
-- JAXA-JMR-002E — ペイロード安全基準, No-Growth 要件
-- KHI ANSWERS — [H3フェアリング製造技術 (AFP/OoA)](https://answers.khi.co.jp/ja/mobility/20210806j-01/)
-- Beyond Gravity — [Type-W フェアリング](https://www.beyondgravity.com/en/news/beyond-gravity-rocket-nose-cone-celebrates-premiere-japans-h3-rocket)
-- [Open Guided Waves (Zenodo)](https://zenodo.org/records/5105861) — 実験データベンチマーク
-- JAXA F8 調査 — [公式対応状況](https://www.jaxa.jp/hq-disclosure/h3f8/index_j.html)
+## 📊 Dataset
 
-## Wiki & Advanced Documentation
+| Item | Value |
+|------|-------|
+| Graphs | 101 (train 81 + val 20) |
+| Nodes/graph | ~10,897 |
+| Node features | 16 (normal, curvature, stress, temp) |
+| Edge features | 5 |
 
-*   **[Technical Wiki](WIKI.md)**: H3 Specifications, Launch History, and F8 Accident Analysis.
-*   **[Wiki ページ](wiki_repo/Home.md)**: クイックナビ・プロジェクトステータス・全ページ一覧。
-*   **[データセット生成進捗](wiki_repo/Dataset-Generation-Status.md)**: 32/100 品質検証済み、熱パッチ・NT11 抽出。
-*   **[Advanced ML Strategy](docs/ML_STRATEGY_AND_IMPLEMENTATION.md)**: Detailed roadmap for Geometry-Aware GNNs, FNO, and PINNs implementation.
-*   **[Literature Review](LITERATURE_REVIEW.md)**: Competitor analysis and novelty.
+Defect size distribution: Small 30%, Medium 40%, Large 25%, Critical 5%.
+
+---
+
+## 📚 Documentation
+
+| Resource | Description |
+|----------|-------------|
+| [**Wiki Home**](wiki_repo/Home.md) | Full project index, status, navigation |
+| [**2-Year Goals**](wiki_repo/2-Year-Goals.md) | 5K samples, 4-class, Sim-to-Real |
+| [**Cutting-Edge ML**](wiki_repo/Cutting-Edge-ML.md) | Graph Mamba, Equivariant GNN, FNO, PINN |
+| [**Vocabulary**](wiki_repo/Vocabulary.md) | Technical terms (EN↔JP) |
+| [**Publication Venues**](wiki_repo/Publication-Venues.md) | IWSHM, JSASS, Structural Health Monitoring journal |
+
+---
+
+## 🤝 Contributing
+
+We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+- 🐛 [Report a bug](https://github.com/keisuke58/Payload_gnn/issues/new?template=bug_report.md)
+- 💡 [Request a feature](https://github.com/keisuke58/Payload_gnn/issues/new?template=feature_request.md)
+
+---
+
+## 📄 Citation
+
+If you use this work in your research, please cite:
+
+```bibtex
+@software{payload_gnn_2026,
+  title = {GNN-SHM: Graph Neural Networks for H3 Rocket Fairing Structural Health Monitoring},
+  author = {Payload2026 Contributors},
+  year = {2026},
+  url = {https://github.com/keisuke58/Payload_gnn}
+}
+```
+
+---
+
+## 📜 License
+
+This project is licensed under the MIT License - see [LICENSE](LICENSE) for details.
+
+---
+
+## 🙏 Acknowledgments
+
+- **JAXA** — H3 specifications, collaboration
+- **Open Guided Waves** — Benchmark dataset
+- **PyTorch Geometric** — GNN framework
+
+---
+
+<p align="center">
+  <b>If this project helps your research, please consider giving it a ⭐</b>
+</p>
