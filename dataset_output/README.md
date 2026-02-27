@@ -38,6 +38,13 @@ dataset_output/
 | healthy_baseline | healthy | 22,220 ノード, 16,200 要素 |
 | sample_0001 | debonding | θ=30°, z=2500mm, r=150mm, 77 欠陥ノード |
 
+## 健全ベースライン検証 (欠陥挿入前必須)
+
+```bash
+python scripts/validate_healthy_baseline.py
+# → 20/20 passed を確認してからデボンディングサンプル生成
+```
+
 ## データ生成
 
 ```bash

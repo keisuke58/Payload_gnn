@@ -86,7 +86,9 @@ Payload2026/
 ├── runs/                           # 学習済みモデル
 ├── scripts/
 │   ├── run_pipeline.sh             # パイプライン一括実行
-│   └── inspect_pyg_data.py         # PyG データ構造確認
+│   ├── inspect_pyg_data.py         # PyG データ構造確認
+│   └── visualize_fairing_h3_check.py  # フェアリング形状可視化・H3整合性チェック
+├── figures/                        # 可視化出力
 ├── JAXA_LIBRARY/                   # JAXA技術文書
 ├── WIKI.md                         # 技術Wiki
 ├── LITERATURE_REVIEW.md            # 文献レビュー
@@ -94,6 +96,17 @@ Payload2026/
 ├── ROADMAP.md                      # 開発ロードマップ
 └── requirements.txt
 ```
+
+## 健全ベースライン検証 (重要)
+
+**欠陥挿入前に必ず実行** — 健全データの精度が GNN 学習の成否を決める。
+
+```bash
+python scripts/validate_healthy_baseline.py
+# → 20/20 passed を確認してから run_batch.py でデボンディング生成
+```
+
+詳細: [docs/HEALTHY_BASELINE_CHECKLIST.md](docs/HEALTHY_BASELINE_CHECKLIST.md)
 
 ## データセット
 

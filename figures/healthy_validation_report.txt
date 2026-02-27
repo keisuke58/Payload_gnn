@@ -1,0 +1,24 @@
+Healthy Baseline Validation Report
+======================================================================
+  [PASS] Files.nodes_csv: OK
+  [PASS] Files.elements_csv: OK
+  [PASS] Geometry.Z_range: z=[-0.00, 5000.00] mm (Barrel-only)
+  [PASS] Geometry.R_range: r=[2561.0, 2600.0] mm (expect 2561-2600)
+  [PASS] Geometry.Theta_sector: theta=[0.0, 60.0] deg (expect 0-60.0)
+  [PASS] Integrity.No_NaN: No NaN in nodes
+  [PASS] Integrity.No_Inf: No Inf in nodes
+  [PASS] Integrity.No_duplicate_nodes: Unique node_id
+  [PASS] Integrity.Element_nodes_exist: All element nodes in nodes.csv
+  [PASS] Labels.All_zero: defect_label all 0 (n_defect=0)
+  [PASS] Physics.Stress_magnitude: max|stress|=75.80 MPa
+  [PASS] Physics.DSPSS_range: dspss=[0.2256, 73.7198]
+  [PASS] Metadata.n_nodes: n_nodes: meta=22220 vs actual=22220
+  [PASS] Metadata.n_elements: n_elements: meta=16200 vs actual=16200
+  [PASS] Metadata.n_defect_zero: n_defect_nodes=0 (expect 0)
+  [PASS] Metadata.defect_type: defect_type=healthy
+  [PASS] Parts.Skin_Outer: 5555 nodes
+  [PASS] Parts.Skin_Inner: 5555 nodes
+  [PASS] Parts.Core: 11110 nodes
+  [PASS] Preprocess.PyG_convert: PyG Data OK, 10 features
+
+Result: 20/20 passed - ALL PASS

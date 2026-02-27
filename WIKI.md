@@ -9,7 +9,7 @@
 
 1. [ターゲット選定: なぜ H3 フェアリングか](#1-ターゲット選定-なぜ-h3-フェアリングか)
 2. [H3 ロケット総覧](#2-h3-ロケット総覧)
-3. [フェアリング技術詳細](#3-フェアリング技術詳細)
+3. [フェアリング技術詳細](#3-フェアリング技術詳細)（[形状可視化](#35-フェアリング形状可視化-本モデル)含む）
 4. [F8 事故と本研究の関連性](#4-f8-事故と本研究の関連性)
 5. [SHM (構造ヘルスモニタリング) コンテキスト](#5-shm-構造ヘルスモニタリング-コンテキスト)
 6. [GNN アプローチの根拠](#6-gnn-アプローチの根拠)
@@ -187,7 +187,53 @@ H3 フェアリングの製造には 2 つの革新技術が導入された:
 | **耐熱** | シリコンフォーム断熱材, **300°C 以上** 対応 |
 | **分離** | 低衝撃分離 (Notched Bolt + 非火薬式アクチュエータ) |
 
-### 3.5 Beyond Gravity 製 Type-W フェアリング
+### 3.5 フェアリング形状可視化 (本モデル)
+
+本プロジェクトの FEM モデル (`generate_fairing_dataset.py`) は H3 Type-S 仕様に整合した **Barrel + Tangent Ogive** 形状を採用している。
+
+| 項目 | 値 |
+| :--- | :--- |
+| 全長 | 10.4 m (Barrel 5.0 m + Ogive 5.4 m) |
+| 直径 | 5.2 m |
+| 対称 | 1/6 セクション (θ=60°) |
+
+**2D 断面 (R-z)**
+
+![Fairing 2D cross-section](figures/fairing_h3_check.png)
+
+**3D 表示 (1/6 セクション)**
+
+![Fairing 3D view](figures/fairing_3d.png)
+
+可視化スクリプト:
+```bash
+python scripts/visualize_fairing_h3_check.py   # 2D + H3整合性チェック
+python scripts/visualize_fairing_3d.py         # 3D 表示
+```
+
+### 3.6 健全ベースライン検証 (欠陥挿入前必須)
+
+**欠陥なしの精度が極めて重要** — 健全データに誤りがあると全サンプルで系統的バイアスが発生する。デボンディング挿入前に必ず全項目 PASS を確認すること。
+
+**検証スクリプト**: `scripts/validate_healthy_baseline.py`
+
+| カテゴリ | 検証内容 |
+|----------|----------|
+| Geometry | z/r/θ 範囲、1/6 セクション |
+| Integrity | NaN/Inf なし、重複なし、要素-節点整合 |
+| Labels | defect_label 全て 0 |
+| Physics | 応力・変位の妥当範囲 |
+| Metadata | n_nodes, n_elements, defect_type 一致 |
+| Parts | Skin_Outer, Skin_Inner, Core 節点存在 |
+| Preprocess | PyG Data 変換成功 |
+
+```bash
+python scripts/validate_healthy_baseline.py --report figures/healthy_validation_report.txt
+```
+
+詳細: [docs/HEALTHY_BASELINE_CHECKLIST.md](docs/HEALTHY_BASELINE_CHECKLIST.md)
+
+### 3.7 Beyond Gravity 製 Type-W フェアリング
 
 - 直径 **5.4 m** の標準設計を Ariane 6, Vulcan Centaur 等と共有
 - Al-Honeycomb コア + CFRP カバーレイヤー
