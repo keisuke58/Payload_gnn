@@ -65,7 +65,7 @@ def elements_to_edge_index(df_elems, node_id_map):
         n2 = node_id_map[int(row['n2'])]
         n3 = node_id_map[int(row['n3'])]
 
-        if etype == 'S4R' and int(row['n4']) >= 0:
+        if etype in ('S4R', 'S4RT') and int(row['n4']) >= 0:
             n4 = node_id_map[int(row['n4'])]
             all_edges.extend([(n1, n2), (n2, n3), (n3, n4), (n4, n1)])
         else:
@@ -152,13 +152,24 @@ def process_single_sample(sample_dir, baseline_dspss=None, mesh_size=50.0,
     else:
         delta_dspss = dspss
 
+    # Thermal features (optional — backward compatible with non-thermal CSV)
+    thermal_feats = []
+    for col in ['temperature', 'thermal_smises']:
+        if col in df_nodes.columns:
+            thermal_feats.append(
+                torch.tensor(df_nodes[col].values, dtype=torch.float).unsqueeze(1))
+
     # Node types
     node_type = classify_nodes(pos, mesh_size, height)
     node_type_onehot = torch.nn.functional.one_hot(
         node_type, num_classes=int(NodeType.SIZE)).float()
 
-    # Assemble node features: [x, y, z, s11, s22, s12, delta_dspss, node_type(3)]
-    x = torch.cat([pos, s11, s22, s12, delta_dspss, node_type_onehot], dim=-1)
+    # Assemble node features
+    # Base: [x, y, z, s11, s22, s12, delta_dspss, node_type(3)] = 10 dims
+    # With thermal: + [temperature, thermal_smises] = 12 dims
+    feature_list = [pos, s11, s22, s12, delta_dspss, node_type_onehot]
+    feature_list.extend(thermal_feats)
+    x = torch.cat(feature_list, dim=-1)
 
     # Defect labels (binary: 0=healthy, 1=defect)
     y = torch.tensor(df_nodes['defect_label'].values, dtype=torch.long)
