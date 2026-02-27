@@ -53,7 +53,7 @@
 | **Defect (形式 A)** | 22,220 | sample_0001 のみ |
 | **Defect (形式 B)** | 745 ± 0 | sample_0000, 0002～0019 |
 
-![Node count comparison](figures/dataset_comparison/node_count_comparison.png)
+![Node count comparison](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/figures/dataset_comparison/node_count_comparison.png)
 
 ### 3.2 応力統計 (形式 A: healthy vs sample_0001)
 
@@ -90,19 +90,19 @@
 
 健全と欠陥サンプルの座標分布比較。
 
-![Spatial comparison](figures/dataset_comparison/spatial_comparison.png)
+![Spatial comparison](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/figures/dataset_comparison/spatial_comparison.png)
 
 ### 4.2 応力分布 (DSPSS)
 
 健全 vs 欠陥サンプル (sample_0001) の等価応力 (DSPSS) 分布。
 
-![Stress comparison](figures/dataset_comparison/stress_comparison.png)
+![Stress comparison](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/figures/dataset_comparison/stress_comparison.png)
 
 ### 4.3 欠陥の空間配置 (sample_0001)
 
 欠陥ラベル 1 のノードが x-z 平面にどのように分布するか。
 
-![Defect spatial](figures/dataset_comparison/defect_spatial_sample_0001.png)
+![Defect spatial](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/figures/dataset_comparison/defect_spatial_sample_0001.png)
 
 ### 4.4 ジオメトリ (r-z 断面)
 
@@ -110,11 +110,11 @@
 
 **健全ベースライン**
 
-![r-z healthy](figures/dataset_comparison/r_z_healthy_baseline.png)
+![r-z healthy](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/figures/dataset_comparison/r_z_healthy_baseline.png)
 
 **欠陥サンプル (sample_0000)**
 
-![r-z sample](figures/dataset_comparison/r_z_sample_0000.png)
+![r-z sample](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/figures/dataset_comparison/r_z_sample_0000.png)
 
 ---
 

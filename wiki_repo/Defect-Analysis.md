@@ -15,12 +15,12 @@
 
 | Healthy | Defective | Residual (Signal) |
 |:---:|:---:|:---:|
-| ![Disp Healthy](images/defects/displacement_comparison.png) | (See Comparison) | (See Comparison) |
+| ![Disp Healthy](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/defects/displacement_comparison.png) | (See Comparison) | (See Comparison) |
 
 *   **現象**: 剥離により局所剛性が低下し、内圧・空力荷重により**局所的な膨らみ（Bulge）**が発生します。
 *   **シグナル**: 全体変形（数mmオーダー）に対し、欠陥による変位増分は微小（<1mm）ですが、Residualプロットでは明確な「ホットスポット」として現れます。
 *   **3D可視化**:
-    ![Defect 3D](images/defects/defect_3d_residual.png)
+    ![Defect 3D](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/defects/defect_3d_residual.png)
     *   3D空間上での欠陥位置の特定が容易であることがわかります。
 
 ## 2. 応力集中と再分布 (Stress Concentration)
@@ -29,7 +29,7 @@
 
 | Stress Analysis Comparison (Healthy vs Defective vs Residual) |
 |:---:|
-| ![Stress Comparison](images/defects/stress_comparison.png) |
+| ![Stress Comparison](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/defects/stress_comparison.png) |
 
 *   **現象**: 欠陥エッジ周辺に応力集中が発生（Stress Concentration）。一方で、荷重伝達が遮断される剥離内部では応力が低下するケースもあります（本シミュレーションでは簡易的に応力集中を強調表示）。
 *   **検出難易度**: 変位に比べて応力変化は局所的かつ急峻であるため、センサー配置密度が検出性能に大きく影響します。
