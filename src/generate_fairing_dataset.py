@@ -143,7 +143,7 @@ def create_sections(model):
         name='Section-CFRP-Skin', preIntegrate=OFF, 
         idealization=NO_IDEALIZATION, layup=entries, symmetric=OFF, 
         thicknessType=UNIFORM, poissonDefinition=DEFAULT, 
-        temperature=GRADIENT, integrationRule=SIMPSON, numIntPts=3)
+        temperature=GRADIENT, integrationRule=SIMPSON)
 
     # Solid Section for Core
     model.HomogeneousSolidSection(
