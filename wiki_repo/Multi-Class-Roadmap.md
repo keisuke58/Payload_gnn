@@ -3,16 +3,18 @@
 # マルチクラス分類ロードマップ — Multi-Class Classification Roadmap
 
 > 最終更新: 2026-02-28  
-> debonding のみから **debond / delam / impact / healthy** の 4 クラス分類への拡張計画。
+> debonding のみから **debond / delam / impact / healthy** の 4 クラス分類への拡張計画。  
+> **2年研究計画** の一環 → [2-Year-Goals](2-Year-Goals)
 
 ---
 
 ## 1. 目標
 
-| 現状 | 目標 |
-|------|------|
+| 現状 | 目標 (2年後) |
+|------|---------------|
 | 2 クラス (defect / healthy) | **4 クラス** (debond / delam / impact / healthy) |
 | デボンディングのみ検出 | 複合材フェアリングの主要損傷を網羅 |
+| マクロ F1 | **> 0.70** (4 クラス) |
 
 ---
 
