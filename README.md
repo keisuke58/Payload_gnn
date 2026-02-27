@@ -151,6 +151,14 @@ Payload2026/
 
 Defect size distribution: Small 30%, Medium 40%, Large 25%, Critical 5%.
 
+### Dataset Progress Visualization
+
+[**→ Full visualization (docs/DATASET_VISUALIZATION.md)](docs/DATASET_VISUALIZATION.md)
+
+| Summary | Feature Distributions |
+|:-------:|:---------------------:|
+| [![Summary](https://github.com/keisuke58/Payload_gnn/raw/main/wiki_repo/images/progress/01_summary_dashboard.png)](docs/DATASET_VISUALIZATION.md) | [![Features](https://github.com/keisuke58/Payload_gnn/raw/main/wiki_repo/images/progress/02_feature_distributions.png)](docs/DATASET_VISUALIZATION.md) |
+
 ---
 
 ## 📚 Documentation
