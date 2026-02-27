@@ -1,6 +1,7 @@
-# GitHub Issues — タスク一覧
+# GitHub Issues — Task Index
 
-> ロードマップに基づく Issue 一覧。詳細は各 Issue を参照。
+> ロードマップに基づく Issue 一覧。詳細は各 Issue を参照。  
+> [Open Issues](https://github.com/keisuke58/Payload_gnn/issues)
 
 | # | タイトル | フェーズ |
 |---|----------|----------|

@@ -14,7 +14,7 @@
 | **データ** | [データセット形式](Dataset-Format), [欠陥生成](Defect-Generation-and-Labeling), [生成状況](Dataset-Generation-Status), [完璧度スコア](Dataset-Perfect-Score), [マルチクラス](Multi-Class-Roadmap), [外部データセット調査](Dataset-Survey) |
 | **用語** | [英単語集](Vocabulary) |
 | **事故分析** | [F8事故](F8-Accident-Analysis), [SHM文脈](SHM-Context) |
-| **研究** | [2年目標](2-Year-Goals), [ロードマップ](Roadmap), [理想vs実装](Ideal-vs-Implementation), [文献レビュー](Literature-Review), [研究レポート](Research-Report), [投稿先](Publication-Venues), [想定Q&A](Anticipated-QA) |
+| **研究** | [2年目標](2-Year-Goals), [ロードマップ](Roadmap), [ベンチマーク目標](Benchmark-Targets), [理想vs実装](Ideal-vs-Implementation), [文献レビュー](Literature-Review), [研究レポート](Research-Report), [投稿先](Publication-Venues), [想定Q&A](Anticipated-QA) |
 | **タスク** | [GitHub Issues](https://github.com/keisuke58/Payload_gnn/issues) |
 
 ---

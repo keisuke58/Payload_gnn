@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+title: GNN-SHM - Graph Neural Networks for H3 Rocket Fairing Structural Health Monitoring
+message: 'If you use this software, please cite it as below.'
+authors:
+  - name: Payload2026 Contributors
+    url: https://github.com/keisuke58/Payload_gnn
+repository-code: https://github.com/keisuke58/Payload_gnn
+license: MIT
+keywords:
+  - GNN
+  - structural health monitoring
+  - CFRP
+  - debonding
+  - JAXA
+  - H3 rocket
+  - PyTorch Geometric
+  - Abaqus
+type: software
+date-released: '2026-02-28'

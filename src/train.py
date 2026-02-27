@@ -163,25 +163,32 @@ def train(args, train_data, val_data, fold=None):
     param_count = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print("Model: %s | Params: %d | Device: %s" % (args.arch.upper(), param_count, device))
 
-    # Compute dynamic alpha from actual class distribution
-    if args.focal_alpha == 0.0:
-        # Auto: alpha = n_healthy / n_total (gives higher weight to defect class)
-        n_total = sum(d.y.numel() for d in train_data)
-        n_defect = sum((d.y == 1).sum().item() for d in train_data)
-        if n_defect > 0 and n_total > n_defect:
-            alpha = 1.0 - (n_defect / n_total)  # e.g., 0.99 if 1% defect
-            alpha = min(alpha, 0.95)  # cap
-        else:
-            alpha = 0.75
-        print("Focal Loss alpha (auto): %.4f (defect ratio: %.4f%%)" %
-              (alpha, 100.0 * n_defect / max(n_total, 1)))
-    else:
-        alpha = args.focal_alpha
+    # Compute class weights from actual distribution
+    n_total = sum(d.y.numel() for d in train_data)
+    n_defect = sum((d.y == 1).sum().item() for d in train_data)
+    n_healthy = n_total - n_defect
+    defect_ratio = n_defect / max(n_total, 1)
+    print("Class distribution: %d healthy, %d defect (%.4f%%)" %
+          (n_healthy, n_defect, 100.0 * defect_ratio))
 
     # Optimizer, scheduler, criterion
     optimizer = Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     scheduler = CosineAnnealingLR(optimizer, T_max=args.epochs, eta_min=1e-6)
-    criterion = FocalLoss(alpha=alpha, gamma=args.focal_gamma)
+
+    if args.loss == 'weighted_ce':
+        # Inverse frequency class weights
+        if n_defect > 0:
+            w_healthy = n_total / (2.0 * n_healthy)
+            w_defect = n_total / (2.0 * n_defect)
+        else:
+            w_healthy, w_defect = 1.0, 1.0
+        class_weights = torch.tensor([w_healthy, w_defect], dtype=torch.float).to(device)
+        print("Loss: WeightedCE — weights=[%.2f, %.2f]" % (w_healthy, w_defect))
+        criterion = nn.CrossEntropyLoss(weight=class_weights)
+    else:
+        alpha = args.focal_alpha if args.focal_alpha > 0 else min(1.0 - defect_ratio, 0.95)
+        print("Loss: FocalLoss — alpha=%.4f, gamma=%.1f" % (alpha, args.focal_gamma))
+        criterion = FocalLoss(alpha=alpha, gamma=args.focal_gamma)
 
     # Logging
     fold_str = '_fold%d' % fold if fold is not None else ''
@@ -315,6 +322,9 @@ def main():
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--weight_decay', type=float, default=1e-5)
     parser.add_argument('--patience', type=int, default=30)
+    parser.add_argument('--loss', type=str, default='weighted_ce',
+                        choices=['weighted_ce', 'focal'],
+                        help='Loss function (default: weighted_ce)')
     parser.add_argument('--focal_alpha', type=float, default=0.0,
                         help='Focal loss alpha (0=auto from class ratio)')
     parser.add_argument('--focal_gamma', type=float, default=2.0)
