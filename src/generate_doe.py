@@ -1,65 +1,47 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-DOE Parameter Generation — Latin Hypercube Sampling
+DOE Parameter Generation — Stratified Latin Hypercube Sampling
 
-Generates debonding defect parameters using Latin Hypercube Sampling (LHS)
-for efficient coverage of the parameter space.
+Generates debonding defect parameters for H3 fairing FEM.
+Size-stratified to cover: Small (10-30mm), Medium (30-80), Large (80-150), Critical (150-250).
+Based on docs/DEFECT_PLAN.md (JAXA H3 researcher acceptance).
 
 Usage:
+  python src/generate_doe.py --n_samples 50 --output doe_phase1.json
   python src/generate_doe.py --n_samples 500 --output doe_params.json
-  python src/generate_doe.py --n_samples 50 --seed 123 --output doe_test.json
-
-Output: JSON file with sampled parameters for batch FEM generation.
 """
 
 import argparse
 import json
-import sys
-
-from scipy.stats.qmc import LatinHypercube
 import numpy as np
+from scipy.stats.qmc import LatinHypercube
 
-# Parameter bounds for H3 fairing (1/6 sector, 60° arc)
-DEFAULT_BOUNDS = {
-    'theta_deg': (10.0, 50.0),     # degrees (within 60° arc, margin from edges)
-    'z_center':  (500.0, 4500.0),  # mm (margin from clamped bottom & top)
-    'radius':    (50.0, 300.0),    # mm (debonding patch size)
-}
+# JAXA-relevant bounds (see docs/DEFECT_PLAN.md)
+THETA_RANGE = (5.0, 55.0)   # deg, margin from symmetry edges
+Z_RANGE = (800.0, 4200.0)   # mm, Barrel section, avoid clamp/top
+
+# Size tiers: (low, high) mm, (fraction of samples)
+SIZE_TIERS = [
+    ('Small', 10.0, 30.0, 0.30),    # BVID-like, detection limit
+    ('Medium', 30.0, 80.0, 0.40),   # In-service detectable
+    ('Large', 80.0, 150.0, 0.25),   # Significant, growth risk
+    ('Critical', 150.0, 250.0, 0.05),  # Pre-failure
+]
 
 
-def generate_doe(n_samples, bounds=None, seed=42, n_healthy=1):
+def generate_doe(n_samples, seed=42, n_healthy=0):
     """
-    Generate DOE parameters using Latin Hypercube Sampling.
-
-    Args:
-        n_samples: number of defective samples to generate
-        bounds: dict of parameter bounds {name: (low, high)}
-        seed: random seed for reproducibility
-        n_healthy: number of healthy baseline samples (prepended)
+    Generate DOE with stratified radius sampling.
 
     Returns:
         dict with 'samples' list and metadata
     """
-    if bounds is None:
-        bounds = DEFAULT_BOUNDS
+    np.random.seed(seed)
 
-    param_names = list(bounds.keys())
-    d = len(param_names)
-    lows = np.array([bounds[k][0] for k in param_names])
-    highs = np.array([bounds[k][1] for k in param_names])
-
-    # Latin Hypercube Sampling
-    sampler = LatinHypercube(d=d, seed=seed)
-    unit_samples = sampler.random(n=n_samples)
-
-    # Scale to physical bounds
-    scaled = lows + unit_samples * (highs - lows)
-
-    # Build sample list
     samples = []
 
-    # Healthy baseline(s) first
+    # Healthy baseline(s)
     for i in range(n_healthy):
         samples.append({
             'id': i,
@@ -67,23 +49,51 @@ def generate_doe(n_samples, bounds=None, seed=42, n_healthy=1):
             'defect_params': None,
         })
 
-    # Defective samples
-    for i in range(n_samples):
-        sample_id = n_healthy + i
-        params = {param_names[j]: round(float(scaled[i, j]), 2)
-                  for j in range(d)}
-        samples.append({
-            'id': sample_id,
-            'job_name': 'H3_Debond_%04d' % sample_id,
-            'defect_params': params,
-        })
+    # Assign each defective sample to a size tier
+    n_defect = n_samples
+    tier_counts = []
+    remaining = n_defect
+    for name, lo, hi, frac in SIZE_TIERS[:-1]:
+        n = max(0, int(n_defect * frac))
+        tier_counts.append((name, lo, hi, n))
+        remaining -= n
+    tier_counts.append((SIZE_TIERS[-1][0], SIZE_TIERS[-1][1], SIZE_TIERS[-1][2], remaining))
+
+    # LHS for theta and z (2D)
+    sampler = LatinHypercube(d=2, seed=seed)
+    unit = sampler.random(n=n_defect)
+    theta = THETA_RANGE[0] + unit[:, 0] * (THETA_RANGE[1] - THETA_RANGE[0])
+    z_center = Z_RANGE[0] + unit[:, 1] * (Z_RANGE[1] - Z_RANGE[0])
+
+    idx = 0
+    for tier_name, r_lo, r_hi, count in tier_counts:
+        for _ in range(count):
+            sample_id = n_healthy + idx
+            r = r_lo + np.random.rand() * (r_hi - r_lo)
+            params = {
+                'theta_deg': round(float(theta[idx]), 2),
+                'z_center': round(float(z_center[idx]), 2),
+                'radius': round(float(r), 2),
+            }
+            samples.append({
+                'id': sample_id,
+                'job_name': 'H3_Debond_%04d' % sample_id,
+                'defect_params': params,
+                'size_tier': tier_name,
+            })
+            idx += 1
 
     doe = {
         'n_total': len(samples),
         'n_healthy': n_healthy,
-        'n_defective': n_samples,
-        'bounds': {k: list(v) for k, v in bounds.items()},
+        'n_defective': n_defect,
+        'bounds': {
+            'theta_deg': list(THETA_RANGE),
+            'z_center': list(Z_RANGE),
+            'radius_tiers': [{'name': t[0], 'min': t[1], 'max': t[2], 'frac': t[3]} for t in SIZE_TIERS],
+        },
         'seed': seed,
+        'plan_reference': 'docs/DEFECT_PLAN.md',
         'samples': samples,
     }
 
@@ -92,15 +102,13 @@ def generate_doe(n_samples, bounds=None, seed=42, n_healthy=1):
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Generate DOE parameters for debonding FEM batch')
-    parser.add_argument('--n_samples', type=int, default=500,
-                        help='Number of defective samples (default: 500)')
-    parser.add_argument('--n_healthy', type=int, default=1,
-                        help='Number of healthy baselines (default: 1)')
-    parser.add_argument('--seed', type=int, default=42,
-                        help='Random seed (default: 42)')
-    parser.add_argument('--output', type=str, default='doe_params.json',
-                        help='Output JSON file path')
+        description='Generate DOE for H3 fairing debonding (JAXA-relevant plan)')
+    parser.add_argument('--n_samples', type=int, default=50,
+                        help='Number of defective samples (default: 50 for Phase 1)')
+    parser.add_argument('--n_healthy', type=int, default=0,
+                        help='Number of healthy baselines to include (default: 0, use existing)')
+    parser.add_argument('--seed', type=int, default=42)
+    parser.add_argument('--output', type=str, default='doe_params.json')
     args = parser.parse_args()
 
     doe = generate_doe(
@@ -112,11 +120,10 @@ def main():
     with open(args.output, 'w') as f:
         json.dump(doe, f, indent=2)
 
-    print("Generated DOE: %d total samples (%d healthy + %d defective)" %
-          (doe['n_total'], doe['n_healthy'], doe['n_defective']))
+    print("Generated DOE: %d defective samples" % doe['n_defective'])
     print("  theta_deg: [%.1f, %.1f]" % tuple(doe['bounds']['theta_deg']))
-    print("  z_center:  [%.1f, %.1f]" % tuple(doe['bounds']['z_center']))
-    print("  radius:    [%.1f, %.1f]" % tuple(doe['bounds']['radius']))
+    print("  z_center:  [%.1f, %.1f] mm" % tuple(doe['bounds']['z_center']))
+    print("  Size tiers: Small 10-30, Medium 30-80, Large 80-150, Critical 150-250 mm")
     print("Saved to: %s" % args.output)
 
 
