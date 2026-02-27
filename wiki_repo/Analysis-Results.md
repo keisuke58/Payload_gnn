@@ -16,7 +16,7 @@
 
 | 3D Displacement Field | Unfolded 2D Map (Theta-Z) |
 |:---:|:---:|
-| ![Displacement 3D](images/analysis/displacement_3d.png) | ![Displacement 2D](images/analysis/displacement_2d_map.png) |
+| ![Displacement 3D](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/analysis/displacement_3d.png) | ![Displacement 2D](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/analysis/displacement_2d_map.png) |
 
 *   **最大変位**: 先端部およびバレル中央部で発生。
 *   **挙動**: 軸対称荷重下でも、内部補強材やフェアリング分割面の影響により局所的な変形モードが現れます。
@@ -28,7 +28,7 @@ CFRPフェースシートに発生する Von Mises 相当応力の分布。
 
 | 3D Stress Distribution | Unfolded 2D Map (Theta-Z) |
 |:---:|:---:|
-| ![Stress 3D](images/analysis/stress_3d.png) | ![Stress 2D](images/analysis/stress_2d_map.png) |
+| ![Stress 3D](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/analysis/stress_3d.png) | ![Stress 2D](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/analysis/stress_2d_map.png) |
 
 *   **最大応力**: 固定端（Z=0）付近で約 **75 MPa**。
 *   **安全性**: CFRP (T1000G) の引張強度は >2000 MPa であり、十分な安全率が確保されています。
@@ -39,7 +39,7 @@ CFRPフェースシートに発生する Von Mises 相当応力の分布。
 第1次曲げモード（1st Bending Mode）のモードシェイプ。
 ロケット全体の制御系設計において重要なパラメータです。
 
-![Mode Shape 1](images/analysis/mode_shape_1.png)
+![Mode Shape 1](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/analysis/mode_shape_1.png)
 
 *   **周波数**: **63.1 Hz** (Analytical Estimate)
 *   **モード**: シンプルな片持ち梁の1次曲げモード。
