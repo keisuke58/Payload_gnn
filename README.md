@@ -70,26 +70,38 @@ GNN 学習 (GCN / GAT / GIN / SAGE)
 ```
 Payload2026/
 ├── src/
-│   ├── generate_fairing_dataset.py  # Abaqus: H3 FEM + 熱解析 + CSV出力
-│   ├── build_graph.py               # 曲率対応グラフ構築 (18次元特徴量)
-│   ├── preprocess_fairing_data.py   # FEM CSV → PyG Data (12次元特徴量)
-│   ├── models.py                    # GNN (GCN/GAT/GIN/SAGE)
-│   ├── train.py                     # 学習 (Focal Loss, CV, Early Stopping)
-│   ├── evaluate.py                  # 評価・ヒートマップ・比較
-│   └── predict_api.py               # 推論 API (FastAPI)
-├── abaqus_work/
-│   └── extract_odb_mesh.py          # Abaqus ODB → メッシュ抽出
-├── JAXA_LIBRARY/                    # JAXA技術文書 (Epsilon Manual, JMR-002等)
-│   ├── H3_ROCKET_SPECS.md           # H3仕様・打ち上げ履歴
-│   └── SHM_RESEARCH_SUMMARY.md      # SHM技術サーベイ
+│   ├── generate_fairing_dataset.py  # Abaqus: H3 FEM (Barrel+Ogive) + CSV出力
+│   ├── extract_odb_results.py      # ODB → nodes/elements CSV 抽出
+│   ├── run_batch.py                # バッチ FEM 生成
+│   ├── build_graph.py              # 曲率対応グラフ構築 (18次元特徴量)
+│   ├── preprocess_fairing_data.py  # FEM CSV → PyG Data
+│   ├── models.py                   # GNN (GCN/GAT/GIN/SAGE)
+│   ├── train.py                    # 学習 (Focal Loss, CV, Early Stopping)
+│   ├── evaluate.py                 # 評価・ヒートマップ・比較
+│   └── predict_api.py              # 推論 API (FastAPI)
+├── dataset_output/                 # FEM 抽出 CSV（サンプルデータ付き）
+│   ├── healthy_baseline/           # 健全ベースライン
+│   ├── sample_0001/                # デボンディングサンプル
+│   └── README.md                   # データセット仕様
+├── runs/                           # 学習済みモデル
 ├── scripts/
-│   └── run_pipeline.sh              # パイプライン一括実行
-├── WIKI.md                          # 技術Wiki (H3詳細・SHM・GNN根拠)
-├── LITERATURE_REVIEW.md             # 文献レビュー (OGW, GNN-SHM)
-├── RESEARCH_REPORT.md               # リサーチレポート
-├── ROADMAP.md                       # 開発ロードマップ
+│   ├── run_pipeline.sh             # パイプライン一括実行
+│   └── inspect_pyg_data.py         # PyG データ構造確認
+├── JAXA_LIBRARY/                   # JAXA技術文書
+├── WIKI.md                         # 技術Wiki
+├── LITERATURE_REVIEW.md            # 文献レビュー
+├── RESEARCH_REPORT.md              # リサーチレポート
+├── ROADMAP.md                      # 開発ロードマップ
 └── requirements.txt
 ```
+
+## データセット
+
+`dataset_output/` にサンプルデータ（healthy_baseline, sample_0001）が含まれています。詳細は [dataset_output/README.md](dataset_output/README.md) を参照してください。
+
+- **nodes.csv**: 座標 (x,y,z), 応力 (s11,s22,s12), 変位 (dspss), 欠陥ラベル
+- **elements.csv**: 要素接続
+- **metadata.csv**: 欠陥パラメータ
 
 ## クイックスタート
 
@@ -99,7 +111,7 @@ pip install -r requirements.txt
 # フルパイプライン
 bash scripts/run_pipeline.sh
 
-# Abaqusなしで実行
+# Abaqusなしで実行（既存CSV使用）
 bash scripts/run_pipeline.sh --skip-abaqus
 
 # 個別実行

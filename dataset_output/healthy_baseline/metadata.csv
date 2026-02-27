@@ -1,0 +1,7 @@
+key,value
+defect_type,healthy
+defect_radius,0
+odb_file,H3_Healthy.odb
+n_nodes,22220
+n_elements,16200
+n_defect_nodes,0

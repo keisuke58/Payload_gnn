@@ -12,7 +12,7 @@ from torch.utils.data import Dataset, DataLoader
 # =========================================================================
 # 1. UV Mapping (Cylindrical Projection)
 # =========================================================================
-def map_to_uv(df_nodes, width=512, height=512, radius=2600.0, h_max=5000.0):
+def map_to_uv(df_nodes, width=512, height=512, radius=2600.0, h_max=10400.0):
     """
     Map 3D cylindrical coordinates (x, y, z) to 2D UV image.
     

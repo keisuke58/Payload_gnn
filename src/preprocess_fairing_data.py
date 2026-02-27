@@ -142,7 +142,7 @@ def classify_nodes(pos, mesh_size, height):
 # Single sample processing
 # =========================================================================
 def process_single_sample(sample_dir, baseline_dspss=None, mesh_size=50.0,
-                          height=5000.0):
+                          height=10400.0):
     """
     Process a single sample directory containing nodes.csv, elements.csv, metadata.csv.
     Returns a PyG Data object.

@@ -25,12 +25,26 @@ import json
 
 # Geometry constants (must match generate_fairing_dataset.py)
 RADIUS = 2600.0
+H_BARREL = 5000.0
+H_NOSE = 5400.0
+OGIVE_XC = (RADIUS**2 - H_NOSE**2) / (2 * RADIUS)
+OGIVE_RHO = RADIUS - OGIVE_XC
+
 FACE_T = 0.125 * 8  # 1.0 mm
 CORE_T = 38.0
 R_CORE_O = RADIUS - FACE_T / 2.0
 R_CORE_I = R_CORE_O - CORE_T
 R_OUTER = RADIUS
 R_INNER = RADIUS - FACE_T - CORE_T
+
+def get_radius_at_z(z):
+    if z <= H_BARREL:
+        return RADIUS
+    else:
+        dz = z - H_BARREL
+        term = OGIVE_RHO**2 - dz**2
+        if term < 0: return 0.0
+        return OGIVE_XC + math.sqrt(term)
 
 ELEM_TYPE_MAP = {
     'S4R': 'S4R', 'S4RT': 'S4RT', 'S3': 'S3', 'S3R': 'S3',
@@ -57,17 +71,31 @@ def _get_part_name(inst_name):
 
 
 def _is_in_debonding_zone(x, y, z, defect_params, surface_tol=5.0):
-    r = math.sqrt(x**2 + y**2)
-    near_outer_skin = abs(r - R_OUTER) < surface_tol
-    near_core_outer = abs(r - R_CORE_O) < surface_tol
+    r_node = math.sqrt(x**2 + y**2)
+    r_outer_at_z = get_radius_at_z(z)
+    
+    # Check if node is on the relevant surfaces (Outer Skin or Core Outer Surface)
+    # Note: R_CORE_O is offset from R_OUTER by FACE_T/2
+    r_core_o_at_z = r_outer_at_z - FACE_T / 2.0
+    
+    near_outer_skin = abs(r_node - r_outer_at_z) < surface_tol
+    near_core_outer = abs(r_node - r_core_o_at_z) < surface_tol
+    
     if not (near_outer_skin or near_core_outer):
         return False
+
     theta = math.atan2(y, x)
     theta_c = math.radians(defect_params['theta_deg'])
     z_c = defect_params['z_center']
     r_def = defect_params['radius']
-    d_theta = r_def / R_CORE_O
+    
+    # Calculate angular width based on the radius at the defect center
+    r_center = get_radius_at_z(z_c) - FACE_T / 2.0
+    if r_center <= 0.001: return False
+
+    d_theta = r_def / r_center
     d_z = r_def
+    
     in_theta = (theta_c - d_theta) <= theta <= (theta_c + d_theta)
     in_z = (z_c - d_z) <= z <= (z_c + d_z)
     return in_theta and in_z
