@@ -43,6 +43,8 @@ from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch_geometric.loader import DataLoader
 from sklearn.metrics import f1_score, precision_score, recall_score, roc_auc_score
 
+from torch.utils.tensorboard import SummaryWriter
+
 from models import build_model
 from subgraph_sampler import DefectCentricSampler
 
@@ -324,6 +326,7 @@ def train(args, train_data, val_data, fold=None):
     gpu_suffix = '_ddp%d' % world_size if multi_gpu else ''
     run_name = '%s_%s%s%s' % (args.arch, datetime.now().strftime('%Y%m%d_%H%M%S'), fold_str, gpu_suffix)
     run_dir = os.path.join(args.output_dir, run_name)
+    tb_writer = None
     if is_main:
         os.makedirs(run_dir, exist_ok=True)
         log_path = os.path.join(run_dir, 'training_log.csv')
@@ -331,6 +334,9 @@ def train(args, train_data, val_data, fold=None):
             writer = csv_module.writer(f)
             writer.writerow(['epoch', 'train_loss', 'train_f1', 'train_acc',
                              'val_loss', 'val_f1', 'val_acc', 'val_auc', 'lr'])
+        # TensorBoard
+        tb_writer = SummaryWriter(log_dir=run_dir)
+        tb_writer.add_text('config', json.dumps(vars(args), indent=2))
 
     # Training
     best_val_f1 = 0.0
@@ -353,7 +359,7 @@ def train(args, train_data, val_data, fold=None):
         lr = optimizer.param_groups[0]['lr']
 
         if is_main:
-            # Log
+            # Log CSV
             with open(log_path, 'a', newline='') as f:
                 writer = csv_module.writer(f)
                 writer.writerow([epoch, '%.6f' % train_m['loss'], '%.4f' % train_m['f1'],
@@ -361,6 +367,22 @@ def train(args, train_data, val_data, fold=None):
                                  '%.6f' % val_m['loss'], '%.4f' % val_m['f1'],
                                  '%.4f' % val_m['accuracy'], '%.4f' % val_m['auc'],
                                  '%.2e' % lr])
+
+            # Log TensorBoard
+            if tb_writer is not None:
+                tb_writer.add_scalars('loss', {'train': train_m['loss'], 'val': val_m['loss']}, epoch)
+                tb_writer.add_scalars('f1', {'train': train_m['f1'], 'val': val_m['f1']}, epoch)
+                tb_writer.add_scalars('accuracy', {'train': train_m['accuracy'], 'val': val_m['accuracy']}, epoch)
+                tb_writer.add_scalar('val/auc', val_m['auc'], epoch)
+                tb_writer.add_scalar('val/precision', val_m['precision'], epoch)
+                tb_writer.add_scalar('val/recall', val_m['recall'], epoch)
+                tb_writer.add_scalar('lr', lr, epoch)
+                if num_classes > 2:
+                    for c in range(num_classes):
+                        name = DEFECT_TYPE_NAMES[c] if c < len(DEFECT_TYPE_NAMES) else 'class_%d' % c
+                        key = 'f1_%s' % name
+                        if key in val_m:
+                            tb_writer.add_scalar('val_f1_class/%s' % name, val_m[key], epoch)
 
             if epoch % args.log_every == 0 or epoch == 1:
                 msg = ("  Epoch %3d/%d | Train F1=%.4f Loss=%.4f | "
@@ -422,6 +444,14 @@ def train(args, train_data, val_data, fold=None):
                 name = DEFECT_TYPE_NAMES[c] if c < len(DEFECT_TYPE_NAMES) else 'class_%d' % c
                 key = 'f1_%s' % name
                 print("    %s: %.4f" % (name, best_m.get(key, 0.0)))
+
+        if tb_writer is not None:
+            tb_writer.add_hparams(
+                {'arch': args.arch, 'lr': args.lr, 'hidden': args.hidden,
+                 'layers': args.layers, 'dropout': args.dropout,
+                 'loss': args.loss, 'batch_size': args.batch_size},
+                {'hparam/best_val_f1': best_val_f1})
+            tb_writer.close()
 
     return run_dir, best_val_f1
 
