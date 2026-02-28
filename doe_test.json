@@ -1,0 +1,75 @@
+{
+  "n_total": 3,
+  "n_healthy": 0,
+  "n_defective": 3,
+  "bounds": {
+    "theta_deg": [
+      5.0,
+      55.0
+    ],
+    "z_center": [
+      800.0,
+      4200.0
+    ],
+    "radius_tiers": [
+      {
+        "name": "Small",
+        "min": 10.0,
+        "max": 30.0,
+        "frac": 0.3
+      },
+      {
+        "name": "Medium",
+        "min": 30.0,
+        "max": 80.0,
+        "frac": 0.4
+      },
+      {
+        "name": "Large",
+        "min": 80.0,
+        "max": 150.0,
+        "frac": 0.25
+      },
+      {
+        "name": "Critical",
+        "min": 150.0,
+        "max": 250.0,
+        "frac": 0.05
+      }
+    ]
+  },
+  "seed": 42,
+  "plan_reference": "docs/DEFECT_PLAN.md",
+  "samples": [
+    {
+      "id": 0,
+      "job_name": "H3_Debond_0000",
+      "defect_params": {
+        "theta_deg": 8.77,
+        "z_center": 3702.6,
+        "radius": 48.73
+      },
+      "size_tier": "Medium"
+    },
+    {
+      "id": 1,
+      "job_name": "H3_Debond_0001",
+      "defect_params": {
+        "theta_deg": 40.69,
+        "z_center": 2276.32,
+        "radius": 245.07
+      },
+      "size_tier": "Critical"
+    },
+    {
+      "id": 2,
+      "job_name": "H3_Debond_0002",
+      "defect_params": {
+        "theta_deg": 36.76,
+        "z_center": 827.63,
+        "radius": 223.2
+      },
+      "size_tier": "Critical"
+    }
+  ]
+}

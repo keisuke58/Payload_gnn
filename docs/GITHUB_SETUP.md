@@ -79,7 +79,32 @@ https://github.com/keisuke58/Payload_gnn/blob/main/wiki_repo/Home.md
 
 ---
 
-## 6. 発見性向上のコツ
+## 6. Wiki の push（wiki_repo）
+
+`wiki_repo` は main リポジトリ内で管理。push は以下で完璧に実行:
+
+```bash
+# 変更をコミットして push（デフォルトメッセージ）
+./scripts/wiki_push.sh
+
+# カスタムメッセージ
+./scripts/wiki_push.sh "docs(wiki): add Defect-Physics-Validation"
+
+# ドライラン（実際には push しない）
+./scripts/wiki_push.sh -n
+
+# 非対話モード（CI 用）
+./scripts/wiki_push.sh -y "docs(wiki): automated update"
+```
+
+スクリプトは以下を自動実行:
+- リモート確認
+- 画像参照の簡易検証
+- `wiki_repo/` の stage → commit → push
+
+---
+
+## 7. 発見性向上のコツ
 
 1. **README の先頭**に明確な価値提案 (Done)
 2. **Badges** で技術スタックを明示 (Done)
@@ -87,3 +112,4 @@ https://github.com/keisuke58/Payload_gnn/blob/main/wiki_repo/Home.md
 4. **CONTRIBUTING.md** で貢献を歓迎 (Done)
 5. **定期的なコミット**でアクティブさをアピール
 6. **関連プロジェクト** (OGW, PyG, Abaqus) の README で言及してもらう
+7. **Wiki 更新後**は `./scripts/wiki_push.sh` で確実に push

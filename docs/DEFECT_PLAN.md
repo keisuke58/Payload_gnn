@@ -111,3 +111,4 @@
 - NASA NTRS 20160005994: Face Sheet/Core Disbond Growth
 - MDPI Appl. Sci. 2020: Honeycomb Sandwich Panels with Face/Core Debonding
 - KHI ANSWERS: H3 フェアリング製造技術
+- **全欠陥の学術的根拠**: [DEFECT_MODELS_ACADEMIC.md](DEFECT_MODELS_ACADEMIC.md) — CFRP 専門家（教授レベル）レビュー対応

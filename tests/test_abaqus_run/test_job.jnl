@@ -1,0 +1,298 @@
+# -*- coding: mbcs -*-
+from part import *
+from material import *
+from section import *
+from assembly import *
+from step import *
+from interaction import *
+from load import *
+from mesh import *
+from optimization import *
+from job import *
+from sketch import *
+from visualization import *
+from connectorBehavior import *
+mdb.models['Model-1'].Material(name='CFRP_T1000G')
+mdb.models['Model-1'].materials['CFRP_T1000G'].Elastic(table=((160000.0, 
+    10000.0, 0.3, 5000.0, 5000.0, 3000.0), ), type=LAMINA)
+mdb.models['Model-1'].materials['CFRP_T1000G'].Density(table=((1.6e-09, ), ))
+mdb.models['Model-1'].materials['CFRP_T1000G'].Expansion(table=((2e-06, 2e-06, 
+    0.0), ))
+mdb.models['Model-1'].Material(name='AL_HONEYCOMB')
+mdb.models['Model-1'].materials['AL_HONEYCOMB'].Elastic(table=((1.0, 1.0, 
+    1000.0, 0.01, 0.01, 0.01, 1.0, 400.0, 240.0), ), type=
+    ENGINEERING_CONSTANTS)
+mdb.models['Model-1'].materials['AL_HONEYCOMB'].Density(table=((5e-11, ), ))
+mdb.models['Model-1'].materials['AL_HONEYCOMB'].Expansion(table=((2.3e-05, ), 
+    ))
+mdb.models['Model-1'].CompositeShellSection(idealization=NO_IDEALIZATION, 
+    integrationRule=SIMPSON, layup=[SectionLayer(thickness=0.125, 
+    orientAngle=45.0, material='CFRP_T1000G'), SectionLayer(thickness=0.125, 
+    material='CFRP_T1000G'), SectionLayer(thickness=0.125, orientAngle=-45.0, 
+    material='CFRP_T1000G'), SectionLayer(thickness=0.125, orientAngle=90.0, 
+    material='CFRP_T1000G'), SectionLayer(thickness=0.125, orientAngle=90.0, 
+    material='CFRP_T1000G'), SectionLayer(thickness=0.125, orientAngle=-45.0, 
+    material='CFRP_T1000G'), SectionLayer(thickness=0.125, 
+    material='CFRP_T1000G'), SectionLayer(thickness=0.125, orientAngle=45.0, 
+    material='CFRP_T1000G')], name='Section-CFRP-Skin', poissonDefinition=
+    DEFAULT, preIntegrate=OFF, symmetric=OFF, temperature=GRADIENT, 
+    thicknessType=UNIFORM)
+mdb.models['Model-1'].HomogeneousSolidSection(material='AL_HONEYCOMB', name=
+    'Section-Core', thickness=None)
+mdb.models['Model-1'].ConstrainedSketch(name='profile_inner', sheetSize=
+    20000.0)
+mdb.models['Model-1'].sketches['profile_inner'].ConstructionLine(point1=(0.0, 
+    -100.0), point2=(0.0, 11400.0))
+mdb.models['Model-1'].sketches['profile_inner'].Line(point1=(2600.0, 0.0), 
+    point2=(2600.0, 5000.0))
+mdb.models['Model-1'].sketches['profile_inner'].Line(point1=(2600.0, 5000.0), 
+    point2=(0.0, 10400.0))
+mdb.models['Model-1'].Part(dimensionality=THREE_D, name='Part-InnerSkin', type=
+    DEFORMABLE_BODY)
+mdb.models['Model-1'].parts['Part-InnerSkin'].BaseShellRevolve(angle=60.0, 
+    flipRevolveDirection=OFF, sketch=
+    mdb.models['Model-1'].sketches['profile_inner'])
+mdb.models['Model-1'].ConstrainedSketch(name='profile_core', sheetSize=20000.0)
+mdb.models['Model-1'].sketches['profile_core'].ConstructionLine(point1=(0.0, 
+    -100.0), point2=(0.0, 11400.0))
+mdb.models['Model-1'].sketches['profile_core'].Line(point1=(2600.0, 0.0), 
+    point2=(2600.0, 5000.0))
+mdb.models['Model-1'].sketches['profile_core'].ArcByCenterEnds(center=(
+    -4307.69230769231, 5000.0), direction=COUNTERCLOCKWISE, point1=(2600.0, 
+    5000.0), point2=(0.0, 10400.0))
+mdb.models['Model-1'].sketches['profile_core'].Line(point1=(0.0, 10400.0), 
+    point2=(0.0, 10448.5253615437))
+mdb.models['Model-1'].sketches['profile_core'].ArcByCenterEnds(center=(
+    -4307.69230769231, 5000.0), direction=CLOCKWISE, point1=(0.0, 
+    10448.5253615437), point2=(2638.0, 5000.0))
+mdb.models['Model-1'].sketches['profile_core'].Line(point1=(2638.0, 5000.0), 
+    point2=(2638.0, 0.0))
+mdb.models['Model-1'].sketches['profile_core'].Line(point1=(2638.0, 0.0), 
+    point2=(2600.0, 0.0))
+mdb.models['Model-1'].Part(dimensionality=THREE_D, name='Part-Core', type=
+    DEFORMABLE_BODY)
+mdb.models['Model-1'].parts['Part-Core'].BaseSolidRevolve(angle=60.0, 
+    flipRevolveDirection=OFF, sketch=
+    mdb.models['Model-1'].sketches['profile_core'])
+mdb.models['Model-1'].ConstrainedSketch(name='profile_outer', sheetSize=
+    20000.0)
+mdb.models['Model-1'].sketches['profile_outer'].ConstructionLine(point1=(0.0, 
+    -100.0), point2=(0.0, 11400.0))
+mdb.models['Model-1'].sketches['profile_outer'].Line(point1=(2638.0, 0.0), 
+    point2=(2638.0, 5000.0))
+mdb.models['Model-1'].sketches['profile_outer'].ArcByCenterEnds(center=(
+    -4307.69230769231, 5000.0), direction=COUNTERCLOCKWISE, point1=(2638.0, 
+    5000.0), point2=(0.0, 10448.5253615437))
+mdb.models['Model-1'].Part(dimensionality=THREE_D, name='Part-OuterSkin', type=
+    DEFORMABLE_BODY)
+mdb.models['Model-1'].parts['Part-OuterSkin'].BaseShellRevolve(angle=60.0, 
+    flipRevolveDirection=OFF, sketch=
+    mdb.models['Model-1'].sketches['profile_outer'])
+mdb.models['Model-1'].parts['Part-InnerSkin'].Set(faces=
+    mdb.models['Model-1'].parts['Part-InnerSkin'].faces, name='Set-All')
+mdb.models['Model-1'].parts['Part-InnerSkin'].SectionAssignment(region=
+    mdb.models['Model-1'].parts['Part-InnerSkin'].sets['Set-All'], sectionName=
+    'Section-CFRP-Skin')
+mdb.models['Model-1'].parts['Part-InnerSkin'].MaterialOrientation(
+    additionalRotationType=ROTATION_NONE, axis=AXIS_3, localCsys=None, 
+    orientationType=GLOBAL, region=
+    mdb.models['Model-1'].parts['Part-InnerSkin'].sets['Set-All'])
+mdb.models['Model-1'].parts['Part-Core'].Set(cells=
+    mdb.models['Model-1'].parts['Part-Core'].cells, name='Set-All')
+mdb.models['Model-1'].parts['Part-Core'].SectionAssignment(region=
+    mdb.models['Model-1'].parts['Part-Core'].sets['Set-All'], sectionName=
+    'Section-Core')
+mdb.models['Model-1'].parts['Part-OuterSkin'].Set(faces=
+    mdb.models['Model-1'].parts['Part-OuterSkin'].faces, name='Set-All')
+mdb.models['Model-1'].parts['Part-OuterSkin'].SectionAssignment(region=
+    mdb.models['Model-1'].parts['Part-OuterSkin'].sets['Set-All'], sectionName=
+    'Section-CFRP-Skin')
+mdb.models['Model-1'].rootAssembly.DatumCsysByDefault(CARTESIAN)
+mdb.models['Model-1'].rootAssembly.Instance(dependent=OFF, name=
+    'Part-InnerSkin-1', part=mdb.models['Model-1'].parts['Part-InnerSkin'])
+mdb.models['Model-1'].rootAssembly.Instance(dependent=OFF, name='Part-Core-1', 
+    part=mdb.models['Model-1'].parts['Part-Core'])
+mdb.models['Model-1'].rootAssembly.Instance(dependent=OFF, name=
+    'Part-OuterSkin-1', part=mdb.models['Model-1'].parts['Part-OuterSkin'])
+mdb.models['Model-1'].rootAssembly.Surface(name='Surf_Inner', side1Faces=
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].faces)
+mdb.models['Model-1'].rootAssembly.Surface(name='Surf_Outer', side1Faces=
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].faces)
+mdb.models['Model-1'].rootAssembly.Set(faces=
+    [mdb.models['Model-1'].rootAssembly.instances['Part-Core-1'].faces[4]], 
+    name='BC_Bottom')
+#* Feature creation failed.
+mdb.models['Model-1'].StaticStep(name='Step-1', previous='Initial')
+mdb.models['Model-1'].fieldOutputRequests['F-Output-1'].setValues(variables=(
+    'S', 'U', 'RF', 'TEMP'))
+mdb.models['Model-1'].rootAssembly.seedPartInstance(deviationFactor=0.1, 
+    regions=(mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-Core-1'], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1']), size=
+    1000.0)
+mdb.models['Model-1'].rootAssembly.generateMesh(regions=(
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-Core-1'], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1']))
+mdb.models['Model-1'].rootAssembly.Set(name='TempSet_All', nodes=
+    [mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[0], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[1], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[2], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[3], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[4], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[5], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[6], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[7], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[8], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[9], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[10], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[11], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[12], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[13], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[14], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[15], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[16], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[17], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[18], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[19], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[20], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[21], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[22], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[23], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[24], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[25], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[26], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[27], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[28], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[29], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[30], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[31], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[32], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[33], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[34], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[35], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[36], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[37], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[38], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[39], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[40], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[41], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[42], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[43], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[44], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[45], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[46], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[47], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[48], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[49], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[50], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[51], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[52], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[53], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[54], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[55], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[56], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[57], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[58], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[59], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[60], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[61], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[62], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[63], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[64], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[65], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[66], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[67], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-InnerSkin-1'].nodes[68], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[0], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[1], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[2], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[3], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[4], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[5], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[6], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[7], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[8], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[9], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[10], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[11], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[12], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[13], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[14], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[15], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[16], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[17], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[18], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[19], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[20], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[21], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[22], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[23], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[24], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[25], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[26], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[27], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[28], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[29], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[30], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[31], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[32], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[33], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[34], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[35], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[36], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[37], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[38], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[39], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[40], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[41], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[42]])
+#* Feature creation failed.
+mdb.models['Model-1'].rootAssembly.Set(name='TempSet_Outer', nodes=
+    [mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[0], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[1], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[2], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[3], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[4], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[5], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[6], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[7], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[8], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[9], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[10], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[11], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[12], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[13], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[14], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[15], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[16], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[17], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[18], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[19], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[20], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[21], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[22], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[23], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[24], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[25], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[26], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[27], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[28], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[29], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[30], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[31], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[32], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[33], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[34], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[35], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[36], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[37], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[38], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[39], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[40], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[41], 
+    mdb.models['Model-1'].rootAssembly.instances['Part-OuterSkin-1'].nodes[42]])
+#* Feature creation failed.
+mdb.Job(model='Model-1', multiprocessingMode=DEFAULT, name='test_job', numCpus=
+    4, numDomains=4, resultsFormat=ODB, type=ANALYSIS)
+# Save by nishioka on 2026_02_28-17.03.19; build 2024 2023_09_21-21.55.25 RELr426 190762

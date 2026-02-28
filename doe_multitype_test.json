@@ -1,0 +1,147 @@
+{
+  "n_total": 6,
+  "n_healthy": 0,
+  "n_defective": 6,
+  "defect_types": [
+    "debonding",
+    "fod",
+    "impact"
+  ],
+  "type_counts": {
+    "debonding": 2,
+    "fod": 1,
+    "impact": 3
+  },
+  "opening_params": null,
+  "bounds": {
+    "theta_deg": [
+      5.0,
+      55.0
+    ],
+    "z_center": [
+      800.0,
+      4200.0
+    ],
+    "radius_tiers": [
+      {
+        "name": "Small",
+        "min": 50.0,
+        "max": 100.0,
+        "frac": 0.25
+      },
+      {
+        "name": "Medium",
+        "min": 100.0,
+        "max": 150.0,
+        "frac": 0.4
+      },
+      {
+        "name": "Large",
+        "min": 150.0,
+        "max": 250.0,
+        "frac": 0.3
+      },
+      {
+        "name": "Critical",
+        "min": 250.0,
+        "max": 400.0,
+        "frac": 0.05
+      }
+    ],
+    "type_params": {
+      "debonding": {},
+      "fod": {
+        "stiffness_factor": [
+          5.0,
+          20.0
+        ]
+      },
+      "impact": {
+        "damage_ratio": [
+          0.1,
+          0.5
+        ]
+      }
+    }
+  },
+  "seed": 42,
+  "plan_reference": "docs/DEFECT_PLAN.md",
+  "samples": [
+    {
+      "id": 0,
+      "job_name": "H3_Impact_0000",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 30.94,
+        "z_center": 3792.32,
+        "radius": 68.73,
+        "damage_ratio": 0.16
+      },
+      "defect_type": "impact",
+      "size_tier": "Small"
+    },
+    {
+      "id": 1,
+      "job_name": "H3_Debond_0001",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 18.09,
+        "z_center": 2869.08,
+        "radius": 147.54
+      },
+      "defect_type": "debonding",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 2,
+      "job_name": "H3_Debond_0002",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 46.27,
+        "z_center": 2506.91,
+        "radius": 136.6
+      },
+      "defect_type": "debonding",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 3,
+      "job_name": "H3_Impact_0003",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 14.33,
+        "z_center": 1993.95,
+        "radius": 209.87,
+        "damage_ratio": 0.36
+      },
+      "defect_type": "impact",
+      "size_tier": "Large"
+    },
+    {
+      "id": 4,
+      "job_name": "H3_Impact_0004",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 50.3,
+        "z_center": 3222.39,
+        "radius": 273.4,
+        "damage_ratio": 0.12
+      },
+      "defect_type": "impact",
+      "size_tier": "Critical"
+    },
+    {
+      "id": 5,
+      "job_name": "H3_FOD_0005",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 28.46,
+        "z_center": 820.75,
+        "radius": 273.4,
+        "stiffness_factor": 15.83
+      },
+      "defect_type": "fod",
+      "size_tier": "Critical"
+    }
+  ]
+}

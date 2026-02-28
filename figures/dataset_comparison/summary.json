@@ -1,0 +1,7 @@
+{
+  "n_healthy": 1,
+  "n_defect": 20,
+  "healthy_n_nodes": 22220,
+  "defect_n_nodes_mean": 1818.75,
+  "defect_n_nodes_std": 4680.367740626798
+}

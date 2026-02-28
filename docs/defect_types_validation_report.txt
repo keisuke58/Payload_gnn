@@ -1,0 +1,12 @@
+Extended Defect Types Validation Report
+======================================================================
+  [PASS] Consistency.DEFECT_TYPE_MAP: All 7 types consistent across doe/extract
+  [PASS] Consistency.DEFECT_TYPE_NAMES: DEFECT_TYPE_NAMES has 8 entries (expect 8: healthy + 7 types)
+  [PASS] DOE.Generation: Generated 14 samples
+  [PASS] DOE.Params: All samples have theta_deg, z_center, radius
+  [PASS] DOE.Type_coverage: All types present: {'delamination': 2, 'acoustic_fatigue': 3, 'thermal_progression': 1, 'fod': 2, 'debonding': 3, 'impact': 2, 'inner_debond': 1}
+  [PASS] Params.TYPE_PARAM_RANGES: All type-specific params defined
+  [PASS] Extract.Metadata_params: extract_odb writes delam_depth, fatigue_severity to metadata
+  [PASS] Dataset.Multiclass_verify: Skipped (--skip-dataset)
+
+Result: 8/8 passed

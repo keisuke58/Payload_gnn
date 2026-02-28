@@ -3,12 +3,19 @@
 """
 DOE Parameter Generation — Multi-Defect-Type Stratified Latin Hypercube Sampling
 
-Generates defect parameters for H3 fairing FEM with multiple defect types:
-  - debonding: Skin-core delamination (stiffness loss)
-  - fod: Foreign Object Debris / hard spot (local stiffening)
-  - impact: Impact damage (matrix degradation + core crushing)
+Generates defect parameters for H3 fairing FEM with multiple defect types.
+Academic justification (CFRP expert / professor level): docs/DEFECT_MODELS_ACADEMIC.md
 
-Size-stratified to cover: Small (50-100mm), Medium (100-150), Large (150-250), Critical (250-400).
+Defect types:
+  - debonding: Outer skin-core delamination. Ref: NASA NTRS 20160005994.
+  - fod: FOD / hard inclusion. Ref: MDPI Appl. Sci. 2024.
+  - impact: BVID. Ref: Composites Part B 2017, ASTM D7136.
+  - delamination: Inter-ply delamination. Ref: Compos. Sci. Technol. 2006.
+  - inner_debond: Inner skin-core. Ref: NASA NTRS, DEFECT_PLAN.
+  - thermal_progression: CTE mismatch. Ref: Composites Part B 2018.
+  - acoustic_fatigue: 147-148 dB launch. Ref: UTIAS 2019.
+
+Size-stratified: Small (50-100mm), Medium (100-150), Large (150-250), Critical (250-400).
 Based on docs/DEFECT_PLAN.md (JAXA H3 researcher acceptance).
 
 Usage:
@@ -36,17 +43,25 @@ SIZE_TIERS = [
 ]
 
 # Defect types and their default allocation fractions
-DEFECT_TYPES = ['debonding', 'fod', 'impact']
-TYPE_FRACTIONS = [0.40, 0.30, 0.30]
+DEFECT_TYPES = ['debonding', 'fod', 'impact', 'delamination', 'inner_debond', 'thermal_progression', 'acoustic_fatigue']
+TYPE_FRACTIONS = [0.25, 0.15, 0.15, 0.15, 0.10, 0.10, 0.10]  # 7 types
 
 # Type-specific parameter ranges
 TYPE_PARAM_RANGES = {
-    'debonding': {},  # No additional params beyond theta, z, radius
+    'debonding': {},
     'fod': {
-        'stiffness_factor': (5.0, 20.0),   # Core stiffness multiplier (hard inclusion)
+        'stiffness_factor': (5.0, 20.0),
     },
     'impact': {
-        'damage_ratio': (0.1, 0.5),         # Residual stiffness fraction (matrix damage)
+        'damage_ratio': (0.1, 0.5),
+    },
+    'delamination': {
+        'delam_depth': (0.2, 0.8),   # Fraction of plies affected
+    },
+    'inner_debond': {},
+    'thermal_progression': {},
+    'acoustic_fatigue': {
+        'fatigue_severity': (0.2, 0.5),   # Residual stiffness (higher=less damage)
     },
 }
 
@@ -55,6 +70,10 @@ JOB_PREFIXES = {
     'debonding': 'H3_Debond',
     'fod': 'H3_FOD',
     'impact': 'H3_Impact',
+    'delamination': 'H3_Delam',
+    'inner_debond': 'H3_InnerDebond',
+    'thermal_progression': 'H3_Thermal',
+    'acoustic_fatigue': 'H3_Acoustic',
 }
 
 # Default opening (H3 クイックアクセスドア). Set to None to disable exclusion.
@@ -238,8 +257,7 @@ def main():
     parser.add_argument('--n_healthy', type=int, default=0,
                         help='Number of healthy baselines to include (default: 0)')
     parser.add_argument('--defect_types', nargs='+', default=None,
-                        choices=DEFECT_TYPES,
-                        help='Defect types to include (default: all three)')
+                        help='Defect types to include (default: all). Valid: %s' % ', '.join(DEFECT_TYPES))
     parser.add_argument('--type_fractions', nargs='+', type=float, default=None,
                         help='Allocation fractions per type (default: 0.40 0.30 0.30)')
     parser.add_argument('--seed', type=int, default=42)

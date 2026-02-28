@@ -71,7 +71,10 @@ class FocalLoss(nn.Module):
 # =========================================================================
 # Metrics
 # =========================================================================
-DEFECT_TYPE_NAMES = ['healthy', 'debonding', 'fod', 'impact']
+DEFECT_TYPE_NAMES = [
+    'healthy', 'debonding', 'fod', 'impact',
+    'delamination', 'inner_debond', 'thermal_progression', 'acoustic_fatigue',
+]
 
 
 def compute_metrics(logits, targets, num_classes=2):
@@ -102,13 +105,22 @@ def compute_metrics(logits, targets, num_classes=2):
         except ValueError:
             auc = 0.0
 
-    return {
+    result = {
         'accuracy': float(acc),
         'f1': float(f1),
         'precision': float(prec),
         'recall': float(rec),
         'auc': float(auc),
     }
+
+    # Per-class F1 for multi-class monitoring
+    if num_classes > 2:
+        f1_per = f1_score(targets_np, preds, average=None, zero_division=0)
+        for c in range(min(len(f1_per), num_classes)):
+            name = DEFECT_TYPE_NAMES[c] if c < len(DEFECT_TYPE_NAMES) else 'class_%d' % c
+            result['f1_%s' % name] = float(f1_per[c])
+
+    return result
 
 
 # =========================================================================
@@ -264,10 +276,19 @@ def train(args, train_data, val_data, fold=None):
                              '%.2e' % lr])
 
         if epoch % args.log_every == 0 or epoch == 1:
-            print("  Epoch %3d/%d | Train F1=%.4f Loss=%.4f | "
-                  "Val F1=%.4f AUC=%.4f Loss=%.4f | LR=%.2e | %.1fs" %
-                  (epoch, args.epochs, train_m['f1'], train_m['loss'],
-                   val_m['f1'], val_m['auc'], val_m['loss'], lr, elapsed))
+            msg = ("  Epoch %3d/%d | Train F1=%.4f Loss=%.4f | "
+                   "Val F1=%.4f AUC=%.4f Loss=%.4f | LR=%.2e | %.1fs" %
+                   (epoch, args.epochs, train_m['f1'], train_m['loss'],
+                    val_m['f1'], val_m['auc'], val_m['loss'], lr, elapsed))
+            # Per-class F1 for multi-class
+            if num_classes > 2:
+                parts = []
+                for c in range(num_classes):
+                    name = DEFECT_TYPE_NAMES[c] if c < len(DEFECT_TYPE_NAMES) else 'c%d' % c
+                    key = 'f1_%s' % name
+                    parts.append('%s=%.3f' % (name[:3], val_m.get(key, 0.0)))
+                msg += '\n    Per-class: ' + ' | '.join(parts)
+            print(msg)
 
         # Checkpoint best
         if val_m['f1'] > best_val_f1:
@@ -293,6 +314,17 @@ def train(args, train_data, val_data, fold=None):
             break
 
     print("  Best Val F1: %.4f" % best_val_f1)
+
+    # Load best model and print final per-class metrics
+    if num_classes > 2:
+        ckpt = torch.load(os.path.join(run_dir, 'best_model.pt'), weights_only=False)
+        best_m = ckpt.get('val_metrics', {})
+        print("  Per-class F1 (best):")
+        for c in range(num_classes):
+            name = DEFECT_TYPE_NAMES[c] if c < len(DEFECT_TYPE_NAMES) else 'class_%d' % c
+            key = 'f1_%s' % name
+            print("    %s: %.4f" % (name, best_m.get(key, 0.0)))
+
     return run_dir, best_val_f1
 
 

@@ -2,10 +2,14 @@
 # generate_fairing_dataset.py
 # Abaqus Python script to generate H3 Type-S fairing FEM model with multiple defect types
 #
-# Supported defect types:
-#   debonding — Skin-core delamination (stiffness loss in outer skin)
-#   fod       — Foreign Object Debris / hard spot (core stiffening)
-#   impact    — Impact damage (matrix degradation + core crushing)
+# Supported defect types (academic justification: docs/DEFECT_MODELS_ACADEMIC.md):
+#   debonding          — Outer skin-core delamination. Ref: NASA NTRS 20160005994.
+#   fod                — FOD / hard inclusion in core. Ref: MDPI Appl. Sci. 2024 16(3):1459.
+#   impact             — BVID: matrix degradation + core crush. Ref: Composites Part B 2017, ASTM D7136.
+#   delamination       — Inter-ply delamination. Ref: Compos. Sci. Technol. 2006, MDPI Materials 2019.
+#   inner_debond       — Inner skin-core debonding. Ref: NASA NTRS, DEFECT_PLAN.
+#   thermal_progression— CTE mismatch (CFRP vs Al) interface damage. Ref: Composites Part B 2018.
+#   acoustic_fatigue   — 147–148 dB launch fatigue. Ref: UTIAS Acoustic Fatigue 2019.
 #
 # Usage: abaqus cae noGUI=generate_fairing_dataset.py -- --job <job_name> --defect <defect_params_json>
 
@@ -225,7 +229,7 @@ def create_defect_materials(model, defect_params):
         mat.Expansion(table=((2e-6, 2e-6, 0.0), ))
 
     elif defect_type == 'fod':
-        # Stiff foreign object inclusion in core
+        # Stiff FOD inclusion. MDPI Appl. Sci. 2024 16(3):1459. CTE 12e-6 for metallic FOD.
         sf = defect_params.get('stiffness_factor', 10.0)
         mat = model.Material(name='AL_HONEYCOMB_FOD')
         mat.Elastic(type=ENGINEERING_CONSTANTS, table=((
@@ -251,7 +255,7 @@ def create_defect_materials(model, defect_params):
         mat_skin.Density(table=((1600e-12, ), ))
         mat_skin.Expansion(table=((2e-6, 2e-6, 0.0), ))
 
-        # Crushed honeycomb core
+        # Crushed honeycomb. Composites Part A 2019: cell buckling under impact.
         mat_core = model.Material(name='AL_HONEYCOMB_CRUSHED')
         mat_core.Elastic(type=ENGINEERING_CONSTANTS, table=((
             E_CORE_1 * 0.5, E_CORE_2 * 0.5, E_CORE_3 * 0.1,
@@ -260,6 +264,52 @@ def create_defect_materials(model, defect_params):
         ), ))
         mat_core.Density(table=((50e-12, ), ))
         mat_core.Expansion(table=((23e-6, ), ))
+
+    elif defect_type == 'delamination':
+        # Inter-ply delamination: reduced shear (G12, G13, G23) simulates layer separation
+        depth = defect_params.get('delam_depth', 0.5)  # 0.2-0.8 fraction of plies
+        shear_red = max(0.05, 1.0 - depth)
+        mat = model.Material(name='CFRP_DELAMINATED')
+        mat.Elastic(type=LAMINA, table=((
+            E1 * 0.9,           # Fiber mostly intact
+            E2 * (0.3 + 0.5 * (1 - depth)),  # Matrix degraded by delam
+            NU12,
+            G12 * shear_red, G13 * shear_red, G23 * shear_red
+        ), ))
+        mat.Density(table=((1600e-12, ), ))
+        mat.Expansion(table=((2e-6, 2e-6, 0.0), ))
+
+    elif defect_type == 'inner_debond':
+        # Inner skin-core. Same mechanics as debonding. NASA NTRS, DEFECT_PLAN.
+        mat = model.Material(name='CFRP_INNER_DEBONDED')
+        mat.Elastic(type=LAMINA, table=((
+            E1 * 0.01, E2 * 0.01, NU12,
+            G12 * 0.01, G13 * 0.01, G23 * 0.01
+        ), ))
+        mat.Density(table=((1600e-12, ), ))
+        mat.Expansion(table=((2e-6, 2e-6, 0.0), ))
+
+    elif defect_type == 'thermal_progression':
+        # CTE mismatch (CFRP -0.3 vs Al 23e-6) induced interface damage
+        mat = model.Material(name='CFRP_THERMAL_DAMAGED')
+        mat.Elastic(type=LAMINA, table=((
+            E1 * 0.05, E2 * 0.05, NU12,
+            G12 * 0.05, G13 * 0.05, G23 * 0.05
+        ), ))
+        mat.Density(table=((1600e-12, ), ))
+        # Higher effective CTE simulates thermally-opened interface
+        mat.Expansion(table=((8e-6, 8e-6, 0.0), ))
+
+    elif defect_type == 'acoustic_fatigue':
+        # 147-148 dB launch acoustic fatigue. UTIAS 2019: interface weakening.
+        sev = defect_params.get('fatigue_severity', 0.35)
+        mat = model.Material(name='CFRP_ACOUSTIC_FATIGUED')
+        mat.Elastic(type=LAMINA, table=((
+            E1 * (0.2 + 0.5 * (1 - sev)), E2 * sev, NU12,
+            G12 * sev, G13 * sev, G23 * sev
+        ), ))
+        mat.Density(table=((1600e-12, ), ))
+        mat.Expansion(table=((2e-6, 2e-6, 0.0), ))
 
     print("Defect materials created: type=%s" % defect_type)
 
@@ -293,6 +343,46 @@ def create_defect_sections(model, defect_params):
             temperature=GRADIENT, integrationRule=SIMPSON)
         model.HomogeneousSolidSection(
             name='Section-Core-Crushed', material='AL_HONEYCOMB_CRUSHED', thickness=None)
+
+    elif defect_type == 'delamination':
+        entries = [section.SectionLayer(
+            thickness=FACE_T/8.0, orientAngle=ang, material='CFRP_DELAMINATED')
+            for ang in layup_orientation]
+        model.CompositeShellSection(
+            name='Section-CFRP-Delaminated', preIntegrate=OFF,
+            idealization=NO_IDEALIZATION, layup=entries, symmetric=OFF,
+            thicknessType=UNIFORM, poissonDefinition=DEFAULT,
+            temperature=GRADIENT, integrationRule=SIMPSON)
+
+    elif defect_type == 'inner_debond':
+        entries = [section.SectionLayer(
+            thickness=FACE_T/8.0, orientAngle=ang, material='CFRP_INNER_DEBONDED')
+            for ang in layup_orientation]
+        model.CompositeShellSection(
+            name='Section-CFRP-InnerDebonded', preIntegrate=OFF,
+            idealization=NO_IDEALIZATION, layup=entries, symmetric=OFF,
+            thicknessType=UNIFORM, poissonDefinition=DEFAULT,
+            temperature=GRADIENT, integrationRule=SIMPSON)
+
+    elif defect_type == 'thermal_progression':
+        entries = [section.SectionLayer(
+            thickness=FACE_T/8.0, orientAngle=ang, material='CFRP_THERMAL_DAMAGED')
+            for ang in layup_orientation]
+        model.CompositeShellSection(
+            name='Section-CFRP-ThermalDamaged', preIntegrate=OFF,
+            idealization=NO_IDEALIZATION, layup=entries, symmetric=OFF,
+            thicknessType=UNIFORM, poissonDefinition=DEFAULT,
+            temperature=GRADIENT, integrationRule=SIMPSON)
+
+    elif defect_type == 'acoustic_fatigue':
+        entries = [section.SectionLayer(
+            thickness=FACE_T/8.0, orientAngle=ang, material='CFRP_ACOUSTIC_FATIGUED')
+            for ang in layup_orientation]
+        model.CompositeShellSection(
+            name='Section-CFRP-AcousticFatigued', preIntegrate=OFF,
+            idealization=NO_IDEALIZATION, layup=entries, symmetric=OFF,
+            thicknessType=UNIFORM, poissonDefinition=DEFAULT,
+            temperature=GRADIENT, integrationRule=SIMPSON)
 
 def create_parts(model):
     """Creates the geometry parts (Inner Skin, Core, Outer Skin)."""
@@ -454,23 +544,44 @@ def assign_all_sections(p_inner, p_core, p_outer, defect_params):
     defect_type = defect_params.get('defect_type', 'debonding')
 
     # --- Defect-zone section overrides ---
-    if defect_type in ('debonding', 'impact'):
-        # Override outer skin in defect zone
-        section_name = ('Section-CFRP-Debonded' if defect_type == 'debonding'
-                        else 'Section-CFRP-Impact')
+    # Outer skin defects: debonding, impact, delamination, thermal_progression, acoustic_fatigue
+    outer_skin_defects = ('debonding', 'impact', 'delamination', 'thermal_progression', 'acoustic_fatigue')
+    if defect_type in outer_skin_defects:
+        section_map = {
+            'debonding': 'Section-CFRP-Debonded',
+            'impact': 'Section-CFRP-Impact',
+            'delamination': 'Section-CFRP-Delaminated',
+            'thermal_progression': 'Section-CFRP-ThermalDamaged',
+            'acoustic_fatigue': 'Section-CFRP-AcousticFatigued',
+        }
+        section_name = section_map.get(defect_type, 'Section-CFRP-Debonded')
         defect_faces = [f for f in p_outer.faces
                         if is_face_in_defect_zone(f, defect_params)]
         if defect_faces:
-            # Use findAt to get proper FaceArray type for Set()
             pts = tuple((f.pointOn[0],) for f in defect_faces)
             face_seq = p_outer.faces.findAt(*pts)
             region_d = p_outer.Set(faces=face_seq, name='Set-DefectZone-Skin')
             p_outer.SectionAssignment(region=region_d, sectionName=section_name)
             p_outer.MaterialOrientation(region=region_d, orientationType=GLOBAL, axis=AXIS_3,
                                         additionalRotationType=ROTATION_NONE, localCsys=None)
-            print("  %s: %d skin faces -> %s" % (defect_type, len(defect_faces), section_name))
+            print("  %s: %d outer skin faces -> %s" % (defect_type, len(defect_faces), section_name))
         else:
             print("  Warning: no outer skin faces found in defect zone")
+
+    # Inner skin defects: inner_debond
+    if defect_type == 'inner_debond':
+        defect_faces_inner = [f for f in p_inner.faces
+                              if is_face_in_defect_zone(f, defect_params)]
+        if defect_faces_inner:
+            pts = tuple((f.pointOn[0],) for f in defect_faces_inner)
+            face_seq = p_inner.faces.findAt(*pts)
+            region_d = p_inner.Set(faces=face_seq, name='Set-DefectZone-InnerSkin')
+            p_inner.SectionAssignment(region=region_d, sectionName='Section-CFRP-InnerDebonded')
+            p_inner.MaterialOrientation(region=region_d, orientationType=GLOBAL, axis=AXIS_3,
+                                        additionalRotationType=ROTATION_NONE, localCsys=None)
+            print("  inner_debond: %d inner skin faces -> Section-CFRP-InnerDebonded" % len(defect_faces_inner))
+        else:
+            print("  Warning: no inner skin faces found in defect zone")
 
     if defect_type in ('fod', 'impact'):
         # Override core in defect zone
