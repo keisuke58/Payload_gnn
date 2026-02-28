@@ -2,16 +2,56 @@
 
 # ノード特徴量 — Node Features for GNN-SHM
 
-> 最終更新: 2026-02-28  
-> build_graph.py で構築する 29 次元ノード特徴量の詳細説明と、学術・物理的検証。
+> 最終更新: 2026-03-01
+> build_graph.py で構築する **34 次元**ノード特徴量の詳細説明と、学術・物理的検証。
+
+**関連**: [Dataset-Format](Dataset-Format) | [Defect-Physics-Validation](Defect-Physics-Validation)
+
+---
+
+## 特徴量ビジュアルガイド
+
+### 全34次元の一覧マップ
+
+FEMノードごとに持つ34個の特徴量。カテゴリごとに色分けして表示。
+
+![34次元特徴量マップ](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/node_features/01_feature_map.png)
+
+### カテゴリ構成とデータソース
+
+左: 9カテゴリの次元数構成。右: データの取得元（Abaqus ODB / メッシュ計算 / 座標計算 / 境界判定）。
+
+![カテゴリ構成](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/node_features/02_category_breakdown.png)
+
+### 欠陥 vs 健全 — GNNが検出に使う信号
+
+青=健全ノード、赤=欠陥ノード。分布がずれている特徴量ほど、GNNが欠陥検出に活用できる。
+
+![欠陥vs健全](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/node_features/03_defect_vs_healthy.png)
+
+### 構築パイプライン
+
+FEM解析 → CSV抽出 → グラフ構築 → GNN入力 の全データフロー。
+
+![パイプライン](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/node_features/04_pipeline_flow.png)
+
+### 特徴量の統計サマリとアクティブ率
+
+上: 各特徴量の平均値と標準偏差。下: 非ゼロ率（Dead特徴量 = 0）。
+
+![統計サマリ](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/node_features/05_feature_stats.png)
+
+### フェアリング展開図上の物理量分布
+
+フェアリングを展開した2Dマップ上に、変位・応力・温度・欠陥ラベルを表示。
+
+![空間分布](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/node_features/06_spatial_physics.png)
 
 ---
 
 ## 1. 概要
 
 H3 フェアリング FEM メッシュの各ノードを GNN の入力とするため、**34 次元**のノード特徴量を構築する。物理量（応力・変位・温度）と幾何量（法線・曲率・繊維配向・積層角度）を組み合わせ、欠陥検出に必要な情報を網羅する。
-
-**関連**: [Dataset-Format](Dataset-Format) | [Defect-Physics-Validation](Defect-Physics-Validation)
 
 ---
 
