@@ -220,6 +220,83 @@ def plot_spatial_field(sample_dir, out_dir, sample_id='sample_0000'):
     print("Saved: 03_spatial_field_%s.png" % sample_id)
 
 
+def plot_correlation_heatmap(data_dir, out_dir):
+    """物理量間の相関行列（欠陥サンプルの欠陥ゾーン）"""
+    data_dir = os.path.join(PROJECT_ROOT, data_dir)
+    out_dir = os.path.join(PROJECT_ROOT, out_dir)
+    os.makedirs(out_dir, exist_ok=True)
+
+    samples = sorted([d for d in os.listdir(data_dir)
+                     if os.path.isdir(os.path.join(data_dir, d)) and d.startswith('sample_')])[:80]
+
+    rows = []
+    for name in samples:
+        df, meta = load_sample(os.path.join(data_dir, name))
+        if df is None or (df['defect_label'] != 0).sum() == 0:
+            continue
+        df_d = df[df['defect_label'] != 0][['smises', 'u_mag', 'temp']].copy()
+        df_d['defect_type'] = meta.get('defect_type', 'unknown')
+        rows.append(df_d)
+
+    if not rows:
+        print("No defect samples for correlation plot")
+        return
+    df_all = pd.concat(rows, ignore_index=True)
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    cols = ['smises', 'u_mag', 'temp']
+    corr = df_all[cols].corr()
+    im = ax.imshow(corr, cmap='RdBu_r', vmin=-1, vmax=1)
+    ax.set_xticks(range(len(cols)))
+    ax.set_yticks(range(len(cols)))
+    ax.set_xticklabels(['Von Mises\n[MPa]', '|u| [mm]', 'Temp [°C]'])
+    ax.set_yticklabels(['Von Mises', '|u|', 'Temp'])
+    for i in range(len(cols)):
+        for j in range(len(cols)):
+            ax.text(j, i, f'{corr.iloc[i, j]:.2f}', ha='center', va='center', fontsize=12)
+    plt.colorbar(im, ax=ax, label='Correlation')
+    ax.set_title('Correlation Matrix (Defect Zone Nodes)')
+    plt.tight_layout()
+    plt.savefig(os.path.join(out_dir, '05_correlation_heatmap.png'), dpi=150, bbox_inches='tight')
+    plt.close()
+    print("Saved: 05_correlation_heatmap.png")
+
+
+def plot_defect_ratio_by_type(data_dir, out_dir):
+    """欠陥タイプ別の欠陥ノード比率（ノードレベル）"""
+    data_dir = os.path.join(PROJECT_ROOT, data_dir)
+    out_dir = os.path.join(PROJECT_ROOT, out_dir)
+    os.makedirs(out_dir, exist_ok=True)
+
+    samples = sorted([d for d in os.listdir(data_dir)
+                     if os.path.isdir(os.path.join(data_dir, d)) and d.startswith('sample_')])
+
+    rows = []
+    for name in samples:
+        df, meta = load_sample(os.path.join(data_dir, name))
+        if df is None:
+            continue
+        n_def = (df['defect_label'] != 0).sum()
+        ratio = n_def / len(df) * 100 if len(df) > 0 else 0
+        rows.append({'defect_type': meta.get('defect_type', 'unknown'), 'defect_ratio_pct': ratio})
+
+    df_all = pd.DataFrame(rows)
+    if df_all.empty:
+        return
+
+    fig, ax = plt.subplots(figsize=(10, 5))
+    df_all.boxplot(column='defect_ratio_pct', by='defect_type', ax=ax)
+    ax.set_ylabel('Defect Node Ratio [%]')
+    ax.set_xlabel('Defect Type')
+    ax.set_title('Defect Node Ratio by Type (Node-level Imbalance)')
+    plt.suptitle('')
+    plt.setp(ax.xaxis.get_majorticklabels(), rotation=45, ha='right')
+    plt.tight_layout()
+    plt.savefig(os.path.join(out_dir, '06_defect_ratio_by_type.png'), dpi=150, bbox_inches='tight')
+    plt.close()
+    print("Saved: 06_defect_ratio_by_type.png")
+
+
 def plot_defect_type_stats(data_dir, out_dir):
     """欠陥タイプ別の統計（ノード数、応力、変位）"""
     data_dir = os.path.join(PROJECT_ROOT, data_dir)
@@ -303,6 +380,8 @@ def main():
     plot_defect_contrast(args.data, out_dir)
     plot_spatial_field(args.data, out_dir, 'sample_0000')
     plot_spatial_field(args.data, out_dir, 'sample_0010')
+    plot_correlation_heatmap(args.data, out_dir)
+    plot_defect_ratio_by_type(args.data, out_dir)
     plot_defect_type_stats(args.data, out_dir)
 
     if args.wiki:

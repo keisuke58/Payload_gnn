@@ -39,7 +39,9 @@ import logging
 # Paths (relative to project root)
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
-GEN_SCRIPT = os.path.join(SCRIPT_DIR, 'generate_fairing_dataset.py')
+GEN_SCRIPT_SIMPLE = os.path.join(SCRIPT_DIR, 'generate_fairing_dataset.py')
+GEN_SCRIPT_REALISTIC = os.path.join(SCRIPT_DIR, 'generate_realistic_dataset.py')
+GEN_SCRIPT = GEN_SCRIPT_SIMPLE  # overridden by --gen_script
 EXTRACT_SCRIPT = os.path.join(SCRIPT_DIR, 'extract_odb_results.py')
 PATCH_SCRIPT = os.path.join(PROJECT_ROOT, 'scripts', 'patch_inp_thermal.py')
 WORK_DIR = os.path.join(PROJECT_ROOT, 'abaqus_work')
@@ -66,7 +68,8 @@ def setup_logging(log_file):
 
 
 def run_sample(sample, output_dir, n_cpus=4, logger=None, dry_run=False, keep_inp=False, keep_odb=False,
-              force=False, strict_extract=False, global_seed=None, defect_seed=None, opening_params=None):
+              force=False, strict_extract=False, global_seed=None, defect_seed=None, opening_params=None,
+              opening_seed=None):
     """
     Run a single FEM sample (Abaqus model generation + ODB extraction).
 
@@ -126,6 +129,8 @@ def run_sample(sample, output_dir, n_cpus=4, logger=None, dry_run=False, keep_in
         abaqus_args.extend(['--global_seed', str(global_seed)])
     if defect_seed is not None:
         abaqus_args.extend(['--defect_seed', str(defect_seed)])
+    if opening_seed is not None:
+        abaqus_args.extend(['--opening_seed', str(opening_seed)])
 
     env = os.environ.copy()
     env['PROJECT_ROOT'] = PROJECT_ROOT
@@ -193,9 +198,39 @@ def run_sample(sample, output_dir, n_cpus=4, logger=None, dry_run=False, keep_in
     # --- Step 3: Extract ODB results ---
     odb_path = os.path.join(WORK_DIR, '%s.odb' % job_name)
     lck_path = os.path.join(WORK_DIR, '%s.lck' % job_name)
+    sta_path = os.path.join(WORK_DIR, '%s.sta' % job_name)
 
-    # Wait for ODB file to appear (up to 90 sec)
-    for _ in range(90):
+    # Wait for solver completion via .sta file (abaqus job=... runs in background)
+    solver_timeout = 7200  # 2 hours max
+    poll_interval = 5  # check every 5 sec
+    solver_ok = False
+    for _ in range(solver_timeout // poll_interval):
+        if os.path.exists(sta_path):
+            try:
+                with open(sta_path, 'r') as f_sta:
+                    sta_content = f_sta.read()
+                if 'COMPLETED SUCCESSFULLY' in sta_content:
+                    solver_ok = True
+                    break
+                if 'HAS NOT BEEN COMPLETED' in sta_content or 'ABORTED' in sta_content:
+                    if logger:
+                        logger.error("Sample %04d: Solver failed (see .sta)" % sample_id)
+                    return False
+            except (IOError, OSError):
+                pass
+        time.sleep(poll_interval)
+
+    if not solver_ok:
+        if logger:
+            logger.error("Sample %04d: Solver timed out (%d sec)" %
+                         (sample_id, solver_timeout))
+        return False
+
+    if logger:
+        logger.info("  Solver completed successfully")
+
+    # Wait for ODB file to appear
+    for _ in range(30):
         if os.path.exists(odb_path):
             break
         time.sleep(1)
@@ -205,20 +240,20 @@ def run_sample(sample, output_dir, n_cpus=4, logger=None, dry_run=False, keep_in
                          (sample_id, odb_path))
         return False
 
-    # Wait for ODB to be ready: lck gone + file size stable (fine mesh needs flush time)
-    for _ in range(60):  # Wait up to 60 sec for lock release
+    # Wait for lock file release
+    for _ in range(60):
         if not os.path.exists(lck_path):
             break
         time.sleep(1)
     if os.path.exists(lck_path):
         try:
-            os.remove(lck_path)  # Stale lock from crashed run
+            os.remove(lck_path)
         except OSError:
             pass
 
-    # File size stabilization (large ODBs: wait for write to complete)
+    # File size stabilization
     prev_size = -1
-    for _ in range(10):  # 5 sec max
+    for _ in range(10):
         try:
             sz = os.path.getsize(odb_path)
             if sz == prev_size and sz > 0:
@@ -323,7 +358,17 @@ def main():
                         help='Override mesh GLOBAL_SEED (mm). Fine: 12–15, ideal: 10–12.')
     parser.add_argument('--defect_seed', type=float, default=None,
                         help='Override mesh DEFECT_SEED (mm). Fine: 5–8.')
+    parser.add_argument('--opening_seed', type=float, default=None,
+                        help='Override mesh OPENING_SEED (mm). Realistic model only.')
+    parser.add_argument('--gen_script', type=str, default='simple',
+                        choices=['simple', 'realistic'],
+                        help='Generation script: simple (default) or realistic (openings+frames+Tie)')
     args = parser.parse_args()
+
+    # Switch generation script if realistic mode
+    global GEN_SCRIPT
+    if args.gen_script == 'realistic':
+        GEN_SCRIPT = GEN_SCRIPT_REALISTIC
 
     # Load DOE
     with open(args.doe, 'r') as f:
@@ -355,6 +400,7 @@ def main():
     logger.info("  DOE: %s (%d samples)" % (args.doe, len(samples)))
     logger.info("  Output: %s" % output_dir)
     logger.info("  CPUs: %d" % args.n_cpus)
+    logger.info("  Gen script: %s (%s)" % (args.gen_script, GEN_SCRIPT))
     logger.info("=" * 60)
 
     # Run samples
@@ -378,7 +424,8 @@ def main():
             strict_extract=getattr(args, 'strict', False),
             global_seed=args.global_seed,
             defect_seed=args.defect_seed,
-            opening_params=doe.get('opening_params'))
+            opening_params=doe.get('opening_params'),
+            opening_seed=args.opening_seed)
 
         if success:
             n_success += 1
