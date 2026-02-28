@@ -1,0 +1,16 @@
+# Optional: Alternative FEM (FEniCS, JAX-FEM)
+# Install for src/fenics_fairing.py and src/jaxfem_fairing.py
+
+# FEniCS (dolfinx) - linear elasticity prototype
+fenics-dolfinx>=0.7.0
+mpi4py>=3.0.0
+# or: conda install -c conda-forge fenics-dolfinx
+
+# JAX-FEM - differentiable FEM
+jax>=0.4.0
+jaxlib>=0.4.0
+jax-fem>=0.0.11
+
+# Mesh generation (for FEniCS 3D)
+pygmsh>=7.0.0
+meshio>=5.0.0

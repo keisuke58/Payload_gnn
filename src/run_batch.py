@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Batch FEM Generation — Debonding Dataset
+Batch FEM Generation — Multi-Defect-Type Dataset
 
 Orchestrates batch execution of Abaqus FEM simulations for generating
-GNN training data with debonding defects.
+GNN training data with multiple defect types (debonding, fod, impact).
 
 Workflow per sample:
   1. Write defect parameters to temp JSON
@@ -41,6 +41,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
 GEN_SCRIPT = os.path.join(SCRIPT_DIR, 'generate_fairing_dataset.py')
 EXTRACT_SCRIPT = os.path.join(SCRIPT_DIR, 'extract_odb_results.py')
+PATCH_SCRIPT = os.path.join(PROJECT_ROOT, 'scripts', 'patch_inp_thermal.py')
 WORK_DIR = os.path.join(PROJECT_ROOT, 'abaqus_work')
 
 
@@ -64,7 +65,8 @@ def setup_logging(log_file):
     return logger
 
 
-def run_sample(sample, output_dir, n_cpus=4, logger=None, dry_run=False, keep_inp=False, force=False):
+def run_sample(sample, output_dir, n_cpus=4, logger=None, dry_run=False, keep_inp=False, keep_odb=False,
+              force=False, strict_extract=False, global_seed=None, defect_seed=None):
     """
     Run a single FEM sample (Abaqus model generation + ODB extraction).
 
@@ -96,8 +98,9 @@ def run_sample(sample, output_dir, n_cpus=4, logger=None, dry_run=False, keep_in
 
     if logger:
         if defect_params:
-            logger.info("Sample %04d: theta=%.1f z=%.0f r=%.0f" % (
-                sample_id, defect_params['theta_deg'],
+            defect_type = defect_params.get('defect_type', 'debonding')
+            logger.info("Sample %04d [%s]: theta=%.1f z=%.0f r=%.0f" % (
+                sample_id, defect_type, defect_params['theta_deg'],
                 defect_params['z_center'], defect_params['radius']))
         else:
             logger.info("Sample %04d: healthy baseline" % sample_id)
@@ -118,6 +121,11 @@ def run_sample(sample, output_dir, n_cpus=4, logger=None, dry_run=False, keep_in
     else:
         abaqus_args = ['--job_name', job_name]
     abaqus_args.extend(['--project_root', PROJECT_ROOT])
+    abaqus_args.append('--no_run')  # run_batch patches and runs Abaqus for reliable thermal
+    if global_seed is not None:
+        abaqus_args.extend(['--global_seed', str(global_seed)])
+    if defect_seed is not None:
+        abaqus_args.extend(['--defect_seed', str(defect_seed)])
 
     env = os.environ.copy()
     env['PROJECT_ROOT'] = PROJECT_ROOT
@@ -133,10 +141,11 @@ def run_sample(sample, output_dir, n_cpus=4, logger=None, dry_run=False, keep_in
         return True
 
     t0 = time.time()
+    timeout_gen = 7200 if (global_seed is not None and global_seed < 25) else 1800  # 2h for fine mesh
     try:
         result = subprocess.run(
             cmd_gen, cwd=WORK_DIR, env=env,
-            capture_output=True, text=True, timeout=1800)  # 30 min timeout
+            capture_output=True, text=True, timeout=timeout_gen)
 
         if result.returncode != 0:
             if logger:
@@ -159,9 +168,34 @@ def run_sample(sample, output_dir, n_cpus=4, logger=None, dry_run=False, keep_in
     if logger:
         logger.info("  FEM generation: %.1f sec" % t_gen)
 
+    # --- Step 2b: Patch INP for thermal load (run_batch ensures this runs) ---
+    inp_path = os.path.join(WORK_DIR, '%s.inp' % job_name)
+    if os.path.exists(inp_path) and os.path.exists(PATCH_SCRIPT):
+        patch_result = subprocess.run(
+            [sys.executable, PATCH_SCRIPT, inp_path],
+            cwd=WORK_DIR, capture_output=True, text=True, timeout=30)
+        if patch_result.returncode == 0 and logger:
+            if 'Patched' in (patch_result.stdout or ''):
+                logger.info("  INP patched for thermal load")
+
+    # --- Step 2c: Run Abaqus job ---
+    try:
+        run_result = subprocess.run(
+            ['abaqus', 'job=' + job_name, 'input=' + job_name + '.inp', 'cpus=%d' % n_cpus],
+            cwd=WORK_DIR, capture_output=True, text=True, timeout=7200)
+        if run_result.returncode != 0 and logger:
+            logger.warning("  Abaqus job exit %d (check .sta, .msg)" % run_result.returncode)
+    except Exception as e:
+        if logger:
+            logger.error("Sample %04d: Abaqus job error: %s" % (sample_id, str(e)))
+        return False
+
     # --- Step 3: Extract ODB results ---
     odb_path = os.path.join(WORK_DIR, '%s.odb' % job_name)
-    for _ in range(30):  # Wait up to 30 sec for ODB
+    lck_path = os.path.join(WORK_DIR, '%s.lck' % job_name)
+
+    # Wait for ODB file to appear (up to 90 sec)
+    for _ in range(90):
         if os.path.exists(odb_path):
             break
         time.sleep(1)
@@ -171,29 +205,68 @@ def run_sample(sample, output_dir, n_cpus=4, logger=None, dry_run=False, keep_in
                          (sample_id, odb_path))
         return False
 
-    cmd_extract = [
-        'abaqus', 'python', EXTRACT_SCRIPT,
-        '--odb', odb_path, '--output', sample_dir,
-    ]
+    # Wait for ODB to be ready: lck gone + file size stable (fine mesh needs flush time)
+    for _ in range(60):  # Wait up to 60 sec for lock release
+        if not os.path.exists(lck_path):
+            break
+        time.sleep(1)
+    if os.path.exists(lck_path):
+        try:
+            os.remove(lck_path)  # Stale lock from crashed run
+        except OSError:
+            pass
+
+    # File size stabilization (large ODBs: wait for write to complete)
+    prev_size = -1
+    for _ in range(10):  # 5 sec max
+        try:
+            sz = os.path.getsize(odb_path)
+            if sz == prev_size and sz > 0:
+                break
+            prev_size = sz
+        except OSError:
+            pass
+        time.sleep(0.5)
+    time.sleep(2)  # Extra buffer for filesystem sync
+
+    # Use absolute paths to avoid cwd ambiguity with abaqus python
+    script_rel = os.path.relpath(EXTRACT_SCRIPT, PROJECT_ROOT)
+    cmd_extract = ['abaqus', 'python', script_rel, '--odb', os.path.abspath(odb_path),
+                   '--output', os.path.abspath(sample_dir)]
     if defect_params and param_file:
-        cmd_extract.extend(['--defect_json', param_file])
+        cmd_extract.extend(['--defect_json', os.path.abspath(param_file)])
 
-    try:
-        result = subprocess.run(
-            cmd_extract, cwd=WORK_DIR,
-            capture_output=True, text=True, timeout=600)  # 10 min timeout
+    # Retry extraction (large ODBs may need extra time to be readable)
+    max_retries = 3
+    retry_delay = 15
+    result = None
+    for attempt in range(max_retries):
+        try:
+            result = subprocess.run(
+                cmd_extract, cwd=PROJECT_ROOT,
+                capture_output=True, text=True, timeout=600)
 
-        if result.returncode != 0:
+            if result.returncode == 0:
+                break
+            if attempt < max_retries - 1:
+                if logger:
+                    logger.warning("Sample %04d: extraction failed (rc=%d), retry %d/%d in %ds" %
+                                  (sample_id, result.returncode, attempt + 1, max_retries - 1, retry_delay))
+                time.sleep(retry_delay)
+        except Exception as e:
             if logger:
-                logger.error("Sample %04d: ODB extraction failed (rc=%d)" %
-                             (sample_id, result.returncode))
-                logger.error("  stderr: %s" % result.stderr[:500])
+                logger.error("Sample %04d: extraction error: %s" %
+                             (sample_id, str(e)))
             return False
 
-    except Exception as e:
+    if result and result.returncode != 0:
         if logger:
-            logger.error("Sample %04d: extraction error: %s" %
-                         (sample_id, str(e)))
+            logger.error("Sample %04d: ODB extraction failed (rc=%d)" %
+                         (sample_id, result.returncode))
+            # extract_odb_results.py prints errors to stdout
+            err_msg = (result.stdout or '') + (result.stderr or '')
+            if err_msg.strip():
+                logger.error("  output: %s" % err_msg[:800])
         return False
 
     t_total = time.time() - t0
@@ -206,8 +279,11 @@ def run_sample(sample, output_dir, n_cpus=4, logger=None, dry_run=False, keep_in
         shutil.copy2(inp_path, os.path.join(sample_dir, 'model.inp'))
 
     # --- Step 5: Clean up intermediate files ---
-    for ext in ['.odb', '.dat', '.msg', '.com', '.prt', '.sim',
-                '.sta', '.lck', '.023', '.mdl', '.stt', '.res']:
+    exts_to_clean = ['.dat', '.msg', '.com', '.prt', '.sim',
+                     '.sta', '.lck', '.023', '.mdl', '.stt', '.res']
+    if not keep_odb:
+        exts_to_clean.insert(0, '.odb')
+    for ext in exts_to_clean:
         fpath = os.path.join(WORK_DIR, '%s%s' % (job_name, ext))
         if os.path.exists(fpath):
             os.remove(fpath)
@@ -220,7 +296,7 @@ def run_sample(sample, output_dir, n_cpus=4, logger=None, dry_run=False, keep_in
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Batch FEM generation for debonding dataset')
+        description='Batch FEM generation for multi-type defect dataset')
     parser.add_argument('--doe', type=str, required=True,
                         help='DOE parameters JSON file')
     parser.add_argument('--output_dir', type=str, default=None,
@@ -239,6 +315,14 @@ def main():
                         help='Copy .inp to each sample dir')
     parser.add_argument('--force', action='store_true',
                         help='Overwrite existing samples (re-generate)')
+    parser.add_argument('--keep_odb', action='store_true',
+                        help='Keep ODB files after extraction (for debugging)')
+    parser.add_argument('--strict', action='store_true',
+                        help='Fail extraction if physics are all zero (thermal/load check)')
+    parser.add_argument('--global_seed', type=float, default=None,
+                        help='Override mesh GLOBAL_SEED (mm). Fine: 12–15, ideal: 10–12.')
+    parser.add_argument('--defect_seed', type=float, default=None,
+                        help='Override mesh DEFECT_SEED (mm). Fine: 5–8.')
     args = parser.parse_args()
 
     # Load DOE
@@ -289,7 +373,12 @@ def main():
             logger=logger,
             dry_run=args.dry_run,
             keep_inp=getattr(args, 'keep_inp', False),
-            force=getattr(args, 'force', False))
+            keep_odb=getattr(args, 'keep_odb', False),
+            force=getattr(args, 'force', False),
+            strict_extract=getattr(args, 'strict', False),
+            global_seed=args.global_seed,
+            defect_seed=args.defect_seed,
+            opening_params=doe.get('opening_params'))
 
         if success:
             n_success += 1

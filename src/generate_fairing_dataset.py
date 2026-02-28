@@ -1,6 +1,11 @@
 # -*- coding: utf-8 -*-
 # generate_fairing_dataset.py
-# Abaqus Python script to generate H3 Type-S fairing FEM model with debonding defects
+# Abaqus Python script to generate H3 Type-S fairing FEM model with multiple defect types
+#
+# Supported defect types:
+#   debonding — Skin-core delamination (stiffness loss in outer skin)
+#   fod       — Foreign Object Debris / hard spot (core stiffening)
+#   impact    — Impact damage (matrix degradation + core crushing)
 #
 # Usage: abaqus cae noGUI=generate_fairing_dataset.py -- --job <job_name> --defect <defect_params_json>
 
@@ -70,6 +75,9 @@ TEMP_FINAL_OUTER = 120.0 # C (Ascent heating)
 TEMP_FINAL_INNER = 20.0  # C
 TEMP_FINAL_CORE = 70.0   # C (Approx average)
 
+# Opening zone (access door exclusion) — None = no opening
+OPENING_PARAMS = None
+
 # ==============================================================================
 # HELPER FUNCTIONS
 # ==============================================================================
@@ -94,6 +102,52 @@ def get_radius_at_z(z):
             return 0.0
         return OGIVE_XC + math.sqrt(term)
 
+def _point_in_opening_zone(x, y, z, opening_params):
+    """Check if point is inside the opening (access door, etc.). Exclude from defect zone."""
+    if not opening_params:
+        return False
+    z_c = opening_params['z_center']
+    theta_deg = opening_params['theta_deg']
+    r_open = opening_params['radius']
+    if abs(y - z_c) > r_open * 1.5:
+        return False
+    r_local = math.sqrt(x * x + z * z)
+    if r_local < 1.0:
+        return False
+    theta_rad_pt = math.atan2(z, x)
+    theta_center_rad = math.radians(theta_deg)
+    arc_mm = r_local * abs(theta_rad_pt - theta_center_rad)
+    dy = y - z_c
+    dist = math.sqrt(arc_mm * arc_mm + dy * dy)
+    return dist <= r_open * 1.01
+
+def _point_in_defect_zone(x, y, z, defect_params):
+    """
+    Check if point (x,y,z) is inside the circular defect zone on the fairing surface.
+    Abaqus revolve convention: Y=axial, XZ=radial plane.
+    Same formula as extract_odb_results._is_node_in_defect().
+    """
+    z_c = defect_params['z_center']
+    theta_deg = defect_params['theta_deg']
+    r_def = defect_params['radius']
+
+    # Axial quick reject
+    if abs(y - z_c) > r_def * 1.5:
+        return False
+
+    # Radial distance in XZ plane
+    r_local = math.sqrt(x * x + z * z)
+    if r_local < 1.0:
+        return False
+
+    # Circumferential angle in XZ plane (not XY!)
+    theta_rad_pt = math.atan2(z, x)
+    theta_center_rad = math.radians(theta_deg)
+    arc_mm = r_local * abs(theta_rad_pt - theta_center_rad)
+    dy = y - z_c
+    dist = math.sqrt(arc_mm * arc_mm + dy * dy)
+    return dist <= r_def * 1.01  # 1% tolerance
+
 def is_face_in_defect_zone(face, defect_params):
     """
     Checks if a face's centroid is within the defect zone.
@@ -102,43 +156,20 @@ def is_face_in_defect_zone(face, defect_params):
     """
     if not defect_params:
         return False
-    
-    z_c = defect_params['z_center']
-    theta_deg = defect_params['theta_deg']
-    r_def = defect_params['radius']
-    
-    # Face position — Abaqus revolve: Y=axial, XZ=radial
     pt = face.pointOn[0]
-    x, y, z = pt[0], pt[1], pt[2]
-    
-    # Check axial (Y)
-    if abs(y - z_c) > r_def:
+    return _point_in_defect_zone(pt[0], pt[1], pt[2], defect_params)
+
+def is_cell_in_defect_zone(cell, defect_params, opening_params=None):
+    """
+    Checks if a solid cell's centroid is within the defect zone (for core).
+    Excludes cells inside the opening.
+    """
+    if not defect_params:
         return False
-    
-    # Check Theta (radial plane XZ)
-    r_local = math.sqrt(x*x + z*z)
-    if r_local < 1.0: return False
-    
-    # Angle of centroid
-    # atan2(y, x) returns (-pi, pi)
-    # Our model is 0..60 deg (1/6 section).
-    # theta_deg is in 0..60? The DOE generates 5..55.
-    
-    theta_rad_face = math.atan2(y, x)
-    if theta_rad_face < 0: theta_rad_face += 2*math.pi
-    theta_deg_face = math.degrees(theta_rad_face)
-    
-    # Arc length difference
-    # defect is defined by arc distance from (z_c, theta_c) < r_def
-    # approx: d^2 = (z-zc)^2 + (r*dtheta)^2 < r_def^2
-    
-    d_theta_deg = abs(theta_deg_face - theta_deg)
-    # Handle wrap around if needed (but here we are in 0-60 sector)
-    
-    arc_len = r_local * math.radians(d_theta_deg)
-    dist_sq = (z - z_c)**2 + arc_len**2
-    
-    return dist_sq < (r_def * 1.01)**2 # 1% tolerance
+    pt = cell.pointOn[0]
+    if opening_params and _point_in_opening_zone(pt[0], pt[1], pt[2], opening_params):
+        return False
+    return _point_in_defect_zone(pt[0], pt[1], pt[2], defect_params)
 
 def create_materials(model):
     """Defines CFRP and Honeycomb materials in the Abaqus model."""
@@ -178,6 +209,90 @@ def create_sections(model):
     # Solid Section for Core
     model.HomogeneousSolidSection(
         name='Section-Core', material='AL_HONEYCOMB', thickness=None)
+
+def create_defect_materials(model, defect_params):
+    """Create defect-type-specific modified materials."""
+    defect_type = defect_params.get('defect_type', 'debonding')
+
+    if defect_type == 'debonding':
+        # Near-zero stiffness skin (delaminated region loses load transfer)
+        mat = model.Material(name='CFRP_DEBONDED')
+        mat.Elastic(type=LAMINA, table=((
+            E1 * 0.01, E2 * 0.01, NU12,
+            G12 * 0.01, G13 * 0.01, G23 * 0.01
+        ), ))
+        mat.Density(table=((1600e-12, ), ))
+        mat.Expansion(table=((2e-6, 2e-6, 0.0), ))
+
+    elif defect_type == 'fod':
+        # Stiff foreign object inclusion in core
+        sf = defect_params.get('stiffness_factor', 10.0)
+        mat = model.Material(name='AL_HONEYCOMB_FOD')
+        mat.Elastic(type=ENGINEERING_CONSTANTS, table=((
+            E_CORE_1 * sf, E_CORE_2 * sf, E_CORE_3 * sf,
+            NU_CORE_12, NU_CORE_13, NU_CORE_23,
+            G_CORE_12 * sf, G_CORE_13 * sf, G_CORE_23 * sf
+        ), ))
+        mat.Density(table=((200e-12, ), ))  # Heavier inclusion
+        mat.Expansion(table=((12e-6, ), ))  # Different CTE
+
+    elif defect_type == 'impact':
+        # Matrix-damaged skin (fiber partly intact, matrix severely degraded)
+        dr = defect_params.get('damage_ratio', 0.3)
+        mat_skin = model.Material(name='CFRP_IMPACT_DAMAGED')
+        mat_skin.Elastic(type=LAMINA, table=((
+            E1 * 0.7,     # Fiber slightly degraded
+            E2 * dr,       # Matrix severely degraded
+            NU12,
+            G12 * dr,      # Shear degraded
+            G13 * dr,
+            G23 * dr
+        ), ))
+        mat_skin.Density(table=((1600e-12, ), ))
+        mat_skin.Expansion(table=((2e-6, 2e-6, 0.0), ))
+
+        # Crushed honeycomb core
+        mat_core = model.Material(name='AL_HONEYCOMB_CRUSHED')
+        mat_core.Elastic(type=ENGINEERING_CONSTANTS, table=((
+            E_CORE_1 * 0.5, E_CORE_2 * 0.5, E_CORE_3 * 0.1,
+            NU_CORE_12, NU_CORE_13, NU_CORE_23,
+            G_CORE_12 * 0.5, G_CORE_13 * 0.1, G_CORE_23 * 0.1
+        ), ))
+        mat_core.Density(table=((50e-12, ), ))
+        mat_core.Expansion(table=((23e-6, ), ))
+
+    print("Defect materials created: type=%s" % defect_type)
+
+def create_defect_sections(model, defect_params):
+    """Create sections for defect-zone materials."""
+    defect_type = defect_params.get('defect_type', 'debonding')
+    layup_orientation = [45.0, 0.0, -45.0, 90.0, 90.0, -45.0, 0.0, 45.0]
+
+    if defect_type == 'debonding':
+        entries = [section.SectionLayer(
+            thickness=FACE_T/8.0, orientAngle=ang, material='CFRP_DEBONDED')
+            for ang in layup_orientation]
+        model.CompositeShellSection(
+            name='Section-CFRP-Debonded', preIntegrate=OFF,
+            idealization=NO_IDEALIZATION, layup=entries, symmetric=OFF,
+            thicknessType=UNIFORM, poissonDefinition=DEFAULT,
+            temperature=GRADIENT, integrationRule=SIMPSON)
+
+    elif defect_type == 'fod':
+        model.HomogeneousSolidSection(
+            name='Section-Core-FOD', material='AL_HONEYCOMB_FOD', thickness=None)
+
+    elif defect_type == 'impact':
+        entries = [section.SectionLayer(
+            thickness=FACE_T/8.0, orientAngle=ang, material='CFRP_IMPACT_DAMAGED')
+            for ang in layup_orientation]
+        model.CompositeShellSection(
+            name='Section-CFRP-Impact', preIntegrate=OFF,
+            idealization=NO_IDEALIZATION, layup=entries, symmetric=OFF,
+            thicknessType=UNIFORM, poissonDefinition=DEFAULT,
+            temperature=GRADIENT, integrationRule=SIMPSON)
+        model.HomogeneousSolidSection(
+            name='Section-Core-Crushed', material='AL_HONEYCOMB_CRUSHED', thickness=None)
 
 def create_parts(model):
     """Creates the geometry parts (Inner Skin, Core, Outer Skin)."""
@@ -249,16 +364,21 @@ def create_parts(model):
 
     return p_inner, p_core, p_outer
 
-def partition_debonding_zone(model, assembly, defect_params):
+def partition_defect_zone(parts_to_partition, defect_params):
     """
-    Partitions the surfaces to define the debonding area.
-    Defect is defined by (z_center, theta_center, radius).
-    Uses getByBoundingBox to select only faces that intersect the partition region.
+    Partitions parts at the defect zone for section reassignment.
+    Works at PART level (before assembly) so that section assignments
+    carry through to instances.
+
+    Args:
+        parts_to_partition: list of (geom_type, part) tuples
+            geom_type: 'shell' or 'solid'
+        defect_params: {z_center, theta_deg, radius, defect_type, ...}
     """
     z_c = defect_params['z_center']
     theta_deg = defect_params['theta_deg']
     r_def = defect_params['radius']
-    
+
     r_local = get_radius_at_z(z_c) + CORE_T
     if r_local < 1.0:
         r_local = RADIUS
@@ -266,114 +386,170 @@ def partition_debonding_zone(model, assembly, defect_params):
     d_theta = min(r_def / r_local, math.radians(30.0))
     t1 = theta_rad - d_theta
     t2 = theta_rad + d_theta
-    
-    z1 = max(1.0, z_c - r_def - 50)
-    z2 = min(TOTAL_HEIGHT - 1.0, z_c + r_def + 50)
-    r_min = max(100.0, RADIUS - 100)
+
+    # Bounding box for selecting entities near defect (with margin)
+    z1_bb = max(1.0, z_c - r_def - 50)
+    z2_bb = min(TOTAL_HEIGHT - 1.0, z_c + r_def + 50)
     r_max = RADIUS + CORE_T + 100
     x_min = -r_max - 100
     x_max = r_max + 100
-    
-    inst_core = assembly.instances['Part-Core-1']
-    inst_outer = assembly.instances['Part-OuterSkin-1']
-    
-    # Datum planes — XZPLANE gives y=constant (axial direction)
-    p_z1 = assembly.DatumPlaneByPrincipalPlane(principalPlane=XZPLANE, offset=z_c - r_def)
-    p_z2 = assembly.DatumPlaneByPrincipalPlane(principalPlane=XZPLANE, offset=z_c + r_def)
-    p_t1 = assembly.DatumPlaneByThreePoints(
-        point1=(0, 0, 0), point2=(0, 0, 100),
-        point3=(math.cos(t1), math.sin(t1), 0))
-    p_t2 = assembly.DatumPlaneByThreePoints(
-        point1=(0, 0, 0), point2=(0, 0, 100),
-        point3=(math.cos(t2), math.sin(t2), 0))
-    
-    def partition_faces_safe(inst, plane_id):
-        try:
-            faces = inst.faces.getByBoundingBox(
-                xMin=x_min, xMax=x_max, yMin=x_min, yMax=x_max,
-                zMin=z1, zMax=z2)
-            if len(faces) > 0:
-                assembly.PartitionFaceByDatumPlane(
-                    datumPlane=assembly.datums[plane_id],
-                    faces=faces)
-        except Exception as e:
-            print("  Partition warning: %s" % str(e)[:80])
-    
-    partition_faces_safe(inst_outer, p_z1.id)
-    partition_faces_safe(inst_outer, p_z2.id)
-    partition_faces_safe(inst_outer, p_t1.id)
-    partition_faces_safe(inst_outer, p_t2.id)
-    partition_faces_safe(inst_core, p_z1.id)
-    partition_faces_safe(inst_core, p_z2.id)
-    partition_faces_safe(inst_core, p_t1.id)
-    partition_faces_safe(inst_core, p_t2.id)
 
-def generate_model(job_name, defect_params=None, project_root=None):
+    for geom_type, part in parts_to_partition:
+        # Create datum planes on the part
+        dp_z1 = part.DatumPlaneByPrincipalPlane(principalPlane=XZPLANE, offset=z_c - r_def)
+        dp_z2 = part.DatumPlaneByPrincipalPlane(principalPlane=XZPLANE, offset=z_c + r_def)
+        # Theta cutting planes pass through Y-axis (fairing axial axis)
+        # theta is measured in XZ plane: x=R*cos(theta), z=R*sin(theta)
+        dp_t1 = part.DatumPlaneByThreePoints(
+            point1=(0, 0, 0), point2=(0, 100, 0),
+            point3=(math.cos(t1), 0, math.sin(t1)))
+        dp_t2 = part.DatumPlaneByThreePoints(
+            point1=(0, 0, 0), point2=(0, 100, 0),
+            point3=(math.cos(t2), 0, math.sin(t2)))
+
+        for dp_id in [dp_z1.id, dp_z2.id, dp_t1.id, dp_t2.id]:
+            try:
+                if geom_type == 'shell':
+                    # Pass ALL faces — datum plane defines the cut location
+                    faces = part.faces
+                    if len(faces) > 0:
+                        part.PartitionFaceByDatumPlane(
+                            datumPlane=part.datums[dp_id], faces=faces)
+                else:  # solid
+                    cells = part.cells
+                    if len(cells) > 0:
+                        part.PartitionCellByDatumPlane(
+                            datumPlane=part.datums[dp_id], cells=cells)
+            except Exception as e:
+                print("  Part partition warning (%s): %s" % (geom_type, str(e)[:80]))
+
+    print("Defect zone partitioned: z=%.0f theta=%.1f r=%.0f" % (z_c, theta_deg, r_def))
+
+def assign_all_sections(p_inner, p_core, p_outer, defect_params):
+    """
+    Assign sections to all parts, including defect-zone overrides.
+    Must be called AFTER partition_defect_zone().
+    """
+    # Inner skin: always healthy CFRP
+    region = p_inner.Set(faces=p_inner.faces, name='Set-All')
+    p_inner.SectionAssignment(region=region, sectionName='Section-CFRP-Skin')
+    p_inner.MaterialOrientation(region=region, orientationType=GLOBAL, axis=AXIS_3,
+                                additionalRotationType=ROTATION_NONE, localCsys=None)
+
+    # Core: healthy baseline for all cells
+    region = p_core.Set(cells=p_core.cells, name='Set-All')
+    p_core.SectionAssignment(region=region, sectionName='Section-Core')
+
+    # Outer skin: healthy baseline for all faces
+    region = p_outer.Set(faces=p_outer.faces, name='Set-All')
+    p_outer.SectionAssignment(region=region, sectionName='Section-CFRP-Skin')
+    p_outer.MaterialOrientation(region=region, orientationType=GLOBAL, axis=AXIS_3,
+                                additionalRotationType=ROTATION_NONE, localCsys=None)
+
+    if not defect_params:
+        return
+
+    defect_type = defect_params.get('defect_type', 'debonding')
+
+    # --- Defect-zone section overrides ---
+    if defect_type in ('debonding', 'impact'):
+        # Override outer skin in defect zone
+        section_name = ('Section-CFRP-Debonded' if defect_type == 'debonding'
+                        else 'Section-CFRP-Impact')
+        defect_faces = [f for f in p_outer.faces
+                        if is_face_in_defect_zone(f, defect_params)]
+        if defect_faces:
+            # Use findAt to get proper FaceArray type for Set()
+            pts = tuple((f.pointOn[0],) for f in defect_faces)
+            face_seq = p_outer.faces.findAt(*pts)
+            region_d = p_outer.Set(faces=face_seq, name='Set-DefectZone-Skin')
+            p_outer.SectionAssignment(region=region_d, sectionName=section_name)
+            p_outer.MaterialOrientation(region=region_d, orientationType=GLOBAL, axis=AXIS_3,
+                                        additionalRotationType=ROTATION_NONE, localCsys=None)
+            print("  %s: %d skin faces -> %s" % (defect_type, len(defect_faces), section_name))
+        else:
+            print("  Warning: no outer skin faces found in defect zone")
+
+    if defect_type in ('fod', 'impact'):
+        # Override core in defect zone
+        section_name = ('Section-Core-FOD' if defect_type == 'fod'
+                        else 'Section-Core-Crushed')
+        opening = defect_params.get('_opening_params') or OPENING_PARAMS
+        defect_cells = [c for c in p_core.cells
+                        if is_cell_in_defect_zone(c, defect_params, opening)]
+        if defect_cells:
+            # Use findAt to get proper CellArray type for Set()
+            pts = tuple((c.pointOn[0],) for c in defect_cells)
+            cell_seq = p_core.cells.findAt(*pts)
+            region_d = p_core.Set(cells=cell_seq, name='Set-DefectZone-Core')
+            p_core.SectionAssignment(region=region_d, sectionName=section_name)
+            print("  %s: %d core cells -> %s" % (defect_type, len(defect_cells), section_name))
+        else:
+            print("  Warning: no core cells found in defect zone")
+
+def generate_model(job_name, defect_params=None, project_root=None,
+                  global_seed=None, defect_seed=None, no_run=False,
+                  opening_params=None):
     """Main function to generate the model."""
+    g_seed = global_seed if global_seed is not None else GLOBAL_SEED
+    d_seed = defect_seed if defect_seed is not None else DEFECT_SEED
+    if g_seed != GLOBAL_SEED or d_seed != DEFECT_SEED:
+        print("Mesh seeds: GLOBAL=%.0f mm, DEFECT=%.0f mm (override)" % (g_seed, d_seed))
     Mdb() # Clear
     model = mdb.models['Model-1']
     
-    # 1. Materials & Sections
+    defect_type = defect_params.get('defect_type', 'debonding') if defect_params else None
+    opening = opening_params or OPENING_PARAMS
+    if opening and defect_params:
+        defect_params = dict(defect_params)
+        defect_params['_opening_params'] = opening
+    if defect_params:
+        print("Defect type: %s | theta=%.1f z=%.0f r=%.0f" % (
+            defect_type, defect_params['theta_deg'],
+            defect_params['z_center'], defect_params['radius']))
+    if opening:
+        print("Opening zone: z=%.0f theta=%.1f r=%.0f (defect excluded)" % (
+            opening['z_center'], opening['theta_deg'], opening['radius']))
+
+    # 1. Materials & Sections (healthy + defect-type-specific)
     create_materials(model)
     create_sections(model)
-    
-    # 2. Parts
+    if defect_params:
+        create_defect_materials(model, defect_params)
+        create_defect_sections(model, defect_params)
+
+    # 2. Parts (geometry)
     p_inner, p_core, p_outer = create_parts(model)
-    
-    # Assign Sections
-    region = p_inner.Set(faces=p_inner.faces, name='Set-All')
-    p_inner.SectionAssignment(region=region, sectionName='Section-CFRP-Skin')
-    p_inner.MaterialOrientation(region=region, orientationType=GLOBAL, axis=AXIS_3, additionalRotationType=ROTATION_NONE, localCsys=None)
-    
-    region = p_core.Set(cells=p_core.cells, name='Set-All')
-    p_core.SectionAssignment(region=region, sectionName='Section-Core')
-    
-    region = p_outer.Set(faces=p_outer.faces, name='Set-All')
-    p_outer.SectionAssignment(region=region, sectionName='Section-CFRP-Skin')
-    
-    # 3. Assembly
+
+    # 3. Partition parts at defect zone (BEFORE assembly, for section assignment)
+    if defect_params:
+        parts_to_partition = []
+        if defect_type in ('debonding', 'impact'):
+            parts_to_partition.append(('shell', p_outer))
+        if defect_type in ('fod', 'impact'):
+            parts_to_partition.append(('solid', p_core))
+        # Also partition for mesh refinement (always partition outer skin and core)
+        if defect_type == 'fod' and ('shell', p_outer) not in parts_to_partition:
+            parts_to_partition.append(('shell', p_outer))
+        partition_defect_zone(parts_to_partition, defect_params)
+
+    # 4. Assign sections (healthy baseline + defect-zone overrides)
+    assign_all_sections(p_inner, p_core, p_outer, defect_params)
+
+    # 5. Assembly
     a = model.rootAssembly
     a.DatumCsysByDefault(CARTESIAN)
     inst_inner = a.Instance(name='Part-InnerSkin-1', part=p_inner, dependent=OFF)
     inst_core = a.Instance(name='Part-Core-1', part=p_core, dependent=OFF)
     inst_outer = a.Instance(name='Part-OuterSkin-1', part=p_outer, dependent=OFF)
     
-    # 4. Debonding (Partitioning)
-    if defect_params:
-        partition_debonding_zone(model, a, defect_params)
+    # 6. Interaction — Tie constraints are NOT used.
+    # With dependent=OFF instances, assembly-level surfaces don't export to INP correctly.
+    # The model solves under thermal load only (each part deforms independently).
+    # Defect physics come from material property differences in the defect zone.
+    # (Tie + BC improvement is a future TODO for physically coupled model.)
     
-    # 5. Interaction (Tie Constraints) - EXCLUDE defect zone for physical debonding
-    tol_r = 100.0
-    # Core radial: original formula (pointOn x,y) worked in prior runs
-    core_inner_faces = [f for f in inst_core.faces
-                        if abs(math.sqrt(f.pointOn[0][0]**2 + f.pointOn[0][1]**2) - RADIUS) < tol_r]
-    core_outer_faces = [f for f in inst_core.faces
-                        if abs(math.sqrt(f.pointOn[0][0]**2 + f.pointOn[0][1]**2) - (RADIUS + CORE_T)) < tol_r]
-    # Tie exclusion (defect zone): Abaqus Surface(side1Faces=subset) can fail with partitioned geometry.
-    # Using all faces for now; physical debonding requires Contact or CZM for partitioned models.
-    surf_inner = a.Surface(side1Faces=inst_inner.faces, name='Surf_Inner')
-    surf_outer = a.Surface(side1Faces=inst_outer.faces, name='Surf_Outer')
-    if not core_inner_faces or not core_outer_faces:
-        print("Warning: core faces not found (inner=%d, outer=%d)" % (len(core_inner_faces), len(core_outer_faces)))
-    try:
-        if core_inner_faces:
-            surf_core_in = a.Surface(side1Faces=core_inner_faces, name='Surf_CoreInner')
-            model.Tie(name='Tie-Inner-Core', main=surf_core_in, secondary=surf_inner,
-                      positionToleranceMethod=COMPUTED, adjust=ON, tieRotations=ON, thickness=ON)
-        if core_outer_faces:
-            surf_core_out = a.Surface(side1Faces=core_outer_faces, name='Surf_CoreOuter')
-            model.Tie(name='Tie-Core-Outer', main=surf_core_out, secondary=surf_outer,
-                      positionToleranceMethod=COMPUTED, adjust=ON, tieRotations=ON, thickness=ON)
-    except Exception as e:
-        print("Tie from filtered faces failed (%s), using full core" % str(e)[:50])
-        surf_core_in = a.Surface(side1Faces=inst_core.faces, name='Surf_CoreInner')
-        surf_core_out = a.Surface(side1Faces=inst_core.faces, name='Surf_CoreOuter')
-        model.Tie(name='Tie-Inner-Core', main=surf_core_in, secondary=surf_inner,
-                  positionToleranceMethod=COMPUTED, adjust=ON, tieRotations=ON, thickness=ON)
-        model.Tie(name='Tie-Core-Outer', main=surf_core_out, secondary=surf_outer,
-                  positionToleranceMethod=COMPUTED, adjust=ON, tieRotations=ON, thickness=ON)
-    
-    # 6. BCs - fix bottom (y=0) for static equilibrium — Abaqus: Y=axial
+    # 7. BCs - fix bottom (y=0) for static equilibrium — Abaqus: Y=axial
     try:
         bottom_faces = []
         for inst in (inst_inner, inst_core, inst_outer):
@@ -387,13 +563,13 @@ def generate_model(job_name, defect_params=None, project_root=None):
     except Exception as e:
         print("Warning: BC: %s" % str(e))
 
-    # 7. Step & Loads
+    # 8. Step & Loads
     model.StaticStep(name='Step-1', previous='Initial')
     # Thermal load: ascent heating (outer 120°C, inner 20°C) — applied in Step-1 after mesh
     model.fieldOutputRequests['F-Output-1'].setValues(variables=('S', 'U', 'RF', 'TEMP'))
     
-    # 8. Mesh
-    a.seedPartInstance(regions=(inst_inner, inst_core, inst_outer), size=GLOBAL_SEED, deviationFactor=0.1)
+    # 9. Mesh
+    a.seedPartInstance(regions=(inst_inner, inst_core, inst_outer), size=g_seed, deviationFactor=0.1)
     # Local refinement around defect (h≤D/2 for physical resolution)
     if defect_params:
         z_c, r_def = defect_params['z_center'], defect_params['radius']
@@ -405,8 +581,8 @@ def generate_model(job_name, defect_params=None, project_root=None):
                 edges = inst.edges.getByBoundingBox(
                     xMin=-r_box, xMax=r_box, yMin=z1, yMax=z2, zMin=-r_box, zMax=r_box)
                 if len(edges) > 0:
-                    a.seedEdgeBySize(edges=edges, size=DEFECT_SEED, constraint=FINER)
-            print("Local mesh refinement: DEFECT_SEED=%.0f mm in defect zone (z=%.0f–%.0f)" % (DEFECT_SEED, z1, z2))
+                    a.seedEdgeBySize(edges=edges, size=d_seed, constraint=FINER)
+            print("Local mesh refinement: DEFECT_SEED=%.0f mm in defect zone (z=%.0f–%.0f)" % (d_seed, z1, z2))
         except Exception as e:
             print("Warning: Local seed skipped: %s" % str(e)[:60])
     a.generateMesh(regions=(inst_inner, inst_core, inst_outer))
@@ -445,10 +621,13 @@ def generate_model(job_name, defect_params=None, project_root=None):
     # Save CAE
     mdb.saveAs(pathName=job_name + '.cae')
 
-    # Write INP, patch thermal/BC if needed, then run (submit overwrites INP, so use input=)
+    # Write INP (patch and run done by run_batch when --no_run)
     print("Writing INP for job '%s'..." % job_name)
     mdb.jobs[job_name].writeInput(consistencyChecking=OFF)
     inp_path = os.path.abspath(job_name + '.inp')
+    if no_run:
+        print("Skipping patch and job execution (--no_run)")
+        return
     if os.path.exists(inp_path):
         # Find patch script: project_root arg, env, or search upward from inp dir
         patch_script = None
@@ -488,6 +667,10 @@ if __name__ == '__main__':
                         help='Path to JSON file with defect params (run_batch compatibility)')
     parser.add_argument('--project_root', type=str, default=None,
                         help='Project root for patch script (run_batch sets via env)')
+    parser.add_argument('--global_seed', type=float, default=None,
+                        help='Override GLOBAL_SEED (mm). Fine mesh: 12–15.')
+    parser.add_argument('--defect_seed', type=float, default=None,
+                        help='Override DEFECT_SEED (mm). Fine mesh: 5–8.')
     
     # When run via abaqus cae noGUI=script.py -- args
     args, unknown = parser.parse_known_args()
@@ -511,5 +694,18 @@ if __name__ == '__main__':
             except:
                 print("Invalid defect JSON or file path")
     
+    opening_params = None
+    if getattr(args, 'opening', None):
+        try:
+            opening_params = json.loads(args.opening) if isinstance(args.opening, str) else args.opening
+        except (json.JSONDecodeError, TypeError):
+            pass
+    if defect_data and isinstance(defect_data, dict):
+        if 'opening_params' in defect_data:
+            opening_params = defect_data.get('opening_params') or opening_params
+        if 'defect_params' in defect_data:
+            defect_data = defect_data['defect_params']
     project_root = args.project_root or os.environ.get('PROJECT_ROOT') or os.environ.get('PAYLOAD2026_ROOT')
-    generate_model(job_name, defect_data, project_root=project_root)
+    generate_model(job_name, defect_data, project_root=project_root,
+                   global_seed=args.global_seed, defect_seed=args.defect_seed,
+                   no_run=getattr(args, 'no_run', False), opening_params=opening_params)
