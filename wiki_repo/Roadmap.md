@@ -79,29 +79,32 @@ Phase 10 XAI (SHAP, LIME, GNNExplainer) — 予測根拠の可視化
 
 **目的**: GNN 4 種 + 代替モデルを同一データで公平に比較
 
-### 2a. GNN 4 種比較 (CPU で実施可能)
+### 2a. GNN 4 種比較 — 初期ベンチマーク結果 (2026-03-01)
 
-| モデル | パラメータ数 | 特徴 |
-|--------|-------------|------|
-| GCN | 61K | 軽量ベースライン |
-| **GAT** | **625K** | エッジ特徴量活用、Attention による解釈性 |
-| GIN | 127K | WL-test 等価の最大表現力 |
-| SAGE | 112K | サンプリング集約、スケーラビリティ |
+**データ**: `processed_realistic_25mm_27` (25 サンプル, 8 クラス, ~120K ノード/グラフ)
+**環境**: 3 サーバー並列実行 (vancouver01/02: RTX 4090 x4, stuttgart02: RTX 3090 x4)
 
-```bash
-# 5-Fold CV で全モデル評価
-for arch in gcn gat gin sage; do
-  python src/train.py --arch $arch --cross_val 5 --epochs 200
-done
-```
+| モデル | パラメータ | GPU メモリ | Best Val F1 | 備考 |
+|--------|-----------|-----------|------------|------|
+| **SAGE** | 117K | ~1 GB | **0.2496** | full_graph, hidden=128, Focal γ=2 |
+| GCN | 64K | ~1 GB | 0.1937 | full_graph, hidden=128, Focal γ=2 |
+| GAT | 168K | ~3.4 GB | 0.0563 | defect_centric, hidden=64, Focal γ=2 |
+| GAT | 634K | **OOM** | — | full_graph, hidden=128 → 24GB 超過 |
+
+**所見**:
+- GAT は 120K ノードの full graph で OOM (attention の O(E×heads) がボトルネック)
+- SAGE / GCN はメモリ効率が良く、full graph で学習可能
+- 全モデルとも **healthy のみ検出** (F1≈0.97)、**欠陥クラスは F1=0.000**
+- 原因: 極端なクラス不均衡 (healthy 99.58% vs 欠陥 0.01–0.15%) + データ 25 サンプル
 
 ### 2b. 代替モデル比較 (GPU 推奨)
 
 | モデル | タイプ | 状態 |
 |--------|-------|------|
 | UV-Net (U-Net) | 2D CNN (円筒展開) | 実装済 |
-| Point Transformer | 3D 点群 | 要実装 |
-| **Graph Mamba** | State Space Model | 要実装 → [Cutting-Edge-ML](Cutting-Edge-ML) |
+| Point Transformer | 3D 点群 | 実装済 |
+| **Graph Mamba** | State Space Model | プロトタイプ済 → 統合予定 |
+| **E(3)-Equivariant GNN** | 等変 GNN | プロトタイプ済 |
 
 ### 2c. ハイパーパラメータ探索 (GPU 4枚並列)
 
@@ -115,6 +118,16 @@ Optuna で 4 GPU に 1 trial ずつ割り当て、100 trials 並列探索。
 | dropout | 0.0 – 0.3 |
 | focal_alpha | auto, 0.5, 0.75, 0.9 |
 | batch_size | 4, 8, 16, 32 |
+
+### 2d. 学習基盤整備 ✅ 完了
+
+| タスク | 状態 |
+|--------|------|
+| TensorBoard ロギング (loss, F1, AUC, precision, recall, lr, hparams) | ✅ |
+| Focal Loss (per-class alpha, gamma 調整) | ✅ |
+| DDP マルチ GPU 対応 (torchrun) | ✅ |
+| DefectCentric サブグラフサンプラー | ✅ |
+| CSV + TensorBoard 二重ロギング | ✅ |
 
 ---
 
