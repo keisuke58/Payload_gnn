@@ -87,11 +87,8 @@ def run_sample(sample, output_dir, n_cpus=4, logger=None, dry_run=False, keep_in
     job_name = sample['job_name']
     defect_params = sample.get('defect_params')
 
-    # Output directory for this sample
-    if defect_params is None:
-        sample_dir = os.path.join(output_dir, 'healthy_baseline')
-    else:
-        sample_dir = os.path.join(output_dir, 'sample_%04d' % sample_id)
+    # Output directory for this sample (unified naming for healthy & defective)
+    sample_dir = os.path.join(output_dir, 'sample_%04d' % sample_id)
 
     # Skip if already completed (unless --force)
     if not force and os.path.exists(os.path.join(sample_dir, 'nodes.csv')):
