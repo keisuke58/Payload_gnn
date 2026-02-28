@@ -81,6 +81,27 @@ class FocalLoss(nn.Module):
 
 
 # =========================================================================
+# Boundary-aware weighting
+# =========================================================================
+def find_boundary_nodes(edge_index, y):
+    """Find healthy nodes adjacent to defect nodes (boundary transition zone)."""
+    src, dst = edge_index[0], edge_index[1]
+    defect_mask = y > 0
+    # Healthy src connected to defect dst
+    boundary_mask = (~defect_mask[src]) & defect_mask[dst]
+    return src[boundary_mask].unique()
+
+
+def build_node_weights(data, boundary_weight=1.0):
+    """Build per-node weight tensor: 1.0 for normal, boundary_weight for boundary."""
+    w = torch.ones(data.y.shape[0], dtype=torch.float, device=data.y.device)
+    if boundary_weight > 1.0:
+        boundary_idx = find_boundary_nodes(data.edge_index, data.y)
+        w[boundary_idx] = boundary_weight
+    return w
+
+
+# =========================================================================
 # Metrics
 # =========================================================================
 DEFECT_TYPE_NAMES = [
@@ -138,7 +159,8 @@ def compute_metrics(logits, targets, num_classes=2):
 # =========================================================================
 # Training loop
 # =========================================================================
-def train_epoch(model, loader, optimizer, criterion, device, num_classes=2):
+def train_epoch(model, loader, optimizer, criterion, device, num_classes=2,
+                boundary_weight=1.0):
     model.train()
     total_loss = 0.0
     all_logits, all_targets = [], []
@@ -147,7 +169,13 @@ def train_epoch(model, loader, optimizer, criterion, device, num_classes=2):
         batch = batch.to(device)
         optimizer.zero_grad()
         out = model(batch.x, batch.edge_index, batch.edge_attr, batch.batch)
-        loss = criterion(out, batch.y)
+        if boundary_weight > 1.0:
+            # Per-node weighted loss
+            node_w = build_node_weights(batch, boundary_weight)
+            per_node_loss = F.cross_entropy(out, batch.y, reduction='none')
+            loss = (per_node_loss * node_w).mean()
+        else:
+            loss = criterion(out, batch.y)
         loss.backward()
         optimizer.step()
 
@@ -261,6 +289,46 @@ def train(args, train_data, val_data, fold=None):
         dropout=args.dropout, num_classes=num_classes,
     ).to(device)
 
+    # Transfer learning: load pretrained weights
+    pretrained_path = getattr(args, 'pretrained', None)
+    if pretrained_path and os.path.exists(pretrained_path):
+        ckpt = torch.load(pretrained_path, map_location=device, weights_only=False)
+        state = ckpt.get('model_state_dict', ckpt)
+        # Handle num_classes mismatch: skip head layers
+        model_state = model.state_dict()
+        loaded = {}
+        skipped = []
+        for k, v in state.items():
+            if k in model_state and v.shape == model_state[k].shape:
+                loaded[k] = v
+            else:
+                skipped.append(k)
+        model_state.update(loaded)
+        model.load_state_dict(model_state)
+        if is_main:
+            print("Pretrained: loaded %d/%d params from %s" % (
+                len(loaded), len(state), pretrained_path))
+            if skipped:
+                print("  Skipped (shape mismatch): %s" % skipped)
+
+    # Freeze early layers for fine-tuning
+    freeze_n = getattr(args, 'freeze_layers', 0)
+    if freeze_n > 0:
+        frozen = 0
+        for name, param in model.named_parameters():
+            if 'convs.' in name:
+                layer_idx = int(name.split('convs.')[1].split('.')[0])
+                if layer_idx < freeze_n:
+                    param.requires_grad = False
+                    frozen += 1
+            elif 'norms.' in name:
+                layer_idx = int(name.split('norms.')[1].split('.')[0])
+                if layer_idx < freeze_n:
+                    param.requires_grad = False
+                    frozen += 1
+        if is_main:
+            print("Frozen: %d params (first %d conv layers)" % (frozen, freeze_n))
+
     if multi_gpu:
         model = DDP(model, device_ids=[rank], find_unused_parameters=False)
 
@@ -351,7 +419,9 @@ def train(args, train_data, val_data, fold=None):
                 model, train_data, sampler, optimizer, criterion,
                 device, num_classes=num_classes)
         else:
-            train_m = train_epoch(model, train_loader, optimizer, criterion, device, num_classes=num_classes)
+            train_m = train_epoch(model, train_loader, optimizer, criterion, device,
+                                   num_classes=num_classes,
+                                   boundary_weight=getattr(args, 'boundary_weight', 1.0))
         val_m = eval_epoch(model, val_loader, criterion, device, num_classes=num_classes)
         scheduler.step()
         elapsed = time.time() - t0
@@ -537,6 +607,14 @@ def main():
                         help='k-hop expansion for defect_centric sampler')
     parser.add_argument('--healthy_ratio', type=int, default=5,
                         help='Extra healthy nodes per defect node')
+    # Boundary-aware loss
+    parser.add_argument('--boundary_weight', type=float, default=1.0,
+                        help='Weight multiplier for boundary nodes (healthy adjacent to defect)')
+    # Transfer learning
+    parser.add_argument('--pretrained', type=str, default=None,
+                        help='Path to pretrained checkpoint (best_model.pt) for fine-tuning')
+    parser.add_argument('--freeze_layers', type=int, default=0,
+                        help='Freeze first N conv layers during fine-tuning')
     # Cross-validation
     parser.add_argument('--cross_val', type=int, default=0,
                         help='Number of folds for CV (0=disabled)')
