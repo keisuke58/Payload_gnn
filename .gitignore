@@ -1,18 +1,17 @@
-# Data (large downloads / Abaqus outputs)
-data/
-*.zip
-*.h5
-*.odb
-*.lck
-
 # Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 
-# Abaqus work directory
-abaqus_work/
+# Abaqus generated files
+*.odb
+*.odb_f
+*.lck
+*.cae
+*.inp
+*.jnl
+*.env
 *.log
 *.sta
 *.msg
@@ -22,3 +21,32 @@ abaqus_work/
 *.prt
 *.abq
 *.stt
+*.rpy
+*.rpy.*
+*.rec
+abaqus_work*/
+defect_params.json
+
+# Datasets (large, generated)
+data/
+dataset_*/
+dataset_output*/
+
+# Training runs / figures
+runs/
+figures/
+
+# DOE configs (generated)
+doe_*.json
+
+# Archives
+*.zip
+*.h5
+
+# Test / verify output
+test_multitype/
+verify_defect/
+
+# Personal docs
+docs/jaxa_career_roadmap.md
+docs/jaxa_evaluation.md
