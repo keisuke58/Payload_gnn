@@ -41,40 +41,66 @@ from models import build_model
 # Focal Loss
 # =========================================================================
 class FocalLoss(nn.Module):
-    """Focal Loss for handling class imbalance (defect nodes << healthy)."""
+    """Focal Loss for handling class imbalance. Supports multi-class."""
 
-    def __init__(self, alpha=0.25, gamma=2.0):
+    def __init__(self, alpha=None, gamma=2.0, num_classes=2):
         super().__init__()
-        self.alpha = alpha
         self.gamma = gamma
+        self.num_classes = num_classes
+        if alpha is None:
+            self.alpha = None
+        elif isinstance(alpha, (list, tuple)):
+            self.register_buffer('alpha', torch.tensor(alpha, dtype=torch.float))
+        else:
+            # Scalar alpha: binary-compatible (alpha for class=1, 1-alpha for class=0)
+            if num_classes == 2:
+                self.register_buffer('alpha', torch.tensor([1 - alpha, alpha], dtype=torch.float))
+            else:
+                self.alpha = None
 
     def forward(self, logits, targets):
         ce = F.cross_entropy(logits, targets, reduction='none')
         pt = torch.exp(-ce)
-        # alpha weighting: higher weight for minority class (defect=1)
-        alpha_t = torch.where(targets == 1, self.alpha, 1 - self.alpha)
-        loss = alpha_t * (1 - pt) ** self.gamma * ce
-        return loss.mean()
+        focal = (1 - pt) ** self.gamma * ce
+        if self.alpha is not None:
+            alpha_t = self.alpha[targets]
+            focal = alpha_t * focal
+        return focal.mean()
 
 
 # =========================================================================
 # Metrics
 # =========================================================================
-def compute_metrics(logits, targets):
-    """Compute classification metrics."""
+DEFECT_TYPE_NAMES = ['healthy', 'debonding', 'fod', 'impact']
+
+
+def compute_metrics(logits, targets, num_classes=2):
+    """Compute classification metrics (binary or multi-class)."""
     preds = logits.argmax(dim=1).cpu().numpy()
     targets_np = targets.cpu().numpy()
-    probs = F.softmax(logits, dim=1)[:, 1].detach().cpu().numpy()
 
     acc = (preds == targets_np).mean()
-    f1 = f1_score(targets_np, preds, zero_division=0)
-    prec = precision_score(targets_np, preds, zero_division=0)
-    rec = recall_score(targets_np, preds, zero_division=0)
 
-    try:
-        auc = roc_auc_score(targets_np, probs)
-    except ValueError:
-        auc = 0.0
+    if num_classes == 2:
+        # Binary metrics (backward compatible)
+        probs = F.softmax(logits, dim=1)[:, 1].detach().cpu().numpy()
+        f1 = f1_score(targets_np, preds, zero_division=0)
+        prec = precision_score(targets_np, preds, zero_division=0)
+        rec = recall_score(targets_np, preds, zero_division=0)
+        try:
+            auc = roc_auc_score(targets_np, probs)
+        except ValueError:
+            auc = 0.0
+    else:
+        # Multi-class: macro averages
+        f1 = f1_score(targets_np, preds, average='macro', zero_division=0)
+        prec = precision_score(targets_np, preds, average='macro', zero_division=0)
+        rec = recall_score(targets_np, preds, average='macro', zero_division=0)
+        try:
+            probs = F.softmax(logits, dim=1).detach().cpu().numpy()
+            auc = roc_auc_score(targets_np, probs, multi_class='ovr', average='macro')
+        except ValueError:
+            auc = 0.0
 
     return {
         'accuracy': float(acc),
@@ -88,7 +114,7 @@ def compute_metrics(logits, targets):
 # =========================================================================
 # Training loop
 # =========================================================================
-def train_epoch(model, loader, optimizer, criterion, device):
+def train_epoch(model, loader, optimizer, criterion, device, num_classes=2):
     model.train()
     total_loss = 0.0
     all_logits, all_targets = [], []
@@ -108,13 +134,13 @@ def train_epoch(model, loader, optimizer, criterion, device):
     avg_loss = total_loss / len(loader.dataset)
     logits_cat = torch.cat(all_logits, dim=0)
     targets_cat = torch.cat(all_targets, dim=0)
-    metrics = compute_metrics(logits_cat, targets_cat)
+    metrics = compute_metrics(logits_cat, targets_cat, num_classes=num_classes)
     metrics['loss'] = avg_loss
     return metrics
 
 
 @torch.no_grad()
-def eval_epoch(model, loader, criterion, device):
+def eval_epoch(model, loader, criterion, device, num_classes=2):
     model.eval()
     total_loss = 0.0
     all_logits, all_targets = [], []
@@ -131,7 +157,7 @@ def eval_epoch(model, loader, criterion, device):
     avg_loss = total_loss / len(loader.dataset)
     logits_cat = torch.cat(all_logits, dim=0)
     targets_cat = torch.cat(all_targets, dim=0)
-    metrics = compute_metrics(logits_cat, targets_cat)
+    metrics = compute_metrics(logits_cat, targets_cat, num_classes=num_classes)
     metrics['loss'] = avg_loss
     return metrics
 
@@ -149,46 +175,59 @@ def train(args, train_data, val_data, fold=None):
     val_loader = DataLoader(val_data, batch_size=args.batch_size,
                             shuffle=False, num_workers=0)
 
-    # Model
+    # Model — auto-detect num_classes from labels
     sample = train_data[0]
     in_channels = sample.x.shape[1]
     edge_attr_dim = sample.edge_attr.shape[1] if sample.edge_attr is not None else 0
 
+    all_labels = torch.cat([d.y for d in train_data])
+    num_classes = int(all_labels.max().item()) + 1
+    num_classes = max(num_classes, 2)  # At least binary
+
     model = build_model(
         args.arch, in_channels, edge_attr_dim,
         hidden_channels=args.hidden, num_layers=args.layers,
-        dropout=args.dropout, num_classes=2,
+        dropout=args.dropout, num_classes=num_classes,
     ).to(device)
 
     param_count = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print("Model: %s | Params: %d | Device: %s" % (args.arch.upper(), param_count, device))
+    print("Model: %s | Params: %d | Classes: %d | Device: %s" % (
+        args.arch.upper(), param_count, num_classes, device))
 
-    # Compute class weights from actual distribution
-    n_total = sum(d.y.numel() for d in train_data)
-    n_defect = sum((d.y == 1).sum().item() for d in train_data)
-    n_healthy = n_total - n_defect
-    defect_ratio = n_defect / max(n_total, 1)
-    print("Class distribution: %d healthy, %d defect (%.4f%%)" %
-          (n_healthy, n_defect, 100.0 * defect_ratio))
+    # Compute class distribution
+    n_total = all_labels.numel()
+    class_counts = {}
+    for c in range(num_classes):
+        n_c = (all_labels == c).sum().item()
+        class_counts[c] = n_c
+        name = DEFECT_TYPE_NAMES[c] if c < len(DEFECT_TYPE_NAMES) else 'class_%d' % c
+        print("  Class %d (%s): %d nodes (%.4f%%)" % (c, name, n_c, 100.0 * n_c / max(n_total, 1)))
 
     # Optimizer, scheduler, criterion
     optimizer = Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     scheduler = CosineAnnealingLR(optimizer, T_max=args.epochs, eta_min=1e-6)
 
     if args.loss == 'weighted_ce':
-        # Inverse frequency class weights
-        if n_defect > 0:
-            w_healthy = n_total / (2.0 * n_healthy)
-            w_defect = n_total / (2.0 * n_defect)
-        else:
-            w_healthy, w_defect = 1.0, 1.0
-        class_weights = torch.tensor([w_healthy, w_defect], dtype=torch.float).to(device)
-        print("Loss: WeightedCE — weights=[%.2f, %.2f]" % (w_healthy, w_defect))
+        # Inverse frequency class weights (generalized for K classes)
+        weights = []
+        for c in range(num_classes):
+            n_c = max(class_counts.get(c, 1), 1)
+            weights.append(n_total / (num_classes * n_c))
+        class_weights = torch.tensor(weights, dtype=torch.float).to(device)
+        print("Loss: WeightedCE — weights=%s" % ['%.2f' % w for w in weights])
         criterion = nn.CrossEntropyLoss(weight=class_weights)
     else:
-        alpha = args.focal_alpha if args.focal_alpha > 0 else min(1.0 - defect_ratio, 0.95)
-        print("Loss: FocalLoss — alpha=%.4f, gamma=%.1f" % (alpha, args.focal_gamma))
-        criterion = FocalLoss(alpha=alpha, gamma=args.focal_gamma)
+        # Focal loss with per-class alpha (inverse frequency)
+        alpha_vec = []
+        for c in range(num_classes):
+            n_c = max(class_counts.get(c, 1), 1)
+            alpha_vec.append(n_total / (num_classes * n_c))
+        # Normalize to sum to num_classes
+        alpha_sum = sum(alpha_vec)
+        alpha_vec = [a * num_classes / alpha_sum for a in alpha_vec]
+        print("Loss: FocalLoss — alpha=%s, gamma=%.1f" % (
+            ['%.3f' % a for a in alpha_vec], args.focal_gamma))
+        criterion = FocalLoss(alpha=alpha_vec, gamma=args.focal_gamma, num_classes=num_classes)
 
     # Logging
     fold_str = '_fold%d' % fold if fold is not None else ''
@@ -208,8 +247,8 @@ def train(args, train_data, val_data, fold=None):
 
     for epoch in range(1, args.epochs + 1):
         t0 = time.time()
-        train_m = train_epoch(model, train_loader, optimizer, criterion, device)
-        val_m = eval_epoch(model, val_loader, criterion, device)
+        train_m = train_epoch(model, train_loader, optimizer, criterion, device, num_classes=num_classes)
+        val_m = eval_epoch(model, val_loader, criterion, device, num_classes=num_classes)
         scheduler.step()
         elapsed = time.time() - t0
 
@@ -347,12 +386,12 @@ def main():
     train_path = os.path.join(data_dir, 'train.pt')
     val_path = os.path.join(data_dir, 'val.pt')
 
-    if not os.path.exists(train_path) or not os.path.exists(val_path):
-        print("Error: train.pt or val.pt not found in %s" % data_dir)
-        print("Run: python src/prepare_ml_data.py --input dataset_output_100 --output %s" % args.data_dir)
-        sys.exit(1)
+    if not os.path.exists(train_path):
+        print("Data not found: %s" % train_path)
+        return
 
-    print("Loading data from %s ..." % data_dir)
+    # Load data
+    print("Loading data from %s..." % args.data_dir)
     train_data = torch.load(train_path, weights_only=False)
     val_data = torch.load(val_path, weights_only=False)
     print("Train: %d samples | Val: %d samples" % (len(train_data), len(val_data)))
