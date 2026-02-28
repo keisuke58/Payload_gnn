@@ -1,0 +1,137 @@
+{
+  "n_total": 1,
+  "n_healthy": 0,
+  "n_defective": 1,
+  "defect_types": [
+    "debonding",
+    "fod",
+    "impact",
+    "delamination",
+    "inner_debond",
+    "thermal_progression",
+    "acoustic_fatigue"
+  ],
+  "type_counts": {
+    "debonding": 0,
+    "fod": 0,
+    "impact": 0,
+    "delamination": 0,
+    "inner_debond": 0,
+    "thermal_progression": 0,
+    "acoustic_fatigue": 1
+  },
+  "opening_params": [
+    {
+      "z_center": 1500.0,
+      "theta_deg": 30.0,
+      "radius": 650.0,
+      "name": "AccessDoor"
+    },
+    {
+      "z_center": 2500.0,
+      "theta_deg": 20.0,
+      "radius": 200.0,
+      "name": "HVAC_Door"
+    },
+    {
+      "z_center": 4000.0,
+      "theta_deg": 40.0,
+      "radius": 200.0,
+      "name": "RF_Window"
+    },
+    {
+      "z_center": 300.0,
+      "theta_deg": 15.0,
+      "radius": 50.0,
+      "name": "Vent_1"
+    },
+    {
+      "z_center": 300.0,
+      "theta_deg": 45.0,
+      "radius": 50.0,
+      "name": "Vent_2"
+    }
+  ],
+  "bounds": {
+    "theta_deg": [
+      5.0,
+      55.0
+    ],
+    "z_center": [
+      800.0,
+      4200.0
+    ],
+    "radius_tiers": [
+      {
+        "name": "Small",
+        "min": 50.0,
+        "max": 100.0,
+        "frac": 0.25
+      },
+      {
+        "name": "Medium",
+        "min": 100.0,
+        "max": 150.0,
+        "frac": 0.4
+      },
+      {
+        "name": "Large",
+        "min": 150.0,
+        "max": 250.0,
+        "frac": 0.3
+      },
+      {
+        "name": "Critical",
+        "min": 250.0,
+        "max": 400.0,
+        "frac": 0.05
+      }
+    ],
+    "type_params": {
+      "debonding": {},
+      "fod": {
+        "stiffness_factor": [
+          5.0,
+          20.0
+        ]
+      },
+      "impact": {
+        "damage_ratio": [
+          0.1,
+          0.5
+        ]
+      },
+      "delamination": {
+        "delam_depth": [
+          0.2,
+          0.8
+        ]
+      },
+      "inner_debond": {},
+      "thermal_progression": {},
+      "acoustic_fatigue": {
+        "fatigue_severity": [
+          0.2,
+          0.5
+        ]
+      }
+    }
+  },
+  "seed": 42,
+  "plan_reference": "docs/DEFECT_PLAN.md",
+  "samples": [
+    {
+      "id": 0,
+      "job_name": "H3_Acoustic_0000",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 10.65,
+        "z_center": 1753.91,
+        "radius": 306.18,
+        "fatigue_severity": 0.49
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Critical"
+    }
+  ]
+}

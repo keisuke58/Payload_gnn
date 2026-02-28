@@ -1,0 +1,212 @@
+{
+  "n_total": 7,
+  "n_healthy": 0,
+  "n_defective": 7,
+  "defect_types": [
+    "debonding",
+    "fod",
+    "impact",
+    "delamination",
+    "inner_debond",
+    "thermal_progression",
+    "acoustic_fatigue"
+  ],
+  "type_counts": {
+    "debonding": 1,
+    "fod": 1,
+    "impact": 1,
+    "delamination": 1,
+    "inner_debond": 1,
+    "thermal_progression": 1,
+    "acoustic_fatigue": 1
+  },
+  "opening_params": [
+    {
+      "z_center": 1500.0,
+      "theta_deg": 30.0,
+      "radius": 650.0,
+      "name": "AccessDoor"
+    },
+    {
+      "z_center": 2500.0,
+      "theta_deg": 20.0,
+      "radius": 200.0,
+      "name": "HVAC_Door"
+    },
+    {
+      "z_center": 4000.0,
+      "theta_deg": 40.0,
+      "radius": 200.0,
+      "name": "RF_Window"
+    },
+    {
+      "z_center": 300.0,
+      "theta_deg": 15.0,
+      "radius": 50.0,
+      "name": "Vent_1"
+    },
+    {
+      "z_center": 300.0,
+      "theta_deg": 45.0,
+      "radius": 50.0,
+      "name": "Vent_2"
+    }
+  ],
+  "bounds": {
+    "theta_deg": [
+      5.0,
+      55.0
+    ],
+    "z_center": [
+      800.0,
+      4200.0
+    ],
+    "radius_tiers": [
+      {
+        "name": "Small",
+        "min": 50.0,
+        "max": 100.0,
+        "frac": 0.25
+      },
+      {
+        "name": "Medium",
+        "min": 100.0,
+        "max": 150.0,
+        "frac": 0.4
+      },
+      {
+        "name": "Large",
+        "min": 150.0,
+        "max": 250.0,
+        "frac": 0.3
+      },
+      {
+        "name": "Critical",
+        "min": 250.0,
+        "max": 400.0,
+        "frac": 0.05
+      }
+    ],
+    "type_params": {
+      "debonding": {},
+      "fod": {
+        "stiffness_factor": [
+          5.0,
+          20.0
+        ]
+      },
+      "impact": {
+        "damage_ratio": [
+          0.1,
+          0.5
+        ]
+      },
+      "delamination": {
+        "delam_depth": [
+          0.2,
+          0.8
+        ]
+      },
+      "inner_debond": {},
+      "thermal_progression": {},
+      "acoustic_fatigue": {
+        "fatigue_severity": [
+          0.2,
+          0.5
+        ]
+      }
+    }
+  },
+  "seed": 42,
+  "plan_reference": "docs/DEFECT_PLAN.md",
+  "samples": [
+    {
+      "id": 0,
+      "job_name": "H3_Acoustic_0000",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 23.66,
+        "z_center": 1664.84,
+        "radius": 68.73,
+        "fatigue_severity": 0.42
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Small"
+    },
+    {
+      "id": 1,
+      "job_name": "H3_Thermal_0001",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 51.93,
+        "z_center": 4030.64,
+        "radius": 147.54
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 2,
+      "job_name": "H3_Debond_0002",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 40.38,
+        "z_center": 1777.35,
+        "radius": 136.6
+      },
+      "defect_type": "debonding",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 3,
+      "job_name": "H3_FOD_0003",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 34.42,
+        "z_center": 851.96,
+        "radius": 209.87,
+        "stiffness_factor": 19.08
+      },
+      "defect_type": "fod",
+      "size_tier": "Large"
+    },
+    {
+      "id": 4,
+      "job_name": "H3_Impact_0004",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 29.54,
+        "z_center": 3604.91,
+        "radius": 165.6,
+        "damage_ratio": 0.1
+      },
+      "defect_type": "impact",
+      "size_tier": "Large"
+    },
+    {
+      "id": 5,
+      "job_name": "H3_Delam_0005",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 32.25,
+        "z_center": 3732.07,
+        "radius": 273.4,
+        "delam_depth": 0.8
+      },
+      "defect_type": "delamination",
+      "size_tier": "Critical"
+    },
+    {
+      "id": 6,
+      "job_name": "H3_InnerDebond_0006",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 9.84,
+        "z_center": 1328.76,
+        "radius": 258.71
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Critical"
+    }
+  ]
+}
