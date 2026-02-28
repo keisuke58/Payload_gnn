@@ -75,6 +75,7 @@
 | モデル | GCN, GAT, GIN, SAGE, (UV-Net, Point Transformer) |
 | 評価 | 5-Fold CV |
 | 指標 | F1, AUC, Precision, Recall, Params, Inference Time |
+| **XAI** | SHAP, LIME, GNNExplainer による予測根拠の可視化 → [XAI-Roadmap](XAI-Roadmap) |
 
 ### POD Curve (Fig for paper)
 
