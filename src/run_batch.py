@@ -66,7 +66,7 @@ def setup_logging(log_file):
 
 
 def run_sample(sample, output_dir, n_cpus=4, logger=None, dry_run=False, keep_inp=False, keep_odb=False,
-              force=False, strict_extract=False, global_seed=None, defect_seed=None):
+              force=False, strict_extract=False, global_seed=None, defect_seed=None, opening_params=None):
     """
     Run a single FEM sample (Abaqus model generation + ODB extraction).
 
