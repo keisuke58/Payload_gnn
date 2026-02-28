@@ -65,6 +65,7 @@ python scripts/validate_defect_types.py --report validation_report.txt
 | ページ | 内容 |
 |--------|------|
 | [Extended-Defect-Types](Extended-Defect-Types) | 拡張欠陥タイプ一覧 |
-| [Defect-Physics-Validation](Defect-Physics-Validation) | 物理量検証・可視化 |
+| [Defect-Physics-Validation](Defect-Physics-Validation) | 物理量検証・可視化・数値分析 |
+| [Defect-Occurrence-Probability-and-Dataset-Ratio](Defect-Occurrence-Probability-and-Dataset-Ratio) | 発生確率・データセット割合 |
 | [Defect-Generation-and-Labeling](Defect-Generation-and-Labeling) | 欠陥生成 |
 | [Dataset-Format](Dataset-Format) | データ形式 |

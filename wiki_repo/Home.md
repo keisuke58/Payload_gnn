@@ -11,7 +11,7 @@
 |----------|--------|
 | **概要** | [H3ロケット総覧](H3-Rocket-Overview), [フェアリング仕様](JAXA-Fairing-Specs) |
 | **技術** | [アーキテクチャ](Architecture), [ML戦略](ML-Strategy), [超最先端ML](Cutting-Edge-ML), [熱解析](Thermal-Analysis), [**リアルFEM**](Realistic-Fairing-FEM), [**XAI**](XAI-Roadmap) |
-| **データ** | [データセット形式](Dataset-Format), [欠陥生成](Defect-Generation-and-Labeling), [**拡張欠陥タイプ**](Extended-Defect-Types), [欠陥タイプ検証](Defect-Types-Validation), [**欠陥物理量検証**](Defect-Physics-Validation), [生成状況](Dataset-Generation-Status), [完璧度スコア](Dataset-Perfect-Score), [マルチクラス](Multi-Class-Roadmap), [外部データセット調査](Dataset-Survey), [**メッシュ収束チェック**](Mesh-Convergence) |
+| **データ** | [データセット形式](Dataset-Format), [**ノード特徴量**](Node-Features), [欠陥生成](Defect-Generation-and-Labeling), [**拡張欠陥タイプ**](Extended-Defect-Types), [欠陥タイプ検証](Defect-Types-Validation), [**欠陥物理量検証**](Defect-Physics-Validation), [**発生確率・データセット割合**](Defect-Occurrence-Probability-and-Dataset-Ratio), [生成状況](Dataset-Generation-Status), [完璧度スコア](Dataset-Perfect-Score), [マルチクラス](Multi-Class-Roadmap), [外部データセット調査](Dataset-Survey), [**メッシュ収束チェック**](Mesh-Convergence) |
 | **用語** | [英単語集](Vocabulary) |
 | **事故分析** | [F8事故](F8-Accident-Analysis), [SHM文脈](SHM-Context) |
 | **研究** | [2年目標](2-Year-Goals), [ロードマップ](Roadmap), [ベンチマーク目標](Benchmark-Targets), [理想vs実装](Ideal-vs-Implementation), [文献レビュー](Literature-Review), [研究レポート](Research-Report), [投稿先](Publication-Venues), [想定Q&A](Anticipated-QA) |
@@ -26,13 +26,20 @@
 |------|------|
 | **FEM モデル** | ✅ H3 Type-S 整合 (Barrel + Ogive, 1/6 セクション) |
 | **熱荷重** | ✅ 初期 20°C、Step-1 外板 120°C 適用・検証済み |
-| **データセット** | ✅ 100 サンプル生成完了 (train 81 + val 20, 10,897 nodes/graph) |
+| **データセット** | ✅ 99/100 サンプル検証完了 (物理量正常), [詳細分布](Dataset-Generation-Status) |
 | **GNN** | ✅ GCN / GAT / GIN / SAGE 4 種実装・初回学習済 |
 | **計算環境** | CPU + **GPU 24GB × 4枚** |
 | **現フェーズ** | **Phase 2: ベンチマーク学習** → [ロードマップ](Roadmap) |
 | **検証** | `scripts/validate_defect_types.py`, `scripts/validate_defect_physics.py`, `scripts/verify_odb_thermal.py`, `scripts/verify_dataset_quality.py` |
 
 ---
+
+## データセット可視化 (New)
+最新のデータセット (N=99) の分布状況。詳細は [Dataset-Generation-Status](Dataset-Generation-Status) を参照。
+
+| 空間分布 | 欠陥サイズ分布 |
+|----------|----------------|
+| ![Spatial](images/dataset_summary/01_spatial_distribution.png) | ![Radius](images/dataset_summary/02_radius_distribution.png) |
 
 ## 目次
 
@@ -398,18 +405,21 @@ python src/run_batch.py --doe doe_phase1.json --output_dir dataset_output
 | **物理整合性** | ブラックボックス | メッセージパッシング ≈ FEM剛性行列演算 |
 | **スケーラビリティ** | 解像度に依存 | ノード数に対して線形 |
 
-### 6.2 ノード特徴量設計 (18次元)
+### 6.2 ノード特徴量設計 (28次元)
 
 | # | 特徴量 | 次元 | 物理的意味 |
 | :---: | :--- | :---: | :--- |
 | 1–3 | 座標 $(x, y, z)$ | 3 | 空間位置 |
-| 4–6 | 法線 $(n_x, n_y, n_z)$ | 3 | 局所曲率のエンコード |
-| 7–8 | 主曲率 $(\kappa_1, \kappa_2)$ | 2 | ガウス/平均曲率 |
-| 9–11 | 応力 $(\sigma_{xx}, \sigma_{yy}, \tau_{xy})$ | 3 | FEM 計算応力 |
-| 12 | 温度 $T$ | 1 | 熱環境 |
-| 13–15 | 熱応力 $(\sigma^{th}_{xx}, \sigma^{th}_{yy}, \tau^{th}_{xy})$ | 3 | CTE 不整合由来 |
-| 16 | ノードタイプ | 1 | スキン/コア/欠陥 |
-| 17–18 | 測地線距離特徴 | 2 | グラフ上の距離情報 |
+| 4–6 | 法線 $(n_x, n_y, n_z)$ | 3 | 曲面の向き、モード変換 |
+| 7–10 | 曲率 $(\kappa_1, \kappa_2, H, K)$ | 4 | 波の集束・発散 |
+| 11–14 | 変位 $(u_x, u_y, u_z, \|u\|)$ | 4 | 欠陥で局所増大 |
+| 15 | 温度 $T$ | 1 | 熱環境・CTE |
+| 16–20 | 応力 $(\sigma_{11}, \sigma_{22}, \sigma_{12}, \sigma_{Mises}, \sigma^{th}_{Mises})$ | 5 | 荷重伝達・熱応力 |
+| 21–23 | ひずみ $(LE_{11}, LE_{22}, LE_{12})$ | 3 | 損傷相関 |
+| 24–26 | 繊維配向 (周方向) | 3 | CFRP 異方性 |
+| 27–28 | 境界・荷重 flag | 2 | 境界効果 |
+
+詳細: [Node-Features](Node-Features)
 
 ### 6.3 アーキテクチャ比較
 

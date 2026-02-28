@@ -163,6 +163,7 @@ python scripts/add_defect_labels.py --doe doe_100.json --data_dir dataset_output
 
 ## 6. 参考文献
 
-- [[DEFECT_PLAN]] — 欠陥挿入計画（JAXA 研究者向け）
-- [[JAXA-Fairing-Specs]] — H3 フェアリング仕様
-- [[Dataset-Format]] — データセット仕様（nodes.csv 列定義）
+- [DEFECT_PLAN](docs/DEFECT_PLAN.md) — 欠陥挿入計画（JAXA 研究者向け）
+- [JAXA-Fairing-Specs](JAXA-Fairing-Specs) — H3 フェアリング仕様
+- [Dataset-Format](Dataset-Format) — データセット仕様（nodes.csv 列定義）
+- [Defect-Occurrence-Probability-and-Dataset-Ratio](Defect-Occurrence-Probability-and-Dataset-Ratio) — 発生確率・データセット割合の推奨値

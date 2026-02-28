@@ -46,16 +46,27 @@ src/
 
 ## FEM モデル: Shell-Solid-Shell Sandwich
 
+**積層構造（17層）** — 詳細: [Layup-Structure](Layup-Structure)
+
+| 部位 | 層数 | 厚さ | 構成 |
+|------|------|------|------|
+| Outer Skin | 8 plies | 1.0 mm | CFRP [45/0/-45/90]s (0.125 mm/ply) |
+| Core | 1 | 38 mm | Al-5052 ハニカム |
+| Inner Skin | 8 plies | 1.0 mm | CFRP [45/0/-45/90]s (0.125 mm/ply) |
+| **合計** | **17層** | **40 mm** | |
+
+![Layup Structure](images/layup_structure.png)
+
 ```
-     Outer Skin (S4RT)          CFRP [45/0/-45/90]s  1.2mm
+     Outer Skin (S4RT)          CFRP [45/0/-45/90]s  1.0 mm (8 plies)
      ══════════════════
-     ┃  Honeycomb Core  ┃       Al-5052 Orthotropic  20mm
+     ┃  Honeycomb Core  ┃       Al-5052 Orthotropic  38 mm
      ┃   (C3D8RT)       ┃
      ══════════════════
-     Inner Skin (S4RT)          CFRP [45/0/-45/90]s  1.2mm
+     Inner Skin (S4RT)          CFRP [45/0/-45/90]s  1.0 mm (8 plies)
 
      接続: Tie Constraints (Skin ↔ Core 接合面)
-     温度: 外板150℃ / 内板50℃ / コア勾配 / 基準25℃
+     温度: 外板 120℃ / 内板 20℃ / コア勾配 / 基準 25℃
 ```
 
 ### 解析ステップ
@@ -100,16 +111,22 @@ src/
 
 ### ノード特徴量
 
-**build_graph.py（曲率対応）: 18次元**
+**build_graph.py（曲率対応）: 34次元**
 
 | Index | Feature | Dim | 説明 |
 |-------|---------|-----|------|
 | 0-2 | Position | 3 | x, y, z |
 | 3-5 | Normal | 3 | nx, ny, nz |
-| 6-9 | Curvature | 4 | κ1, κ2, H (平均), K (ガウス) |
-| 10-13 | Stress | 4 | s11, s22, s12, DSPSS |
-| 14-15 | Node Type | 2 | boundary, loaded |
-| 16-17 | **Thermal** | **2** | **temperature, thermal_smises** |
+| 6-9 | Curvature | 4 | κ1, κ2, H, K |
+| 10-13 | Displacement | 4 | ux, uy, uz, u_mag |
+| 14 | Temperature | 1 | temp |
+| 15-20 | Stress | 6 | s11, s22, s12, smises, principal_stress_sum, thermal_smises |
+| 21-23 | Strain | 3 | le11, le22, le12 |
+| 24-26 | Fiber orientation | 3 | 周方向単位ベクトル |
+| 27-31 | Layup | 5 | layup [0,45,-45,90]°, circum_angle |
+| 32-33 | Node Type | 2 | boundary, loaded |
+
+詳細: [Node-Features](Node-Features)
 
 **preprocess_fairing_data.py（簡易版）: 12次元**
 

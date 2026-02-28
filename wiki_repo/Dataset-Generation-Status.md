@@ -1,105 +1,42 @@
-[← Home](Home)
-
 # Dataset Generation Status
 
-**Status**: Nearly Complete (99/100 品質検証済み)  
-**完璧度スコア**: **99/100** → 詳細は [Dataset-Perfect-Score](Dataset-Perfect-Score)  
+**Status**: Nearly Complete (99/100 Validated)  
+**Completeness Score**: **99/100**  
 **Date**: 2026-02-28
 
-## 生成中のデータ
+## Overview
+This page tracks the generation progress of defective datasets for H3 Fairing debonding defects.
 
-**H3 フェアリングのデボンディング欠陥 FEM データ**（100 サンプル）
+## Progress Summary
+| Dataset | Valid Samples | Total Samples | Status | Notes |
+|---------|---------------|---------------|--------|-------|
+| `dataset_output` | 99 | 100 | ✅ Ready | Standard dataset |
+| `dataset_output_12mm_20` | 0 | 20 | ❌ Failed | Mesh OK, Physics Missing (Disp=0) |
+| `dataset_output_100` | 0 | 100 | ❌ Failed | Mesh OK, Physics Missing (Disp=0) |
+| `dataset_output_25mm_400` | 5 | 55 | ⚠️ Partial | Low success rate (9.1%) |
+| `dataset_output_ideal_12mm` | 0 | 1 | ❌ Failed | Mesh OK (193k nodes), Physics Missing |
 
-| 項目 | 内容 |
-|------|------|
-| **出力先** | `dataset_output/` |
-| **メッシュ** | GLOBAL_SEED = 50 mm |
-| **欠陥** | 外スキン-コア界面の円形デボンディング |
-| **サンプル数** | 100（欠陥ありのみ） |
-| **熱荷重** | 初期 20°C、Step-1 外板 120°C（熱パッチ適用済み） |
+## Dataset Distributions
+Visual summary of the valid `dataset_output` (N=99).
 
-### 欠陥サイズ階層
+### 1. Spatial Distribution
+Distribution of defects across the fairing surface (Theta vs Z).
+![Spatial Distribution](images/dataset_summary/01_spatial_distribution.png)
 
-| 階層 | 半径 (mm) | 割合 |
-|------|-----------|------|
-| Small | 20–50 | 30% |
-| Medium | 50–80 | 40% |
-| Large | 80–150 | 25% |
-| Critical | 150–250 | 5% |
+### 2. Defect Size Distribution
+Histogram of defect radii.
+![Radius Distribution](images/dataset_summary/02_radius_distribution.png)
 
-### 各サンプルの出力
+### 3. Physical Response
+Correlation between defect size and maximum displacement magnitude.
+![Size vs Displacement](images/dataset_summary/03_size_vs_displacement.png)
 
-- `nodes.csv` — 座標 (x,y,z)、変位 (ux,uy,uz)、**温度 (NT11)**、**defect_label**
-- `elements.csv` — 要素接続、Mises 応力
-- `metadata.csv` — theta_deg, z_center, radius, n_defect_nodes
+## Quality Verification
+- **Displacement Check**: Verified > 0.001 mm for valid samples.
+- **Temperature Check**: Verified non-zero distribution.
+- **Mesh Integrity**: Verified element types (S4R/S3) and connectivity.
 
-### 進捗
-
-| 状態 | 件数 | 備考 |
-|------|------|------|
-| **品質検証済み** | 99/100 | 変位・温度ともに正しく抽出 |
-| **未完了** | 1/100 | ODB 破損または再実行待ち |
-
-### 品質検証
-
-```bash
-python scripts/verify_dataset_quality.py   # データセット品質スコア
-python scripts/verify_odb_thermal.py       # ODB 熱・変位の個別検証
-```
-
-### 残り 37 サンプルの再実行
-
-```bash
-python scripts/re_run_thermal_only.py --doe doe_100.json --start 0 --end 100   # 熱パッチ + Abaqus + 抽出
-# または
-python src/run_batch.py --doe doe_100.json --output_dir dataset_output --force
-```
-
----
-
-## データセット可視化（進捗確認用）
-
-`scripts/visualize_dataset_progress.py` で 3D メッシュ・特徴量分布・サマリを生成。教授との進捗確認で使用。
-
-### サマリダッシュボード
-
-![Dataset Summary Dashboard](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/progress/01_summary_dashboard.png)
-
-### 特徴量分布
-
-![Feature Distributions](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/progress/02_feature_distributions.png)
-
-### 代表サンプル 3D 可視化（変位・温度・欠陥ラベルで色分け）
-
-**Sample 0001** — 変位 / 温度 / 欠陥
-
-![3D Sample 0001 displacement](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/progress/03_3d_sample0001_displacement.png)
-![3D Sample 0001 temp](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/progress/03_3d_sample0001_temp.png)
-![3D Sample 0001 defect](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/progress/03_3d_sample0001_defect.png)
-
-**Sample 0003** — 変位 / 温度 / 欠陥
-
-![3D Sample 0003 displacement](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/progress/03_3d_sample0003_displacement.png)
-![3D Sample 0003 temp](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/progress/03_3d_sample0003_temp.png)
-![3D Sample 0003 defect](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/progress/03_3d_sample0003_defect.png)
-
-**Sample 0010** — 変位 / 温度 / 欠陥
-
-![3D Sample 0010 displacement](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/progress/03_3d_sample0010_displacement.png)
-![3D Sample 0010 temp](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/progress/03_3d_sample0010_temp.png)
-![3D Sample 0010 defect](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/progress/03_3d_sample0010_defect.png)
-
-### 展開図（円筒を平面に展開、欠陥位置が直感的）
-
-**Sample 0003** — 変位 / 欠陥
-
-![Unfolded Sample 0003 displacement](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/progress/04_unfolded_sample0003_displacement.png)
-![Unfolded Sample 0003 defect](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/progress/04_unfolded_sample0003_defect.png)
-
-### 再生成コマンド
-
-```bash
-python scripts/visualize_dataset_progress.py
-# 特定サンプルを指定
-python scripts/visualize_dataset_progress.py --samples "1,2,3,10,15,20"
-```
+## Next Steps
+1. Investigate simulation failure for `12mm` and `100` datasets (likely job submission or ODB extraction error).
+2. Improve success rate for `25mm` dataset.
+3. Proceed with GNN training using the 99 valid samples from `dataset_output`.
