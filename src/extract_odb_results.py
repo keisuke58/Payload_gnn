@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 # extract_odb_results.py
 # Abaqus Python script to extract nodal and element data from ODB
-# Supports multi-class defect labeling: 0=healthy, 1=debonding, 2=fod, 3=impact
+# Multi-class defect labeling. Academic refs: docs/DEFECT_MODELS_ACADEMIC.md
+# 0=healthy, 1=debonding, 2=fod, 3=impact, 4=delamination, 5=inner_debond,
+# 6=thermal_progression, 7=acoustic_fatigue
 #
 # Usage: abaqus python extract_odb_results.py --odb <odb_path> --output <output_dir>
 #        abaqus python extract_odb_results.py --odb <odb> --output <dir> --defect_json <params.json>
@@ -21,6 +23,10 @@ DEFECT_TYPE_MAP = {
     'debonding': 1,
     'fod': 2,
     'impact': 3,
+    'delamination': 4,
+    'inner_debond': 5,
+    'thermal_progression': 6,
+    'acoustic_fatigue': 7,
 }
 
 
@@ -230,6 +236,10 @@ def extract_results(odb_path, output_dir, defect_params=None, strict=False):
                 writer.writerow(['stiffness_factor', str(defect_params['stiffness_factor'])])
             if 'damage_ratio' in defect_params:
                 writer.writerow(['damage_ratio', str(defect_params['damage_ratio'])])
+            if 'delam_depth' in defect_params:
+                writer.writerow(['delam_depth', str(defect_params['delam_depth'])])
+            if 'fatigue_severity' in defect_params:
+                writer.writerow(['fatigue_severity', str(defect_params['fatigue_severity'])])
     print("Saved metadata to " + meta_path + " (defect_type=%s, id=%d)" % (defect_type, defect_type_id))
 
     # ---------------------------------------------------------

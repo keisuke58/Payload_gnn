@@ -2,8 +2,8 @@
 
 # Dataset Generation Status
 
-**Status**: In Progress (63/100 品質検証済み)  
-**完璧度スコア**: **70/100** → 詳細は [Dataset-Perfect-Score](Dataset-Perfect-Score)  
+**Status**: Nearly Complete (99/100 品質検証済み)  
+**完璧度スコア**: **99/100** → 詳細は [Dataset-Perfect-Score](Dataset-Perfect-Score)  
 **Date**: 2026-02-28
 
 ## 生成中のデータ
@@ -37,8 +37,8 @@
 
 | 状態 | 件数 | 備考 |
 |------|------|------|
-| **品質検証済み** | 63/100 | 変位・温度ともに正しく抽出 |
-| **未完了** | 37/100 | ODB 破損または再実行待ち |
+| **品質検証済み** | 99/100 | 変位・温度ともに正しく抽出 |
+| **未完了** | 1/100 | ODB 破損または再実行待ち |
 
 ### 品質検証
 

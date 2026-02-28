@@ -1,0 +1,50 @@
+{
+  "n_total": 1,
+  "n_healthy": 1,
+  "n_defective": 0,
+  "bounds": {
+    "theta_deg": [
+      5.0,
+      55.0
+    ],
+    "z_center": [
+      800.0,
+      4200.0
+    ],
+    "radius_tiers": [
+      {
+        "name": "Small",
+        "min": 20.0,
+        "max": 50.0,
+        "frac": 0.3
+      },
+      {
+        "name": "Medium",
+        "min": 50.0,
+        "max": 80.0,
+        "frac": 0.4
+      },
+      {
+        "name": "Large",
+        "min": 80.0,
+        "max": 150.0,
+        "frac": 0.25
+      },
+      {
+        "name": "Critical",
+        "min": 150.0,
+        "max": 250.0,
+        "frac": 0.05
+      }
+    ]
+  },
+  "seed": 42,
+  "plan_reference": "docs/DEFECT_PLAN.md",
+  "samples": [
+    {
+      "id": 0,
+      "job_name": "H3_Healthy_0000",
+      "defect_params": null
+    }
+  ]
+}

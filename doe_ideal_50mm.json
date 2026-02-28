@@ -1,0 +1,1 @@
+{"n_total":1,"n_healthy":0,"n_defective":1,"description":"50mm mesh for convergence check","samples":[{"id":0,"job_name":"H3_Ideal_50mm_0000","defect_params":{"theta_deg":30,"z_center":2500,"radius":50},"size_tier":"Medium"}]}

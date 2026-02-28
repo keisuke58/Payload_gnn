@@ -1,0 +1,1045 @@
+{
+  "n_total": 100,
+  "n_healthy": 0,
+  "n_defective": 100,
+  "bounds": {
+    "theta_deg": [
+      5.0,
+      55.0
+    ],
+    "z_center": [
+      800.0,
+      4200.0
+    ],
+    "radius_tiers": [
+      {
+        "name": "Small",
+        "min": 20.0,
+        "max": 50.0,
+        "frac": 0.3
+      },
+      {
+        "name": "Medium",
+        "min": 50.0,
+        "max": 80.0,
+        "frac": 0.4
+      },
+      {
+        "name": "Large",
+        "min": 80.0,
+        "max": 150.0,
+        "frac": 0.25
+      },
+      {
+        "name": "Critical",
+        "min": 150.0,
+        "max": 250.0,
+        "frac": 0.05
+      }
+    ]
+  },
+  "seed": 42,
+  "plan_reference": "docs/DEFECT_PLAN.md",
+  "samples": [
+    {
+      "id": 0,
+      "job_name": "H3_Debond_0000",
+      "defect_params": {
+        "theta_deg": 54.11,
+        "z_center": 1465.08,
+        "radius": 31.24
+      },
+      "size_tier": "Small"
+    },
+    {
+      "id": 1,
+      "job_name": "H3_Debond_0001",
+      "defect_params": {
+        "theta_deg": 7.07,
+        "z_center": 2986.29,
+        "radius": 48.52
+      },
+      "size_tier": "Small"
+    },
+    {
+      "id": 2,
+      "job_name": "H3_Debond_0002",
+      "defect_params": {
+        "theta_deg": 24.95,
+        "z_center": 1004.83,
+        "radius": 41.96
+      },
+      "size_tier": "Small"
+    },
+    {
+      "id": 3,
+      "job_name": "H3_Debond_0003",
+      "defect_params": {
+        "theta_deg": 47.12,
+        "z_center": 1079.27,
+        "radius": 37.96
+      },
+      "size_tier": "Small"
+    },
+    {
+      "id": 4,
+      "job_name": "H3_Debond_0004",
+      "defect_params": {
+        "theta_deg": 47.94,
+        "z_center": 4014.69,
+        "radius": 24.68
+      },
+      "size_tier": "Small"
+    },
+    {
+      "id": 5,
+      "job_name": "H3_Debond_0005",
+      "defect_params": {
+        "theta_deg": 32.81,
+        "z_center": 3420.49,
+        "radius": 24.68
+      },
+      "size_tier": "Small"
+    },
+    {
+      "id": 6,
+      "job_name": "H3_Debond_0006",
+      "defect_params": {
+        "theta_deg": 33.68,
+        "z_center": 1112.03,
+        "radius": 21.74
+      },
+      "size_tier": "Small"
+    },
+    {
+      "id": 7,
+      "job_name": "H3_Debond_0007",
+      "defect_params": {
+        "theta_deg": 16.78,
+        "z_center": 1574.27,
+        "radius": 45.99
+      },
+      "size_tier": "Small"
+    },
+    {
+      "id": 8,
+      "job_name": "H3_Debond_0008",
+      "defect_params": {
+        "theta_deg": 30.72,
+        "z_center": 2973.83,
+        "radius": 38.03
+      },
+      "size_tier": "Small"
+    },
+    {
+      "id": 9,
+      "job_name": "H3_Debond_0009",
+      "defect_params": {
+        "theta_deg": 27.09,
+        "z_center": 4076.52,
+        "radius": 41.24
+      },
+      "size_tier": "Small"
+    },
+    {
+      "id": 10,
+      "job_name": "H3_Debond_0010",
+      "defect_params": {
+        "theta_deg": 36.62,
+        "z_center": 2861.95,
+        "radius": 20.62
+      },
+      "size_tier": "Small"
+    },
+    {
+      "id": 11,
+      "job_name": "H3_Debond_0011",
+      "defect_params": {
+        "theta_deg": 35.51,
+        "z_center": 1789.63,
+        "radius": 49.1
+      },
+      "size_tier": "Small"
+    },
+    {
+      "id": 12,
+      "job_name": "H3_Debond_0012",
+      "defect_params": {
+        "theta_deg": 11.61,
+        "z_center": 1847.38,
+        "radius": 44.97
+      },
+      "size_tier": "Small"
+    },
+    {
+      "id": 13,
+      "job_name": "H3_Debond_0013",
+      "defect_params": {
+        "theta_deg": 40.27,
+        "z_center": 2192.51,
+        "radius": 26.37
+      },
+      "size_tier": "Small"
+    },
+    {
+      "id": 14,
+      "job_name": "H3_Debond_0014",
+      "defect_params": {
+        "theta_deg": 17.92,
+        "z_center": 1728.78,
+        "radius": 25.45
+      },
+      "size_tier": "Small"
+    },
+    {
+      "id": 15,
+      "job_name": "H3_Debond_0015",
+      "defect_params": {
+        "theta_deg": 49.13,
+        "z_center": 1209.1,
+        "radius": 25.5
+      },
+      "size_tier": "Small"
+    },
+    {
+      "id": 16,
+      "job_name": "H3_Debond_0016",
+      "defect_params": {
+        "theta_deg": 34.84,
+        "z_center": 2895.4,
+        "radius": 29.13
+      },
+      "size_tier": "Small"
+    },
+    {
+      "id": 17,
+      "job_name": "H3_Debond_0017",
+      "defect_params": {
+        "theta_deg": 5.77,
+        "z_center": 3547.56,
+        "radius": 35.74
+      },
+      "size_tier": "Small"
+    },
+    {
+      "id": 18,
+      "job_name": "H3_Debond_0018",
+      "defect_params": {
+        "theta_deg": 19.44,
+        "z_center": 3129.83,
+        "radius": 32.96
+      },
+      "size_tier": "Small"
+    },
+    {
+      "id": 19,
+      "job_name": "H3_Debond_0019",
+      "defect_params": {
+        "theta_deg": 9.39,
+        "z_center": 3667.23,
+        "radius": 28.74
+      },
+      "size_tier": "Small"
+    },
+    {
+      "id": 20,
+      "job_name": "H3_Debond_0020",
+      "defect_params": {
+        "theta_deg": 15.28,
+        "z_center": 805.69,
+        "radius": 38.36
+      },
+      "size_tier": "Small"
+    },
+    {
+      "id": 21,
+      "job_name": "H3_Debond_0021",
+      "defect_params": {
+        "theta_deg": 37.15,
+        "z_center": 2489.38,
+        "radius": 24.18
+      },
+      "size_tier": "Small"
+    },
+    {
+      "id": 22,
+      "job_name": "H3_Debond_0022",
+      "defect_params": {
+        "theta_deg": 6.08,
+        "z_center": 2438.64,
+        "radius": 28.76
+      },
+      "size_tier": "Small"
+    },
+    {
+      "id": 23,
+      "job_name": "H3_Debond_0023",
+      "defect_params": {
+        "theta_deg": 21.31,
+        "z_center": 1062.2,
+        "radius": 30.99
+      },
+      "size_tier": "Small"
+    },
+    {
+      "id": 24,
+      "job_name": "H3_Debond_0024",
+      "defect_params": {
+        "theta_deg": 48.66,
+        "z_center": 3957.25,
+        "radius": 33.68
+      },
+      "size_tier": "Small"
+    },
+    {
+      "id": 25,
+      "job_name": "H3_Debond_0025",
+      "defect_params": {
+        "theta_deg": 43.9,
+        "z_center": 3723.75,
+        "radius": 43.56
+      },
+      "size_tier": "Small"
+    },
+    {
+      "id": 26,
+      "job_name": "H3_Debond_0026",
+      "defect_params": {
+        "theta_deg": 7.61,
+        "z_center": 2341.4,
+        "radius": 25.99
+      },
+      "size_tier": "Small"
+    },
+    {
+      "id": 27,
+      "job_name": "H3_Debond_0027",
+      "defect_params": {
+        "theta_deg": 8.15,
+        "z_center": 2235.46,
+        "radius": 35.43
+      },
+      "size_tier": "Small"
+    },
+    {
+      "id": 28,
+      "job_name": "H3_Debond_0028",
+      "defect_params": {
+        "theta_deg": 29.27,
+        "z_center": 3092.66,
+        "radius": 37.77
+      },
+      "size_tier": "Small"
+    },
+    {
+      "id": 29,
+      "job_name": "H3_Debond_0029",
+      "defect_params": {
+        "theta_deg": 5.43,
+        "z_center": 1884.11,
+        "radius": 21.39
+      },
+      "size_tier": "Small"
+    },
+    {
+      "id": 30,
+      "job_name": "H3_Debond_0030",
+      "defect_params": {
+        "theta_deg": 11.17,
+        "z_center": 2041.98,
+        "radius": 68.23
+      },
+      "size_tier": "Medium"
+    },
+    {
+      "id": 31,
+      "job_name": "H3_Debond_0031",
+      "defect_params": {
+        "theta_deg": 12.72,
+        "z_center": 2541.99,
+        "radius": 55.12
+      },
+      "size_tier": "Medium"
+    },
+    {
+      "id": 32,
+      "job_name": "H3_Debond_0032",
+      "defect_params": {
+        "theta_deg": 49.68,
+        "z_center": 3977.18,
+        "radius": 51.95
+      },
+      "size_tier": "Medium"
+    },
+    {
+      "id": 33,
+      "job_name": "H3_Debond_0033",
+      "defect_params": {
+        "theta_deg": 44.22,
+        "z_center": 3203.67,
+        "radius": 78.47
+      },
+      "size_tier": "Medium"
+    },
+    {
+      "id": 34,
+      "job_name": "H3_Debond_0034",
+      "defect_params": {
+        "theta_deg": 28.48,
+        "z_center": 4185.15,
+        "radius": 78.97
+      },
+      "size_tier": "Medium"
+    },
+    {
+      "id": 35,
+      "job_name": "H3_Debond_0035",
+      "defect_params": {
+        "theta_deg": 16.39,
+        "z_center": 1432.11,
+        "radius": 74.25
+      },
+      "size_tier": "Medium"
+    },
+    {
+      "id": 36,
+      "job_name": "H3_Debond_0036",
+      "defect_params": {
+        "theta_deg": 46.57,
+        "z_center": 1982.05,
+        "radius": 59.14
+      },
+      "size_tier": "Medium"
+    },
+    {
+      "id": 37,
+      "job_name": "H3_Debond_0037",
+      "defect_params": {
+        "theta_deg": 27.97,
+        "z_center": 3306.43,
+        "radius": 52.93
+      },
+      "size_tier": "Medium"
+    },
+    {
+      "id": 38,
+      "job_name": "H3_Debond_0038",
+      "defect_params": {
+        "theta_deg": 24.35,
+        "z_center": 2273.49,
+        "radius": 70.53
+      },
+      "size_tier": "Medium"
+    },
+    {
+      "id": 39,
+      "job_name": "H3_Debond_0039",
+      "defect_params": {
+        "theta_deg": 40.72,
+        "z_center": 3493.35,
+        "radius": 63.2
+      },
+      "size_tier": "Medium"
+    },
+    {
+      "id": 40,
+      "job_name": "H3_Debond_0040",
+      "defect_params": {
+        "theta_deg": 26.67,
+        "z_center": 1636.18,
+        "radius": 53.66
+      },
+      "size_tier": "Medium"
+    },
+    {
+      "id": 41,
+      "job_name": "H3_Debond_0041",
+      "defect_params": {
+        "theta_deg": 8.59,
+        "z_center": 1678.32,
+        "radius": 64.86
+      },
+      "size_tier": "Medium"
+    },
+    {
+      "id": 42,
+      "job_name": "H3_Debond_0042",
+      "defect_params": {
+        "theta_deg": 25.49,
+        "z_center": 3040.94,
+        "radius": 51.03
+      },
+      "size_tier": "Medium"
+    },
+    {
+      "id": 43,
+      "job_name": "H3_Debond_0043",
+      "defect_params": {
+        "theta_deg": 31.64,
+        "z_center": 2722.3,
+        "radius": 77.28
+      },
+      "size_tier": "Medium"
+    },
+    {
+      "id": 44,
+      "job_name": "H3_Debond_0044",
+      "defect_params": {
+        "theta_deg": 39.42,
+        "z_center": 2584.96,
+        "radius": 57.76
+      },
+      "size_tier": "Medium"
+    },
+    {
+      "id": 45,
+      "job_name": "H3_Debond_0045",
+      "defect_params": {
+        "theta_deg": 29.92,
+        "z_center": 3054.33,
+        "radius": 69.88
+      },
+      "size_tier": "Medium"
+    },
+    {
+      "id": 46,
+      "job_name": "H3_Debond_0046",
+      "defect_params": {
+        "theta_deg": 23.78,
+        "z_center": 1603.05,
+        "radius": 59.35
+      },
+      "size_tier": "Medium"
+    },
+    {
+      "id": 47,
+      "job_name": "H3_Debond_0047",
+      "defect_params": {
+        "theta_deg": 38.85,
+        "z_center": 3158.57,
+        "radius": 65.6
+      },
+      "size_tier": "Medium"
+    },
+    {
+      "id": 48,
+      "job_name": "H3_Debond_0048",
+      "defect_params": {
+        "theta_deg": 51.32,
+        "z_center": 2837.02,
+        "radius": 66.4
+      },
+      "size_tier": "Medium"
+    },
+    {
+      "id": 49,
+      "job_name": "H3_Debond_0049",
+      "defect_params": {
+        "theta_deg": 30.44,
+        "z_center": 2671.3,
+        "radius": 55.55
+      },
+      "size_tier": "Medium"
+    },
+    {
+      "id": 50,
+      "job_name": "H3_Debond_0050",
+      "defect_params": {
+        "theta_deg": 50.05,
+        "z_center": 3870.21,
+        "radius": 79.09
+      },
+      "size_tier": "Medium"
+    },
+    {
+      "id": 51,
+      "job_name": "H3_Debond_0051",
+      "defect_params": {
+        "theta_deg": 20.87,
+        "z_center": 3317.05,
+        "radius": 73.25
+      },
+      "size_tier": "Medium"
+    },
+    {
+      "id": 52,
+      "job_name": "H3_Debond_0052",
+      "defect_params": {
+        "theta_deg": 26.11,
+        "z_center": 3461.63,
+        "radius": 78.18
+      },
+      "size_tier": "Medium"
+    },
+    {
+      "id": 53,
+      "job_name": "H3_Debond_0053",
+      "defect_params": {
+        "theta_deg": 25.78,
+        "z_center": 1946.74,
+        "radius": 76.84
+      },
+      "size_tier": "Medium"
+    },
+    {
+      "id": 54,
+      "job_name": "H3_Debond_0054",
+      "defect_params": {
+        "theta_deg": 42.45,
+        "z_center": 939.31,
+        "radius": 67.94
+      },
+      "size_tier": "Medium"
+    },
+    {
+      "id": 55,
+      "job_name": "H3_Debond_0055",
+      "defect_params": {
+        "theta_deg": 32.27,
+        "z_center": 929.12,
+        "radius": 77.66
+      },
+      "size_tier": "Medium"
+    },
+    {
+      "id": 56,
+      "job_name": "H3_Debond_0056",
+      "defect_params": {
+        "theta_deg": 13.85,
+        "z_center": 2310.31,
+        "radius": 52.65
+      },
+      "size_tier": "Medium"
+    },
+    {
+      "id": 57,
+      "job_name": "H3_Debond_0057",
+      "defect_params": {
+        "theta_deg": 17.41,
+        "z_center": 1484.88,
+        "radius": 55.88
+      },
+      "size_tier": "Medium"
+    },
+    {
+      "id": 58,
+      "job_name": "H3_Debond_0058",
+      "defect_params": {
+        "theta_deg": 19.62,
+        "z_center": 3223.54,
+        "radius": 51.36
+      },
+      "size_tier": "Medium"
+    },
+    {
+      "id": 59,
+      "job_name": "H3_Debond_0059",
+      "defect_params": {
+        "theta_deg": 18.28,
+        "z_center": 3634.67,
+        "radius": 59.76
+      },
+      "size_tier": "Medium"
+    },
+    {
+      "id": 60,
+      "job_name": "H3_Debond_0060",
+      "defect_params": {
+        "theta_deg": 22.71,
+        "z_center": 3905.91,
+        "radius": 61.66
+      },
+      "size_tier": "Medium"
+    },
+    {
+      "id": 61,
+      "job_name": "H3_Debond_0061",
+      "defect_params": {
+        "theta_deg": 53.46,
+        "z_center": 1329.86,
+        "radius": 58.14
+      },
+      "size_tier": "Medium"
+    },
+    {
+      "id": 62,
+      "job_name": "H3_Debond_0062",
+      "defect_params": {
+        "theta_deg": 34.48,
+        "z_center": 2619.2,
+        "radius": 74.86
+      },
+      "size_tier": "Medium"
+    },
+    {
+      "id": 63,
+      "job_name": "H3_Debond_0063",
+      "defect_params": {
+        "theta_deg": 10.84,
+        "z_center": 1373.09,
+        "radius": 60.7
+      },
+      "size_tier": "Medium"
+    },
+    {
+      "id": 64,
+      "job_name": "H3_Debond_0064",
+      "defect_params": {
+        "theta_deg": 12.45,
+        "z_center": 2412.02,
+        "radius": 58.43
+      },
+      "size_tier": "Medium"
+    },
+    {
+      "id": 65,
+      "job_name": "H3_Debond_0065",
+      "defect_params": {
+        "theta_deg": 43.41,
+        "z_center": 1992.55,
+        "radius": 66.28
+      },
+      "size_tier": "Medium"
+    },
+    {
+      "id": 66,
+      "job_name": "H3_Debond_0066",
+      "defect_params": {
+        "theta_deg": 33.21,
+        "z_center": 1706.21,
+        "radius": 54.23
+      },
+      "size_tier": "Medium"
+    },
+    {
+      "id": 67,
+      "job_name": "H3_Debond_0067",
+      "defect_params": {
+        "theta_deg": 52.7,
+        "z_center": 1173.22,
+        "radius": 74.07
+      },
+      "size_tier": "Medium"
+    },
+    {
+      "id": 68,
+      "job_name": "H3_Debond_0068",
+      "defect_params": {
+        "theta_deg": 14.52,
+        "z_center": 885.6,
+        "radius": 52.24
+      },
+      "size_tier": "Medium"
+    },
+    {
+      "id": 69,
+      "job_name": "H3_Debond_0069",
+      "defect_params": {
+        "theta_deg": 22.11,
+        "z_center": 3857.19,
+        "radius": 79.61
+      },
+      "size_tier": "Medium"
+    },
+    {
+      "id": 70,
+      "job_name": "H3_Debond_0070",
+      "defect_params": {
+        "theta_deg": 45.26,
+        "z_center": 1905.32,
+        "radius": 134.06
+      },
+      "size_tier": "Large"
+    },
+    {
+      "id": 71,
+      "job_name": "H3_Debond_0071",
+      "defect_params": {
+        "theta_deg": 45.53,
+        "z_center": 1528.56,
+        "radius": 93.91
+      },
+      "size_tier": "Large"
+    },
+    {
+      "id": 72,
+      "job_name": "H3_Debond_0072",
+      "defect_params": {
+        "theta_deg": 44.76,
+        "z_center": 2796.92,
+        "radius": 80.39
+      },
+      "size_tier": "Large"
+    },
+    {
+      "id": 73,
+      "job_name": "H3_Debond_0073",
+      "defect_params": {
+        "theta_deg": 20.33,
+        "z_center": 3264.3,
+        "radius": 137.08
+      },
+      "size_tier": "Large"
+    },
+    {
+      "id": 74,
+      "job_name": "H3_Debond_0074",
+      "defect_params": {
+        "theta_deg": 35.28,
+        "z_center": 1003.27,
+        "radius": 129.48
+      },
+      "size_tier": "Large"
+    },
+    {
+      "id": 75,
+      "job_name": "H3_Debond_0075",
+      "defect_params": {
+        "theta_deg": 39.59,
+        "z_center": 3387.53,
+        "radius": 131.03
+      },
+      "size_tier": "Large"
+    },
+    {
+      "id": 76,
+      "job_name": "H3_Debond_0076",
+      "defect_params": {
+        "theta_deg": 41.93,
+        "z_center": 849.16,
+        "radius": 133.99
+      },
+      "size_tier": "Large"
+    },
+    {
+      "id": 77,
+      "job_name": "H3_Debond_0077",
+      "defect_params": {
+        "theta_deg": 42.95,
+        "z_center": 2205.14,
+        "radius": 85.18
+      },
+      "size_tier": "Large"
+    },
+    {
+      "id": 78,
+      "job_name": "H3_Debond_0078",
+      "defect_params": {
+        "theta_deg": 6.86,
+        "z_center": 2069.58,
+        "radius": 105.09
+      },
+      "size_tier": "Large"
+    },
+    {
+      "id": 79,
+      "job_name": "H3_Debond_0079",
+      "defect_params": {
+        "theta_deg": 31.14,
+        "z_center": 4139.87,
+        "radius": 88.11
+      },
+      "size_tier": "Large"
+    },
+    {
+      "id": 80,
+      "job_name": "H3_Debond_0080",
+      "defect_params": {
+        "theta_deg": 13.45,
+        "z_center": 3352.86,
+        "radius": 140.42
+      },
+      "size_tier": "Large"
+    },
+    {
+      "id": 81,
+      "job_name": "H3_Debond_0081",
+      "defect_params": {
+        "theta_deg": 37.88,
+        "z_center": 2158.73,
+        "radius": 123.63
+      },
+      "size_tier": "Large"
+    },
+    {
+      "id": 82,
+      "job_name": "H3_Debond_0082",
+      "defect_params": {
+        "theta_deg": 53.72,
+        "z_center": 3575.39,
+        "radius": 103.16
+      },
+      "size_tier": "Large"
+    },
+    {
+      "id": 83,
+      "job_name": "H3_Debond_0083",
+      "defect_params": {
+        "theta_deg": 38.09,
+        "z_center": 3798.52,
+        "radius": 84.45
+      },
+      "size_tier": "Large"
+    },
+    {
+      "id": 84,
+      "job_name": "H3_Debond_0084",
+      "defect_params": {
+        "theta_deg": 48.34,
+        "z_center": 2501.6,
+        "radius": 101.77
+      },
+      "size_tier": "Large"
+    },
+    {
+      "id": 85,
+      "job_name": "H3_Debond_0085",
+      "defect_params": {
+        "theta_deg": 21.85,
+        "z_center": 2754.49,
+        "radius": 102.76
+      },
+      "size_tier": "Large"
+    },
+    {
+      "id": 86,
+      "job_name": "H3_Debond_0086",
+      "defect_params": {
+        "theta_deg": 28.87,
+        "z_center": 2094.17,
+        "radius": 131.07
+      },
+      "size_tier": "Large"
+    },
+    {
+      "id": 87,
+      "job_name": "H3_Debond_0087",
+      "defect_params": {
+        "theta_deg": 52.42,
+        "z_center": 3790.47,
+        "radius": 124.63
+      },
+      "size_tier": "Large"
+    },
+    {
+      "id": 88,
+      "job_name": "H3_Debond_0088",
+      "defect_params": {
+        "theta_deg": 41.28,
+        "z_center": 1378.26,
+        "radius": 142.1
+      },
+      "size_tier": "Large"
+    },
+    {
+      "id": 89,
+      "job_name": "H3_Debond_0089",
+      "defect_params": {
+        "theta_deg": 50.55,
+        "z_center": 2644.55,
+        "radius": 113.06
+      },
+      "size_tier": "Large"
+    },
+    {
+      "id": 90,
+      "job_name": "H3_Debond_0090",
+      "defect_params": {
+        "theta_deg": 14.05,
+        "z_center": 2367.62,
+        "radius": 88.37
+      },
+      "size_tier": "Large"
+    },
+    {
+      "id": 91,
+      "job_name": "H3_Debond_0091",
+      "defect_params": {
+        "theta_deg": 46.24,
+        "z_center": 4121.26,
+        "radius": 129.93
+      },
+      "size_tier": "Large"
+    },
+    {
+      "id": 92,
+      "job_name": "H3_Debond_0092",
+      "defect_params": {
+        "theta_deg": 15.61,
+        "z_center": 4041.5,
+        "radius": 133.25
+      },
+      "size_tier": "Large"
+    },
+    {
+      "id": 93,
+      "job_name": "H3_Debond_0093",
+      "defect_params": {
+        "theta_deg": 18.81,
+        "z_center": 1306.79,
+        "radius": 119.29
+      },
+      "size_tier": "Large"
+    },
+    {
+      "id": 94,
+      "job_name": "H3_Debond_0094",
+      "defect_params": {
+        "theta_deg": 36.13,
+        "z_center": 3749.08,
+        "radius": 133.97
+      },
+      "size_tier": "Large"
+    },
+    {
+      "id": 95,
+      "job_name": "H3_Debond_0095",
+      "defect_params": {
+        "theta_deg": 10.03,
+        "z_center": 2933.81,
+        "radius": 199.38
+      },
+      "size_tier": "Critical"
+    },
+    {
+      "id": 96,
+      "job_name": "H3_Debond_0096",
+      "defect_params": {
+        "theta_deg": 23.44,
+        "z_center": 1757.74,
+        "radius": 202.27
+      },
+      "size_tier": "Critical"
+    },
+    {
+      "id": 97,
+      "job_name": "H3_Debond_0097",
+      "defect_params": {
+        "theta_deg": 51.92,
+        "z_center": 1269.9,
+        "radius": 192.75
+      },
+      "size_tier": "Critical"
+    },
+    {
+      "id": 98,
+      "job_name": "H3_Debond_0098",
+      "defect_params": {
+        "theta_deg": 9.7,
+        "z_center": 3592.26,
+        "radius": 152.54
+      },
+      "size_tier": "Critical"
+    },
+    {
+      "id": 99,
+      "job_name": "H3_Debond_0099",
+      "defect_params": {
+        "theta_deg": 54.9,
+        "z_center": 1197.45,
+        "radius": 160.79
+      },
+      "size_tier": "Critical"
+    }
+  ]
+}
