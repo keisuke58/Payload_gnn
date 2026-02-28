@@ -79,21 +79,34 @@ JOB_PREFIXES = {
 # Default opening (H3 クイックアクセスドア). Set to None to disable exclusion.
 DEFAULT_OPENING = {'z_center': 1500.0, 'theta_deg': 30.0, 'radius': 650.0}
 
+# Realistic model openings (Phase 2: all openings)
+DEFAULT_REALISTIC_OPENINGS = [
+    {'z_center': 1500.0, 'theta_deg': 30.0, 'radius': 650.0, 'name': 'AccessDoor'},
+    {'z_center': 2500.0, 'theta_deg': 20.0, 'radius': 200.0, 'name': 'HVAC_Door'},
+    {'z_center': 4000.0, 'theta_deg': 40.0, 'radius': 200.0, 'name': 'RF_Window'},
+    {'z_center': 300.0, 'theta_deg': 15.0, 'radius': 50.0, 'name': 'Vent_1'},
+    {'z_center': 300.0, 'theta_deg': 45.0, 'radius': 50.0, 'name': 'Vent_2'},
+]
+
 
 def _defect_overlaps_opening(theta_deg, z_center, radius, opening_params):
-    """True if defect circle overlaps the opening zone."""
+    """True if defect circle overlaps ANY opening zone. Supports single dict or list."""
     if not opening_params:
         return False
     import math
-    z_o = opening_params['z_center']
-    t_o = math.radians(opening_params['theta_deg'])
-    r_o = opening_params['radius']
-    # Approx: overlap if centers are within r_def + r_open
-    dz = abs(z_center - z_o)
-    r_local = 2600.0  # RADIUS
-    arc = r_local * abs(math.radians(theta_deg) - t_o)
-    dist = math.sqrt(dz**2 + arc**2)
-    return dist < (radius + r_o)
+    # Support both single dict and list of dicts
+    openings = opening_params if isinstance(opening_params, list) else [opening_params]
+    for op in openings:
+        z_o = op['z_center']
+        t_o = math.radians(op['theta_deg'])
+        r_o = op.get('radius', op.get('diameter', 0) / 2.0)
+        dz = abs(z_center - z_o)
+        r_local = 2600.0  # RADIUS
+        arc = r_local * abs(math.radians(theta_deg) - t_o)
+        dist = math.sqrt(dz**2 + arc**2)
+        if dist < (radius + r_o):
+            return True
+    return False
 
 
 def _sample_type_params(defect_type, rng):
@@ -263,13 +276,15 @@ def main():
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--output', type=str, default='doe_params.json')
     parser.add_argument('--opening', type=str, default=None,
-                        help='JSON: {z_center, theta_deg, radius} to exclude defect from opening. Use "default" for H3 access door.')
+                        help='Opening exclusion: "default" (access door), "realistic" (all Phase-2 openings), or JSON.')
     args = parser.parse_args()
 
     opening_params = None
     if args.opening:
         if args.opening.lower() == 'default':
             opening_params = DEFAULT_OPENING
+        elif args.opening.lower() == 'realistic':
+            opening_params = DEFAULT_REALISTIC_OPENINGS
         else:
             try:
                 opening_params = json.loads(args.opening)
