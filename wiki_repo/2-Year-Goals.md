@@ -21,6 +21,7 @@
 | **損傷検出** | 4 クラス分類 (debond / delam / impact / healthy) を実装・評価 |
 | **データ** | 5,000+ サンプル、メッシュ 10 mm まで検証、データセット 120 点 |
 | **モデル** | GNN + **Graph Mamba** + Point Transformer + FNO サロゲート + DANN (Sim-to-Real) |
+| **XAI** | SHAP, LIME, GNNExplainer による予測根拠の可視化 |
 | **論文** | 国際学会 2 本以上、学術誌 1 本以上、**JAXA 共同論文の検討** |
 | **実用化** | **JAXA/PSS 試験体の実計測データで Sim-to-Real 検証**、CBM 適用可能性の評価 |
 
@@ -110,7 +111,7 @@
 | 2026 秋 | JSASS 年会 or 構造強度講演会 | 2 クラス GNN ベンチマーク |
 | 2027 春 | IWSHM 2027 or JCCM | マルチクラス（3–4 クラス）、FNO サロゲート |
 | 2027 秋 | Structural Health Monitoring (SAGE) | 総合論文（手法・データ・マルチクラス・ロバスト性） |
-| 2028 春 | JSASS 論文集 or NDT & E International | **JAXA 共同研究** Sim-to-Real、PSS 実データ検証 |
+| 2028 春 | JSASS 論文集 or NDT & E International | **JAXA 共同研究** Sim-to-Real、PSS 実データ検証、XAI (SHAP/LIME) |
 | — | **JAXA 共同論文** | 実用化・CBM 適用可能性を共同で検討 |
 
 ---
