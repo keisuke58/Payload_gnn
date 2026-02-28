@@ -137,6 +137,14 @@ src/
 | 7-9 | Node Type | 3 |
 | 10-11 | **Thermal** | **2** |
 
+### グラフ構造の可視化
+
+![Graph Structure](images/mesh_graph/03_graph_structure.png)
+
+- 左: 全体グラフ（N=118K nodes, E=942K edges, 1% サンプル表示）— 開口部・フレーム位置の構造が見える
+- 中: 欠陥周辺ズーム — k-NN エッジ接続とノード密度の違い（欠陥ゾーン 10mm vs グローバル 25mm）
+- 右: 超ズーム — 個々のノードとエッジが識別可能。赤=欠陥ノード、青=健全ノード
+
 ### エッジ特徴量
 
 | Feature | Dim | 説明 |
