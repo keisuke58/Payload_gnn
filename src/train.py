@@ -307,7 +307,7 @@ def train(args, train_data, val_data, fold=None):
         if is_main:
             print("Loss: FocalLoss — alpha=%s, gamma=%.1f" % (
                 ['%.3f' % a for a in alpha_vec], args.focal_gamma))
-        criterion = FocalLoss(alpha=alpha_vec, gamma=args.focal_gamma, num_classes=num_classes)
+        criterion = FocalLoss(alpha=alpha_vec, gamma=args.focal_gamma, num_classes=num_classes).to(device)
 
     # Sub-graph sampler
     use_subgraph = getattr(args, 'sampler', 'full_graph') == 'defect_centric'
