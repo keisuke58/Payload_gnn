@@ -44,7 +44,7 @@ GEN_SCRIPT_REALISTIC = os.path.join(SCRIPT_DIR, 'generate_realistic_dataset.py')
 GEN_SCRIPT = GEN_SCRIPT_SIMPLE  # overridden by --gen_script
 EXTRACT_SCRIPT = os.path.join(SCRIPT_DIR, 'extract_odb_results.py')
 PATCH_SCRIPT = os.path.join(PROJECT_ROOT, 'scripts', 'patch_inp_thermal.py')
-WORK_DIR = os.path.join(PROJECT_ROOT, 'abaqus_work')
+WORK_DIR = os.path.join(PROJECT_ROOT, 'abaqus_work')  # default, overridden by --work_dir
 
 
 def setup_logging(log_file):
@@ -363,12 +363,16 @@ def main():
     parser.add_argument('--gen_script', type=str, default='simple',
                         choices=['simple', 'realistic'],
                         help='Generation script: simple (default) or realistic (openings+frames+Tie)')
+    parser.add_argument('--work_dir', type=str, default=None,
+                        help='Override Abaqus work directory (for parallel execution on multiple machines)')
     args = parser.parse_args()
 
     # Switch generation script if realistic mode
-    global GEN_SCRIPT
+    global GEN_SCRIPT, WORK_DIR
     if args.gen_script == 'realistic':
         GEN_SCRIPT = GEN_SCRIPT_REALISTIC
+    if args.work_dir:
+        WORK_DIR = os.path.join(PROJECT_ROOT, args.work_dir)
 
     # Load DOE
     with open(args.doe, 'r') as f:
