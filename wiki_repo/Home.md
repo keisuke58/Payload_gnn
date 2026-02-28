@@ -10,7 +10,7 @@
 | カテゴリ | ページ |
 |----------|--------|
 | **概要** | [H3ロケット総覧](H3-Rocket-Overview), [フェアリング仕様](JAXA-Fairing-Specs) |
-| **技術** | [アーキテクチャ](Architecture), [ML戦略](ML-Strategy), [超最先端ML](Cutting-Edge-ML), [熱解析](Thermal-Analysis) |
+| **技術** | [アーキテクチャ](Architecture), [ML戦略](ML-Strategy), [超最先端ML](Cutting-Edge-ML), [熱解析](Thermal-Analysis), [**リアルFEM**](Realistic-Fairing-FEM) |
 | **データ** | [データセット形式](Dataset-Format), [欠陥生成](Defect-Generation-and-Labeling), [生成状況](Dataset-Generation-Status), [完璧度スコア](Dataset-Perfect-Score), [マルチクラス](Multi-Class-Roadmap), [外部データセット調査](Dataset-Survey), [**メッシュ収束チェック**](Mesh-Convergence) |
 | **用語** | [英単語集](Vocabulary) |
 | **事故分析** | [F8事故](F8-Accident-Analysis), [SHM文脈](SHM-Context) |
