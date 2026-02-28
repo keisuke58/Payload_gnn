@@ -322,10 +322,12 @@ def build_curvature_graph(df_nodes, df_elems, compute_geodesic=True, verbose=Tru
     """
     Build a PyG Data object with curvature-aware features.
 
-    Node features (dim=20):
+    Node features (dim=34):
       [x, y, z, nx, ny, nz, k1, k2, H, K,
-       ux, uy, uz, temp,
-       s11, s22, s12, smises,
+       ux, uy, uz, u_mag, temp,
+       s11, s22, s12, smises, principal_stress_sum, thermal_smises,
+       le11, le22, le12, fiber_circum_x, fiber_circum_y, fiber_circum_z,
+       layup_0, layup_45, layup_minus45, layup_90, circum_angle,
        node_type_boundary, node_type_loaded]
 
     Edge features (dim=5 or 6):
@@ -377,6 +379,12 @@ def build_curvature_graph(df_nodes, df_elems, compute_geodesic=True, verbose=Tru
     else:
         disp_tensor = torch.zeros(n_nodes, 3)
 
+    # u_mag = |u| — displacement magnitude (1 dim)
+    if 'u_mag' in df_nodes.columns:
+        u_mag_tensor = torch.tensor(df_nodes['u_mag'].values, dtype=torch.float).unsqueeze(1)
+    else:
+        u_mag_tensor = torch.norm(disp_tensor, dim=1, keepdim=True)
+
     # Temperature feature
     temp_tensor = None
     for col in ['temp', 'temperature']:
@@ -411,6 +419,46 @@ def build_curvature_graph(df_nodes, df_elems, compute_geodesic=True, verbose=Tru
     else:
         stress_tensor = torch.zeros(n_nodes, 4)
 
+    # principal_stress_sum = σ₁+σ₂ ≈ s11+s22 (2D plane stress trace)
+    principal_stress_sum = (stress_tensor[:, 0] + stress_tensor[:, 1]).unsqueeze(1)
+
+    # thermal_smises — thermal stress von Mises (1 dim)
+    if 'thermal_smises' in df_nodes.columns:
+        thermal_smises_tensor = torch.tensor(
+            df_nodes['thermal_smises'].values, dtype=torch.float).unsqueeze(1)
+    else:
+        thermal_smises_tensor = torch.zeros(n_nodes, 1)
+
+    # Strain (le11, le22, le12) — 3 dims
+    strain_cols = ['le11', 'le22', 'le12']
+    strain_tensor = torch.zeros(n_nodes, 3)
+    for i, col in enumerate(strain_cols):
+        if col in df_nodes.columns:
+            strain_tensor[:, i] = torch.tensor(df_nodes[col].values, dtype=torch.float)
+
+    # Fiber orientation — circumferential direction (3 dims) for CFRP anisotropy
+    # Abaqus Revolve: Y=axial, XZ=radial. Circumferential = (-z/r, 0, x/r)
+    x_arr = coords[:, 0]
+    y_arr = coords[:, 1]
+    z_arr = coords[:, 2]
+    r_xy = np.sqrt(x_arr**2 + z_arr**2)
+    r_safe = np.where(r_xy > 1.0, r_xy, 1.0)
+    fiber_circum_x = -z_arr / r_safe
+    fiber_circum_y = np.zeros_like(x_arr)
+    fiber_circum_z = x_arr / r_safe
+    fiber_tensor = torch.tensor(
+        np.stack([fiber_circum_x, fiber_circum_y, fiber_circum_z], axis=1),
+        dtype=torch.float)
+
+    # Layup angles [45/0/-45/90]s — 4 unique ply angles (radians). Same for all nodes.
+    LAYUP_ANGLES_DEG = [0.0, 45.0, -45.0, 90.0]
+    layup_rad = np.array([np.radians(a) for a in LAYUP_ANGLES_DEG], dtype=np.float32)
+    layup_tensor = torch.tensor(layup_rad, dtype=torch.float).unsqueeze(0).expand(n_nodes, 4)
+
+    # Circumferential angle θ = atan2(x, -z) — angle of 0° ply direction in XZ plane (radians)
+    circum_angle = np.arctan2(x_arr, np.where(np.abs(z_arr) < 1e-12, 1e-12, -z_arr))
+    circum_tensor = torch.tensor(circum_angle, dtype=torch.float).unsqueeze(1)
+
     # Node type (from position)
     z_coords = coords[:, 2]
     mesh_size = 50.0  # default
@@ -432,8 +480,15 @@ def build_curvature_graph(df_nodes, df_elems, compute_geodesic=True, verbose=Tru
         normal_tensor,      # 3: nx, ny, nz
         curvature_tensor,   # 4: k1, k2, H, K
         disp_tensor,        # 3: ux, uy, uz
+        u_mag_tensor,       # 1: |u| displacement magnitude
         temp_tensor,        # 1: temp
         stress_tensor,      # 4: s11, s22, s12, smises
+        principal_stress_sum,   # 1: σ₁+σ₂ (主応力和)
+        thermal_smises_tensor,  # 1: thermal stress von Mises
+        strain_tensor,      # 3: le11, le22, le12
+        fiber_tensor,       # 3: fiber circumferential direction (CFRP anisotropy)
+        layup_tensor,       # 4: layup angles [0, 45, -45, 90] deg in rad
+        circum_tensor,      # 1: circumferential angle θ (0° ply direction)
         node_type,          # 2: boundary, loaded
     ]
     x = torch.cat(feature_list, dim=1)

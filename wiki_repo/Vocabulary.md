@@ -66,6 +66,12 @@
 | **shell element** | シェルエレメント | シェル要素 | 板・殻を表現 |
 | **solid element** | ソリッドエレメント | 立体要素 | 3D 体積を表現 |
 | **Tie constraint** | タイ拘束 | タイ拘束 | 面同士を剛体接合 |
+| **LE** | エルイー | 対数ひずみ | Logarithmic Strain。Abaqus 出力 |
+| **u_mag** | ユーマグ | 変位の大きさ | \|u\| = √(ux²+uy²+uz²) |
+| **fiber orientation** | ファイバーオリエンテーション | 繊維配向 | CFRP の主繊維方向。異方性に寄与 |
+| **principal stress sum** | 主応力和 | 主応力和 | σ₁+σ₂ = s11+s22。2D 面内応力のトレース |
+| **layup angle** | 積層角度 | 積層角度 | 各積層の繊維方向角 [0/45/-45/90]°。laminate 構成 |
+| **circumferential angle** | 周方向角度 | 周方向角度 | θ = atan2(x,-z)。0° 積層の局所方向 |
 
 ---
 
