@@ -41,6 +41,21 @@ Tier 4b: Boundary seed (4 mm) ─ パーティション境界 (margin=30mm) ← 
 - **制約**: `constraint=FINER`（既存シードより粗くしない）
 - **定数**: `BOUNDARY_SEED_RATIO = 0.4`, `BOUNDARY_MARGIN = 30.0 mm`
 
+### 欠陥周辺メッシュ拡大図
+
+![Mesh Zoom](images/mesh_graph/01_mesh_zoom_sample0001.png)
+
+- 左: von Mises 応力 — 欠陥ゾーン (10mm seed) とグローバル (25mm seed) の密度差が明確
+- 右: 欠陥ラベル — 緑マーカーがパーティション境界内の欠陥ノード
+
+### 欠陥あり vs 健全部の差分
+
+![Defect Diff](images/mesh_graph/02_defect_diff_sample0001.png)
+
+- 上段: 応力絶対値 / 応力アノマリ（健全部中央値との差分）
+- 下段: 変位絶対値 / 変位アノマリ
+- 欠陥ゾーン（緑円）に局所的な応力・変位の異常が確認可能
+
 ## DOE サイズ階層（メッシュ整合, h=25mm）
 
 | 階層 | 半径 (mm) | 欠陥ゾーン分解能 (h=10mm) |
