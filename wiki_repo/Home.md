@@ -1,7 +1,7 @@
 # Project Wiki: JAXA H3 Rocket — CFRP Fairing SHM
 
 > **本プロジェクトの技術的根拠・背景情報を集約したドキュメント**  
-> 最終更新: 2026-02-28
+> 最終更新: 2026-03-01
 
 ---
 
@@ -10,8 +10,8 @@
 | カテゴリ | ページ |
 |----------|--------|
 | **概要** | [H3ロケット総覧](H3-Rocket-Overview), [フェアリング仕様](JAXA-Fairing-Specs) |
-| **技術** | [アーキテクチャ](Architecture), [ML戦略](ML-Strategy), [超最先端ML](Cutting-Edge-ML), [熱解析](Thermal-Analysis), [**リアルFEM**](Realistic-Fairing-FEM), [**XAI**](XAI-Roadmap) |
-| **データ** | [データセット形式](Dataset-Format), [**ノード特徴量**](Node-Features), [欠陥生成](Defect-Generation-and-Labeling), [**拡張欠陥タイプ**](Extended-Defect-Types), [欠陥タイプ検証](Defect-Types-Validation), [**欠陥物理量検証**](Defect-Physics-Validation), [**発生確率・データセット割合**](Defect-Occurrence-Probability-and-Dataset-Ratio), [生成状況](Dataset-Generation-Status), [完璧度スコア](Dataset-Perfect-Score), [マルチクラス](Multi-Class-Roadmap), [外部データセット調査](Dataset-Survey), [**メッシュ収束チェック**](Mesh-Convergence) |
+| **技術** | [アーキテクチャ](Architecture), [**モデル別前処理**](Preprocessing-by-Model), [ML戦略](ML-Strategy), [超最先端ML](Cutting-Edge-ML), [熱解析](Thermal-Analysis), [**リアルFEM**](Realistic-Fairing-FEM), [**XAI**](XAI-Roadmap) |
+| **データ** | [データセット形式](Dataset-Format), [**ノード特徴量**](Node-Features), [欠陥生成](Defect-Generation-and-Labeling), [**拡張欠陥タイプ**](Extended-Defect-Types), [欠陥タイプ検証](Defect-Types-Validation), [**欠陥物理量検証**](Defect-Physics-Validation), [**発生確率・データセット割合**](Defect-Occurrence-Probability-and-Dataset-Ratio), [生成状況](Dataset-Generation-Status), [完璧度スコア](Dataset-Perfect-Score), [マルチクラス](Multi-Class-Roadmap), [外部データセット調査](Dataset-Survey), [**メッシュ収束チェック**](Mesh-Convergence), [**リアルFEM検証**](Dataset-Validation-Realistic) |
 | **用語** | [英単語集](Vocabulary) |
 | **事故分析** | [F8事故](F8-Accident-Analysis), [SHM文脈](SHM-Context) |
 | **研究** | [2年目標](2-Year-Goals), [ロードマップ](Roadmap), [ベンチマーク目標](Benchmark-Targets), [理想vs実装](Ideal-vs-Implementation), [文献レビュー](Literature-Review), [研究レポート](Research-Report), [投稿先](Publication-Venues), [想定Q&A](Anticipated-QA) |
@@ -25,7 +25,7 @@
 | 項目 | 状態 |
 |------|------|
 | **FEM モデル** | ✅ H3 Type-S 整合 (Barrel + Ogive, 1/6 セクション) |
-| **熱荷重** | ✅ 初期 20°C、Step-1 外板 120°C 適用・検証済み |
+| **熱荷重** | ✅ 初期 20°C、Step-1 外板 100–220°C (z依存プロファイル) 適用・検証済み |
 | **データセット** | ✅ 99/100 サンプル検証完了 (物理量正常), [詳細分布](Dataset-Generation-Status) |
 | **GNN** | ✅ GCN / GAT / GIN / SAGE 4 種実装・初回学習済 |
 | **計算環境** | CPU + **GPU 24GB × 4枚** |
@@ -34,12 +34,24 @@
 
 ---
 
-## データセット可視化 (New)
+## 34次元ノード特徴量 (New)
+
+GNNの入力となる34次元ノード特徴量の構成。詳細は [Node-Features](Node-Features) を参照。
+
+| 特徴量マップ | カテゴリ構成 |
+|------------|-----------|
+| ![Feature Map](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/node_features/01_feature_map.png) | ![Category](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/node_features/02_category_breakdown.png) |
+
+| 欠陥 vs 健全 | パイプライン |
+|------------|-----------|
+| ![Defect vs Healthy](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/node_features/03_defect_vs_healthy.png) | ![Pipeline](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/node_features/04_pipeline_flow.png) |
+
+## データセット可視化
 最新のデータセット (N=99) の分布状況。詳細は [Dataset-Generation-Status](Dataset-Generation-Status) を参照。
 
 | 空間分布 | 欠陥サイズ分布 |
 |----------|----------------|
-| ![Spatial](images/dataset_summary/01_spatial_distribution.png) | ![Radius](images/dataset_summary/02_radius_distribution.png) |
+| ![Spatial](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/dataset_summary/01_spatial_distribution.png) | ![Radius](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/dataset_summary/02_radius_distribution.png) |
 
 ## 目次
 
@@ -287,9 +299,9 @@ JAXA H3 研究者が妥当と認める欠陥パラメータに基づく。詳細
 | 項目 | 仕様 |
 |------|------|
 | **界面** | 外スキン-コア (F8 PSS と類似) |
-| **サイズ階層** | Small 10–30 mm, Medium 30–80, Large 80–150, Critical 150–250 mm |
+| **サイズ階層** | Small 50–100 mm, Medium 100–150, Large 150–250, Critical 250–400 mm |
 | **位置** | θ 5–55°, z 800–4200 mm (Barrel) |
-| **割合** | Small 30%, Medium 40%, Large 25%, Critical 5% |
+| **割合** | Small 25%, Medium 40%, Large 30%, Critical 5% |
 
 ```bash
 python src/generate_doe.py --n_samples 50 --output doe_phase1.json
@@ -405,19 +417,23 @@ python src/run_batch.py --doe doe_phase1.json --output_dir dataset_output
 | **物理整合性** | ブラックボックス | メッセージパッシング ≈ FEM剛性行列演算 |
 | **スケーラビリティ** | 解像度に依存 | ノード数に対して線形 |
 
-### 6.2 ノード特徴量設計 (28次元)
+### 6.2 ノード特徴量設計 (34次元)
+
+![34次元特徴量マップ](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/node_features/01_feature_map.png)
 
 | # | 特徴量 | 次元 | 物理的意味 |
 | :---: | :--- | :---: | :--- |
-| 1–3 | 座標 $(x, y, z)$ | 3 | 空間位置 |
-| 4–6 | 法線 $(n_x, n_y, n_z)$ | 3 | 曲面の向き、モード変換 |
-| 7–10 | 曲率 $(\kappa_1, \kappa_2, H, K)$ | 4 | 波の集束・発散 |
-| 11–14 | 変位 $(u_x, u_y, u_z, \|u\|)$ | 4 | 欠陥で局所増大 |
-| 15 | 温度 $T$ | 1 | 熱環境・CTE |
-| 16–20 | 応力 $(\sigma_{11}, \sigma_{22}, \sigma_{12}, \sigma_{Mises}, \sigma^{th}_{Mises})$ | 5 | 荷重伝達・熱応力 |
-| 21–23 | ひずみ $(LE_{11}, LE_{22}, LE_{12})$ | 3 | 損傷相関 |
+| 0–2 | 座標 (x, y, z) | 3 | 空間位置 |
+| 3–5 | 法線 (nx, ny, nz) | 3 | 曲面の向き、モード変換 |
+| 6–9 | 曲率 (k1, k2, H, K) | 4 | 波の集束・発散 |
+| 10–13 | 変位 (ux, uy, uz, u_mag) | 4 | 欠陥で局所増大 |
+| 14 | 温度 T | 1 | 熱環境・CTE |
+| 15–19 | 応力 (s11, s22, s12, smises, Sum_s) | 5 | 荷重伝達・主応力和 |
+| 20 | 熱応力 (thermal_smises) | 1 | CTE不整合応力 |
+| 21–23 | ひずみ (le11, le22, le12) | 3 | 損傷相関 |
 | 24–26 | 繊維配向 (周方向) | 3 | CFRP 異方性 |
-| 27–28 | 境界・荷重 flag | 2 | 境界効果 |
+| 27–31 | 積層角度 (0/45/-45/90, circ) | 5 | 積層構成・局所繊維方向 |
+| 32–33 | 境界・荷重 flag | 2 | 境界効果 |
 
 詳細: [Node-Features](Node-Features)
 

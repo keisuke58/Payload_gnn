@@ -121,6 +121,13 @@ def extract_results(odb_path, output_dir, defect_params=None, strict=False):
     if 'S' in frame.fieldOutputs:
         stress_field = frame.fieldOutputs['S']
 
+    # Optional: Strain — LE (logarithmic) or E (engineering) from ODB
+    strain_field = None
+    for key in ('LE', 'E', 'LE11', 'E11'):
+        if key in frame.fieldOutputs:
+            strain_field = frame.fieldOutputs[key]
+            print("  Using strain field: %s" % key)
+            break
     # Subset to instance
     disp_sub = disp_field.getSubset(region=instance)
     temp_sub = temp_field.getSubset(region=instance) if temp_field else None
@@ -164,6 +171,34 @@ def extract_results(odb_path, output_dir, defect_params=None, strict=False):
         except Exception as e:
             print("Warning: Stress extraction: " + str(e)[:80])
 
+    # Optional: Per-node strain (LE) - average from ELEMENT_NODAL if available
+    node_strain = {}
+    if strain_field:
+        try:
+            strain_sub = strain_field.getSubset(region=instance, position=ELEMENT_NODAL)
+            for val in strain_sub.values:
+                nid = val.nodeLabel
+                d = val.data  # (LE11, LE22, LE33, LE12, LE13, LE23) or similar
+                le11 = d[0] if len(d) > 0 else 0.0
+                le22 = d[1] if len(d) > 1 else 0.0
+                le12 = d[3] if len(d) > 3 else (d[2] if len(d) > 2 else 0.0)
+                if nid not in node_strain:
+                    node_strain[nid] = [0.0, 0.0, 0.0, 0]
+                node_strain[nid][0] += le11
+                node_strain[nid][1] += le22
+                node_strain[nid][2] += le12
+                node_strain[nid][3] += 1
+            for nid in node_strain:
+                c = node_strain[nid][3]
+                if c > 0:
+                    node_strain[nid][0] /= c
+                    node_strain[nid][1] /= c
+                    node_strain[nid][2] /= c
+            print("  Extracted strain (LE) for %d nodes" % len(node_strain))
+        except Exception as e:
+            print("Warning: Strain extraction: " + str(e)[:60])
+            node_strain = {}
+
     # Iterate nodes to get coordinates and defect labels
     node_rows = []
     n_defect = 0
@@ -192,14 +227,29 @@ def extract_results(odb_path, output_dir, defect_params=None, strict=False):
                 defect_label = DEFECT_TYPE_MAP.get(defect_type, 1)
                 n_defect += 1
 
-        node_rows.append([nid, x, y, z, u[0], u[1], u[2], t,
-                          s11, s22, s12, smises, defect_label])
+        # Derived: u_mag = |u|
+        u_mag = math.sqrt(u[0]**2 + u[1]**2 + u[2]**2)
+
+        # thermal_smises: In this model, ALL loading is thermal (CTE mismatch).
+        # Therefore thermal von Mises ≈ total von Mises.
+        # Future: for mixed loading, extract STHERM field separately.
+        thermal_smises = smises
+
+        # Strain (LE11, LE22, LE12) if extracted
+        le11 = le22 = le12 = 0.0
+        if nid in node_strain:
+            le11, le22, le12 = node_strain[nid][0], node_strain[nid][1], node_strain[nid][2]
+
+        node_rows.append([nid, x, y, z, u[0], u[1], u[2], u_mag, t,
+                          s11, s22, s12, smises, thermal_smises,
+                          le11, le22, le12, defect_label])
 
     csv_nodes = os.path.join(output_dir, 'nodes.csv')
     with open(csv_nodes, 'w', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow(['node_id', 'x', 'y', 'z', 'ux', 'uy', 'uz', 'temp',
-                          's11', 's22', 's12', 'smises', 'defect_label'])
+        writer.writerow(['node_id', 'x', 'y', 'z', 'ux', 'uy', 'uz', 'u_mag', 'temp',
+                          's11', 's22', 's12', 'smises', 'thermal_smises',
+                          'le11', 'le22', 'le12', 'defect_label'])
         writer.writerows(node_rows)
 
     print("Saved nodes to " + csv_nodes + " (n_defect_nodes=%d)" % n_defect)
@@ -209,7 +259,7 @@ def extract_results(odb_path, output_dir, defect_params=None, strict=False):
         ux_max = max(abs(r[4]) for r in node_rows)
         uy_max = max(abs(r[5]) for r in node_rows)
         uz_max = max(abs(r[6]) for r in node_rows)
-        temp_nonzero = any(abs(r[7] - 20.0) > 0.1 for r in node_rows)  # expect ~120 after thermal
+        temp_nonzero = any(abs(r[8] - 20.0) > 0.1 for r in node_rows)  # expect ~120 after thermal (index 8 = temp)
         if ux_max < 1e-12 and uy_max < 1e-12 and uz_max < 1e-12 and not temp_nonzero:
             print("ERROR [--strict]: All ux,uy,uz,temp are zero. ODB may lack thermal load.")
             print("  Check: patch_inp_thermal applied? *Temperature in Step-1? NT in Node Output?")
