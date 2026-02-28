@@ -4,6 +4,8 @@ Training Script for Fairing Defect Localization GNN
 
 Features:
 - Focal Loss for class imbalance (defect nodes << healthy nodes)
+- Defect-centric sub-graph sampling (--sampler defect_centric)
+- Focal Loss gamma grid search (--gamma_search)
 - Cosine Annealing LR scheduler
 - Early stopping
 - K-Fold cross-validation
@@ -13,6 +15,8 @@ Features:
 Usage:
     python src/train.py --arch gat --data_dir dataset/processed --epochs 200
     python src/train.py --arch gat --cross_val 5  # 5-fold CV
+    python src/train.py --sampler defect_centric --loss focal --focal_gamma 3.0
+    python src/train.py --loss focal --gamma_search --epochs 20
 """
 
 import os
@@ -35,6 +39,7 @@ from torch_geometric.loader import DataLoader
 from sklearn.metrics import f1_score, precision_score, recall_score, roc_auc_score
 
 from models import build_model
+from subgraph_sampler import DefectCentricSampler
 
 
 # =========================================================================
@@ -151,6 +156,38 @@ def train_epoch(model, loader, optimizer, criterion, device, num_classes=2):
     return metrics
 
 
+def train_epoch_subgraph(model, train_data, sampler, optimizer, criterion,
+                         device, num_classes=2):
+    """Training epoch with defect-centric sub-graph sampling."""
+    model.train()
+    total_loss = 0.0
+    total_nodes = 0
+    all_logits, all_targets = [], []
+
+    for graph in train_data:
+        subgraphs = sampler.sample(graph)
+        for sg in subgraphs:
+            sg = sg.to(device)
+            optimizer.zero_grad()
+            out = model(sg.x, sg.edge_index, sg.edge_attr, None)
+            loss = criterion(out, sg.y)
+            loss.backward()
+            optimizer.step()
+
+            n = sg.y.shape[0]
+            total_loss += loss.item() * n
+            total_nodes += n
+            all_logits.append(out.detach())
+            all_targets.append(sg.y.detach())
+
+    avg_loss = total_loss / max(total_nodes, 1)
+    logits_cat = torch.cat(all_logits, dim=0)
+    targets_cat = torch.cat(all_targets, dim=0)
+    metrics = compute_metrics(logits_cat, targets_cat, num_classes=num_classes)
+    metrics['loss'] = avg_loss
+    return metrics
+
+
 @torch.no_grad()
 def eval_epoch(model, loader, criterion, device, num_classes=2):
     model.eval()
@@ -241,6 +278,17 @@ def train(args, train_data, val_data, fold=None):
             ['%.3f' % a for a in alpha_vec], args.focal_gamma))
         criterion = FocalLoss(alpha=alpha_vec, gamma=args.focal_gamma, num_classes=num_classes)
 
+    # Sub-graph sampler
+    use_subgraph = getattr(args, 'sampler', 'full_graph') == 'defect_centric'
+    sampler = None
+    if use_subgraph:
+        sampler = DefectCentricSampler(
+            num_hops=args.subgraph_hops,
+            healthy_ratio=args.healthy_ratio,
+        )
+        print("Sampler: DefectCentricSampler (hops=%d, healthy_ratio=%d)" % (
+            args.subgraph_hops, args.healthy_ratio))
+
     # Logging
     fold_str = '_fold%d' % fold if fold is not None else ''
     run_name = '%s_%s%s' % (args.arch, datetime.now().strftime('%Y%m%d_%H%M%S'), fold_str)
@@ -259,7 +307,12 @@ def train(args, train_data, val_data, fold=None):
 
     for epoch in range(1, args.epochs + 1):
         t0 = time.time()
-        train_m = train_epoch(model, train_loader, optimizer, criterion, device, num_classes=num_classes)
+        if use_subgraph:
+            train_m = train_epoch_subgraph(
+                model, train_data, sampler, optimizer, criterion,
+                device, num_classes=num_classes)
+        else:
+            train_m = train_epoch(model, train_loader, optimizer, criterion, device, num_classes=num_classes)
         val_m = eval_epoch(model, val_loader, criterion, device, num_classes=num_classes)
         scheduler.step()
         elapsed = time.time() - t0
@@ -399,6 +452,16 @@ def main():
     parser.add_argument('--focal_alpha', type=float, default=0.0,
                         help='Focal loss alpha (0=auto from class ratio)')
     parser.add_argument('--focal_gamma', type=float, default=2.0)
+    parser.add_argument('--gamma_search', action='store_true', default=False,
+                        help='Grid search gamma in {1.0, 2.0, 3.0, 5.0}')
+    # Sub-graph sampling
+    parser.add_argument('--sampler', type=str, default='full_graph',
+                        choices=['full_graph', 'defect_centric'],
+                        help='Sampling strategy (default: full_graph)')
+    parser.add_argument('--subgraph_hops', type=int, default=4,
+                        help='k-hop expansion for defect_centric sampler')
+    parser.add_argument('--healthy_ratio', type=int, default=5,
+                        help='Extra healthy nodes per defect node')
     # Cross-validation
     parser.add_argument('--cross_val', type=int, default=0,
                         help='Number of folds for CV (0=disabled)')
@@ -428,7 +491,26 @@ def main():
     val_data = torch.load(val_path, weights_only=False)
     print("Train: %d samples | Val: %d samples" % (len(train_data), len(val_data)))
 
-    if args.cross_val > 1:
+    if args.gamma_search:
+        # Grid search over gamma values
+        args.loss = 'focal'
+        gammas = [1.0, 2.0, 3.0, 5.0]
+        print("\n===== Gamma Grid Search =====")
+        print("Gammas: %s | Epochs: %d" % (gammas, args.epochs))
+        results = []
+        for gamma in gammas:
+            print("\n--- gamma=%.1f ---" % gamma)
+            args.focal_gamma = gamma
+            torch.manual_seed(args.seed)
+            np.random.seed(args.seed)
+            _, best_f1 = train(args, train_data, val_data)
+            results.append((gamma, best_f1))
+        print("\n===== Gamma Search Results =====")
+        for gamma, f1 in sorted(results, key=lambda x: -x[1]):
+            print("  gamma=%.1f → Val F1=%.4f" % (gamma, f1))
+        best_gamma, best_f1 = max(results, key=lambda x: x[1])
+        print("Best: gamma=%.1f (F1=%.4f)" % (best_gamma, best_f1))
+    elif args.cross_val > 1:
         # Merge train + val for CV
         all_data = train_data + val_data
         print("Cross-validation mode: %d folds, %d total samples" %
