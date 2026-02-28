@@ -1,0 +1,17 @@
+{
+  "samples": [
+    {
+      "id": 0,
+      "job_name": "H3_Test_0000",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 30,
+        "z_center": 2500,
+        "radius": 80
+      }
+    }
+  ],
+  "metadata": {
+    "n_samples": 1
+  }
+}

@@ -1,0 +1,157 @@
+{
+  "n_total": 5,
+  "n_healthy": 0,
+  "n_defective": 5,
+  "defect_types": [
+    "debonding",
+    "fod",
+    "impact",
+    "delamination",
+    "inner_debond",
+    "thermal_progression",
+    "acoustic_fatigue"
+  ],
+  "type_counts": {
+    "debonding": 1,
+    "fod": 0,
+    "impact": 0,
+    "delamination": 0,
+    "inner_debond": 0,
+    "thermal_progression": 0,
+    "acoustic_fatigue": 4
+  },
+  "opening_params": null,
+  "bounds": {
+    "theta_deg": [
+      5.0,
+      55.0
+    ],
+    "z_center": [
+      800.0,
+      4200.0
+    ],
+    "radius_tiers": [
+      {
+        "name": "Small",
+        "min": 50.0,
+        "max": 100.0,
+        "frac": 0.25
+      },
+      {
+        "name": "Medium",
+        "min": 100.0,
+        "max": 150.0,
+        "frac": 0.4
+      },
+      {
+        "name": "Large",
+        "min": 150.0,
+        "max": 250.0,
+        "frac": 0.3
+      },
+      {
+        "name": "Critical",
+        "min": 250.0,
+        "max": 400.0,
+        "frac": 0.05
+      }
+    ],
+    "type_params": {
+      "debonding": {},
+      "fod": {
+        "stiffness_factor": [
+          5.0,
+          20.0
+        ]
+      },
+      "impact": {
+        "damage_ratio": [
+          0.1,
+          0.5
+        ]
+      },
+      "delamination": {
+        "delam_depth": [
+          0.2,
+          0.8
+        ]
+      },
+      "inner_debond": {},
+      "thermal_progression": {},
+      "acoustic_fatigue": {
+        "fatigue_severity": [
+          0.2,
+          0.5
+        ]
+      }
+    }
+  },
+  "seed": 42,
+  "plan_reference": "docs/DEFECT_PLAN.md",
+  "samples": [
+    {
+      "id": 0,
+      "job_name": "H3_Acoustic_0000",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 16.13,
+        "z_center": 3030.78,
+        "radius": 68.73,
+        "fatigue_severity": 0.46
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Small"
+    },
+    {
+      "id": 1,
+      "job_name": "H3_Debond_0001",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 50.71,
+        "z_center": 1922.89,
+        "radius": 147.54
+      },
+      "defect_type": "debonding",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 2,
+      "job_name": "H3_Acoustic_0002",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 9.53,
+        "z_center": 3528.29,
+        "radius": 136.6,
+        "fatigue_severity": 0.38
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 3,
+      "job_name": "H3_Acoustic_0003",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 46.19,
+        "z_center": 1552.74,
+        "radius": 209.87,
+        "fatigue_severity": 0.41
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Large"
+    },
+    {
+      "id": 4,
+      "job_name": "H3_Acoustic_0004",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 29.36,
+        "z_center": 4046.87,
+        "radius": 273.4,
+        "fatigue_severity": 0.21
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Critical"
+    }
+  ]
+}
