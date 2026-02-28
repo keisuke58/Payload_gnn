@@ -17,6 +17,9 @@ Usage:
     python src/train.py --arch gat --cross_val 5  # 5-fold CV
     python src/train.py --sampler defect_centric --loss focal --focal_gamma 3.0
     python src/train.py --loss focal --gamma_search --epochs 20
+
+Multi-GPU (4x GPU DataParallel):
+    torchrun --nproc_per_node=4 src/train.py --multi_gpu --arch gat --batch_size 4
 """
 
 import os
@@ -33,6 +36,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torch.distributed as dist
+from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim import Adam
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch_geometric.loader import DataLoader
@@ -216,11 +221,26 @@ def eval_epoch(model, loader, criterion, device, num_classes=2):
 # =========================================================================
 def train(args, train_data, val_data, fold=None):
     """Execute a single training run."""
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    multi_gpu = getattr(args, 'multi_gpu', False) and dist.is_initialized()
+    rank = dist.get_rank() if multi_gpu else 0
+    world_size = dist.get_world_size() if multi_gpu else 1
+    is_main = (rank == 0)
+
+    if multi_gpu:
+        device = torch.device('cuda', rank)
+        torch.cuda.set_device(device)
+    else:
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     # Data loaders
-    train_loader = DataLoader(train_data, batch_size=args.batch_size,
-                              shuffle=True, num_workers=0)
+    if multi_gpu:
+        train_sampler = torch.utils.data.distributed.DistributedSampler(
+            train_data, num_replicas=world_size, rank=rank, shuffle=True)
+        train_loader = DataLoader(train_data, batch_size=args.batch_size,
+                                  sampler=train_sampler, num_workers=0)
+    else:
+        train_loader = DataLoader(train_data, batch_size=args.batch_size,
+                                  shuffle=True, num_workers=0)
     val_loader = DataLoader(val_data, batch_size=args.batch_size,
                             shuffle=False, num_workers=0)
 
@@ -239,9 +259,15 @@ def train(args, train_data, val_data, fold=None):
         dropout=args.dropout, num_classes=num_classes,
     ).to(device)
 
-    param_count = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print("Model: %s | Params: %d | Classes: %d | Device: %s" % (
-        args.arch.upper(), param_count, num_classes, device))
+    if multi_gpu:
+        model = DDP(model, device_ids=[rank], find_unused_parameters=False)
+
+    raw_model = model.module if multi_gpu else model
+    param_count = sum(p.numel() for p in raw_model.parameters() if p.requires_grad)
+    if is_main:
+        gpu_info = "GPU x%d" % world_size if multi_gpu else str(device)
+        print("Model: %s | Params: %d | Classes: %d | Device: %s" % (
+            args.arch.upper(), param_count, num_classes, gpu_info))
 
     # Compute class distribution
     n_total = all_labels.numel()
@@ -250,7 +276,8 @@ def train(args, train_data, val_data, fold=None):
         n_c = (all_labels == c).sum().item()
         class_counts[c] = n_c
         name = DEFECT_TYPE_NAMES[c] if c < len(DEFECT_TYPE_NAMES) else 'class_%d' % c
-        print("  Class %d (%s): %d nodes (%.4f%%)" % (c, name, n_c, 100.0 * n_c / max(n_total, 1)))
+        if is_main:
+            print("  Class %d (%s): %d nodes (%.4f%%)" % (c, name, n_c, 100.0 * n_c / max(n_total, 1)))
 
     # Optimizer, scheduler, criterion
     optimizer = Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
@@ -263,7 +290,8 @@ def train(args, train_data, val_data, fold=None):
             n_c = max(class_counts.get(c, 1), 1)
             weights.append(n_total / (num_classes * n_c))
         class_weights = torch.tensor(weights, dtype=torch.float).to(device)
-        print("Loss: WeightedCE — weights=%s" % ['%.2f' % w for w in weights])
+        if is_main:
+            print("Loss: WeightedCE — weights=%s" % ['%.2f' % w for w in weights])
         criterion = nn.CrossEntropyLoss(weight=class_weights)
     else:
         # Focal loss with per-class alpha (inverse frequency)
@@ -274,8 +302,9 @@ def train(args, train_data, val_data, fold=None):
         # Normalize to sum to num_classes
         alpha_sum = sum(alpha_vec)
         alpha_vec = [a * num_classes / alpha_sum for a in alpha_vec]
-        print("Loss: FocalLoss — alpha=%s, gamma=%.1f" % (
-            ['%.3f' % a for a in alpha_vec], args.focal_gamma))
+        if is_main:
+            print("Loss: FocalLoss — alpha=%s, gamma=%.1f" % (
+                ['%.3f' % a for a in alpha_vec], args.focal_gamma))
         criterion = FocalLoss(alpha=alpha_vec, gamma=args.focal_gamma, num_classes=num_classes)
 
     # Sub-graph sampler
@@ -286,20 +315,22 @@ def train(args, train_data, val_data, fold=None):
             num_hops=args.subgraph_hops,
             healthy_ratio=args.healthy_ratio,
         )
-        print("Sampler: DefectCentricSampler (hops=%d, healthy_ratio=%d)" % (
-            args.subgraph_hops, args.healthy_ratio))
+        if is_main:
+            print("Sampler: DefectCentricSampler (hops=%d, healthy_ratio=%d)" % (
+                args.subgraph_hops, args.healthy_ratio))
 
-    # Logging
+    # Logging (main process only)
     fold_str = '_fold%d' % fold if fold is not None else ''
-    run_name = '%s_%s%s' % (args.arch, datetime.now().strftime('%Y%m%d_%H%M%S'), fold_str)
+    gpu_suffix = '_ddp%d' % world_size if multi_gpu else ''
+    run_name = '%s_%s%s%s' % (args.arch, datetime.now().strftime('%Y%m%d_%H%M%S'), fold_str, gpu_suffix)
     run_dir = os.path.join(args.output_dir, run_name)
-    os.makedirs(run_dir, exist_ok=True)
-
-    log_path = os.path.join(run_dir, 'training_log.csv')
-    with open(log_path, 'w', newline='') as f:
-        writer = csv_module.writer(f)
-        writer.writerow(['epoch', 'train_loss', 'train_f1', 'train_acc',
-                         'val_loss', 'val_f1', 'val_acc', 'val_auc', 'lr'])
+    if is_main:
+        os.makedirs(run_dir, exist_ok=True)
+        log_path = os.path.join(run_dir, 'training_log.csv')
+        with open(log_path, 'w', newline='') as f:
+            writer = csv_module.writer(f)
+            writer.writerow(['epoch', 'train_loss', 'train_f1', 'train_acc',
+                             'val_loss', 'val_f1', 'val_acc', 'val_auc', 'lr'])
 
     # Training
     best_val_f1 = 0.0
@@ -307,6 +338,8 @@ def train(args, train_data, val_data, fold=None):
 
     for epoch in range(1, args.epochs + 1):
         t0 = time.time()
+        if multi_gpu:
+            train_sampler.set_epoch(epoch)
         if use_subgraph:
             train_m = train_epoch_subgraph(
                 model, train_data, sampler, optimizer, criterion,
@@ -319,64 +352,76 @@ def train(args, train_data, val_data, fold=None):
 
         lr = optimizer.param_groups[0]['lr']
 
-        # Log
-        with open(log_path, 'a', newline='') as f:
-            writer = csv_module.writer(f)
-            writer.writerow([epoch, '%.6f' % train_m['loss'], '%.4f' % train_m['f1'],
-                             '%.4f' % train_m['accuracy'],
-                             '%.6f' % val_m['loss'], '%.4f' % val_m['f1'],
-                             '%.4f' % val_m['accuracy'], '%.4f' % val_m['auc'],
-                             '%.2e' % lr])
+        if is_main:
+            # Log
+            with open(log_path, 'a', newline='') as f:
+                writer = csv_module.writer(f)
+                writer.writerow([epoch, '%.6f' % train_m['loss'], '%.4f' % train_m['f1'],
+                                 '%.4f' % train_m['accuracy'],
+                                 '%.6f' % val_m['loss'], '%.4f' % val_m['f1'],
+                                 '%.4f' % val_m['accuracy'], '%.4f' % val_m['auc'],
+                                 '%.2e' % lr])
 
-        if epoch % args.log_every == 0 or epoch == 1:
-            msg = ("  Epoch %3d/%d | Train F1=%.4f Loss=%.4f | "
-                   "Val F1=%.4f AUC=%.4f Loss=%.4f | LR=%.2e | %.1fs" %
-                   (epoch, args.epochs, train_m['f1'], train_m['loss'],
-                    val_m['f1'], val_m['auc'], val_m['loss'], lr, elapsed))
-            # Per-class F1 for multi-class
-            if num_classes > 2:
-                parts = []
-                for c in range(num_classes):
-                    name = DEFECT_TYPE_NAMES[c] if c < len(DEFECT_TYPE_NAMES) else 'c%d' % c
-                    key = 'f1_%s' % name
-                    parts.append('%s=%.3f' % (name[:3], val_m.get(key, 0.0)))
-                msg += '\n    Per-class: ' + ' | '.join(parts)
-            print(msg)
+            if epoch % args.log_every == 0 or epoch == 1:
+                msg = ("  Epoch %3d/%d | Train F1=%.4f Loss=%.4f | "
+                       "Val F1=%.4f AUC=%.4f Loss=%.4f | LR=%.2e | %.1fs" %
+                       (epoch, args.epochs, train_m['f1'], train_m['loss'],
+                        val_m['f1'], val_m['auc'], val_m['loss'], lr, elapsed))
+                # Per-class F1 for multi-class
+                if num_classes > 2:
+                    parts = []
+                    for c in range(num_classes):
+                        name = DEFECT_TYPE_NAMES[c] if c < len(DEFECT_TYPE_NAMES) else 'c%d' % c
+                        key = 'f1_%s' % name
+                        parts.append('%s=%.3f' % (name[:3], val_m.get(key, 0.0)))
+                    msg += '\n    Per-class: ' + ' | '.join(parts)
+                print(msg)
 
-        # Checkpoint best
-        if val_m['f1'] > best_val_f1:
-            best_val_f1 = val_m['f1']
-            patience_counter = 0
-            torch.save({
-                'epoch': epoch,
-                'model_state_dict': model.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                'val_f1': best_val_f1,
-                'val_metrics': val_m,
-                'args': vars(args),
-                'in_channels': in_channels,
-                'edge_attr_dim': edge_attr_dim,
-            }, os.path.join(run_dir, 'best_model.pt'))
+            # Checkpoint best
+            if val_m['f1'] > best_val_f1:
+                best_val_f1 = val_m['f1']
+                patience_counter = 0
+                save_dict = {
+                    'epoch': epoch,
+                    'model_state_dict': raw_model.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'val_f1': best_val_f1,
+                    'val_metrics': val_m,
+                    'args': vars(args),
+                    'in_channels': in_channels,
+                    'edge_attr_dim': edge_attr_dim,
+                }
+                torch.save(save_dict, os.path.join(run_dir, 'best_model.pt'))
+            else:
+                patience_counter += 1
+
+            # Early stopping
+            if patience_counter >= args.patience:
+                print("  Early stopping at epoch %d (patience=%d)" %
+                      (epoch, args.patience))
+                break
         else:
-            patience_counter += 1
+            # Non-main ranks: track patience for synchronized early stopping
+            if val_m['f1'] > best_val_f1:
+                best_val_f1 = val_m['f1']
+                patience_counter = 0
+            else:
+                patience_counter += 1
+            if patience_counter >= args.patience:
+                break
 
-        # Early stopping
-        if patience_counter >= args.patience:
-            print("  Early stopping at epoch %d (patience=%d)" %
-                  (epoch, args.patience))
-            break
+    if is_main:
+        print("  Best Val F1: %.4f" % best_val_f1)
 
-    print("  Best Val F1: %.4f" % best_val_f1)
-
-    # Load best model and print final per-class metrics
-    if num_classes > 2:
-        ckpt = torch.load(os.path.join(run_dir, 'best_model.pt'), weights_only=False)
-        best_m = ckpt.get('val_metrics', {})
-        print("  Per-class F1 (best):")
-        for c in range(num_classes):
-            name = DEFECT_TYPE_NAMES[c] if c < len(DEFECT_TYPE_NAMES) else 'class_%d' % c
-            key = 'f1_%s' % name
-            print("    %s: %.4f" % (name, best_m.get(key, 0.0)))
+        # Load best model and print final per-class metrics
+        if num_classes > 2:
+            ckpt = torch.load(os.path.join(run_dir, 'best_model.pt'), weights_only=False)
+            best_m = ckpt.get('val_metrics', {})
+            print("  Per-class F1 (best):")
+            for c in range(num_classes):
+                name = DEFECT_TYPE_NAMES[c] if c < len(DEFECT_TYPE_NAMES) else 'class_%d' % c
+                key = 'f1_%s' % name
+                print("    %s: %.4f" % (name, best_m.get(key, 0.0)))
 
     return run_dir, best_val_f1
 
@@ -465,16 +510,30 @@ def main():
     # Cross-validation
     parser.add_argument('--cross_val', type=int, default=0,
                         help='Number of folds for CV (0=disabled)')
+    # Multi-GPU
+    parser.add_argument('--multi_gpu', action='store_true', default=False,
+                        help='Enable DDP multi-GPU (use with torchrun)')
     # Misc
     parser.add_argument('--log_every', type=int, default=10)
     parser.add_argument('--seed', type=int, default=42)
     args = parser.parse_args()
 
+    # DDP init
+    if args.multi_gpu:
+        dist.init_process_group(backend='nccl')
+        rank = dist.get_rank()
+        torch.cuda.set_device(rank)
+        if rank == 0:
+            print("DDP: %d GPUs initialized" % dist.get_world_size())
+    else:
+        rank = 0
+
     # Seed
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
 
-    os.makedirs(args.output_dir, exist_ok=True)
+    if rank == 0:
+        os.makedirs(args.output_dir, exist_ok=True)
 
     # Load data
     data_dir = os.path.join(PROJECT_ROOT, args.data_dir) if not os.path.isabs(args.data_dir) else args.data_dir
@@ -486,10 +545,12 @@ def main():
         return
 
     # Load data
-    print("Loading data from %s..." % args.data_dir)
+    if rank == 0:
+        print("Loading data from %s..." % args.data_dir)
     train_data = torch.load(train_path, weights_only=False)
     val_data = torch.load(val_path, weights_only=False)
-    print("Train: %d samples | Val: %d samples" % (len(train_data), len(val_data)))
+    if rank == 0:
+        print("Train: %d samples | Val: %d samples" % (len(train_data), len(val_data)))
 
     if args.gamma_search:
         # Grid search over gamma values
@@ -519,7 +580,11 @@ def main():
     else:
         train(args, train_data, val_data)
 
-    print("\nDone.")
+    if rank == 0:
+        print("\nDone.")
+
+    if args.multi_gpu:
+        dist.destroy_process_group()
 
 
 if __name__ == '__main__':
