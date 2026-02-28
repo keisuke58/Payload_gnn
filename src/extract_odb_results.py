@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 # extract_odb_results.py
 # Abaqus Python script to extract nodal and element data from ODB
+# Supports multi-class defect labeling: 0=healthy, 1=debonding, 2=fod, 3=impact
 #
 # Usage: abaqus python extract_odb_results.py --odb <odb_path> --output <output_dir>
 #        abaqus python extract_odb_results.py --odb <odb> --output <dir> --defect_json <params.json>
@@ -13,6 +14,14 @@ import math
 import argparse
 from odbAccess import *
 from abaqusConstants import *
+
+# Multi-class defect type mapping
+DEFECT_TYPE_MAP = {
+    'healthy': 0,
+    'debonding': 1,
+    'fod': 2,
+    'impact': 3,
+}
 
 
 def _is_node_in_defect(x, y, z, defect_params):
@@ -35,7 +44,7 @@ def _is_node_in_defect(x, y, z, defect_params):
     return dist <= radius
 
 
-def extract_results(odb_path, output_dir, defect_params=None):
+def extract_results(odb_path, output_dir, defect_params=None, strict=False):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
         
@@ -172,7 +181,9 @@ def extract_results(odb_path, output_dir, defect_params=None):
         defect_label = 0
         if defect_params:
             if _is_node_in_defect(x, y, z, defect_params):
-                defect_label = 1
+                # Multi-class label: 1=debonding, 2=fod, 3=impact
+                defect_type = defect_params.get('defect_type', 'debonding')
+                defect_label = DEFECT_TYPE_MAP.get(defect_type, 1)
                 n_defect += 1
 
         node_rows.append([nid, x, y, z, u[0], u[1], u[2], t,
@@ -187,12 +198,26 @@ def extract_results(odb_path, output_dir, defect_params=None):
 
     print("Saved nodes to " + csv_nodes + " (n_defect_nodes=%d)" % n_defect)
 
+    # Strict mode: fail if all physics are zero (ODB likely missing thermal/load)
+    if strict and node_rows:
+        ux_max = max(abs(r[4]) for r in node_rows)
+        uy_max = max(abs(r[5]) for r in node_rows)
+        uz_max = max(abs(r[6]) for r in node_rows)
+        temp_nonzero = any(abs(r[7] - 20.0) > 0.1 for r in node_rows)  # expect ~120 after thermal
+        if ux_max < 1e-12 and uy_max < 1e-12 and uz_max < 1e-12 and not temp_nonzero:
+            print("ERROR [--strict]: All ux,uy,uz,temp are zero. ODB may lack thermal load.")
+            print("  Check: patch_inp_thermal applied? *Temperature in Step-1? NT in Node Output?")
+            sys.exit(1)
+
     # metadata.csv
     meta_path = os.path.join(output_dir, 'metadata.csv')
+    defect_type = defect_params.get('defect_type', 'debonding') if defect_params else 'healthy'
+    defect_type_id = DEFECT_TYPE_MAP.get(defect_type, 0)
     with open(meta_path, 'w', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(['key', 'value'])
-        writer.writerow(['defect_type', 'debonding' if defect_params else 'healthy'])
+        writer.writerow(['defect_type', defect_type])
+        writer.writerow(['defect_type_id', str(defect_type_id)])
         writer.writerow(['n_defect_nodes', str(n_defect)])
         writer.writerow(['n_total_nodes', str(len(node_rows))])
         writer.writerow(['instance', instance_name])
@@ -200,7 +225,12 @@ def extract_results(odb_path, output_dir, defect_params=None):
             writer.writerow(['theta_deg', str(defect_params['theta_deg'])])
             writer.writerow(['z_center', str(defect_params['z_center'])])
             writer.writerow(['radius', str(defect_params['radius'])])
-    print("Saved metadata to " + meta_path)
+            # Type-specific parameters
+            if 'stiffness_factor' in defect_params:
+                writer.writerow(['stiffness_factor', str(defect_params['stiffness_factor'])])
+            if 'damage_ratio' in defect_params:
+                writer.writerow(['damage_ratio', str(defect_params['damage_ratio'])])
+    print("Saved metadata to " + meta_path + " (defect_type=%s, id=%d)" % (defect_type, defect_type_id))
 
     # ---------------------------------------------------------
     # 2. Element Data (Connectivity, Stress)
@@ -241,6 +271,8 @@ if __name__ == '__main__':
     parser.add_argument('--output', type=str, required=True)
     parser.add_argument('--defect_json', type=str, default=None,
                         help='Path to JSON with defect_params (theta_deg, z_center, radius)')
+    parser.add_argument('--strict', action='store_true',
+                        help='Fail if all ux,uy,uz,temp are zero (ODB missing thermal)')
 
     args, unknown = parser.parse_known_args()
 
@@ -251,4 +283,4 @@ if __name__ == '__main__':
         print("Defect params: theta=%.1f z=%.0f r=%.0f" %
               (defect_params['theta_deg'], defect_params['z_center'], defect_params['radius']))
 
-    extract_results(args.odb, args.output, defect_params=defect_params)
+    extract_results(args.odb, args.output, defect_params=defect_params, strict=args.strict)

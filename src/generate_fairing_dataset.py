@@ -439,6 +439,8 @@ def assign_all_sections(p_inner, p_core, p_outer, defect_params):
     # Core: healthy baseline for all cells
     region = p_core.Set(cells=p_core.cells, name='Set-All')
     p_core.SectionAssignment(region=region, sectionName='Section-Core')
+    p_core.MaterialOrientation(region=region, orientationType=GLOBAL, axis=AXIS_3,
+                                additionalRotationType=ROTATION_NONE, localCsys=None)
 
     # Outer skin: healthy baseline for all faces
     region = p_outer.Set(faces=p_outer.faces, name='Set-All')
@@ -522,15 +524,14 @@ def generate_model(job_name, defect_params=None, project_root=None,
     p_inner, p_core, p_outer = create_parts(model)
 
     # 3. Partition parts at defect zone (BEFORE assembly, for section assignment)
+    # All three parts are ALWAYS partitioned to ensure dependent=OFF instances
+    # export mesh data to INP. Section overrides are applied only where needed.
     if defect_params:
-        parts_to_partition = []
-        if defect_type in ('debonding', 'impact'):
-            parts_to_partition.append(('shell', p_outer))
-        if defect_type in ('fod', 'impact'):
-            parts_to_partition.append(('solid', p_core))
-        # Also partition for mesh refinement (always partition outer skin and core)
-        if defect_type == 'fod' and ('shell', p_outer) not in parts_to_partition:
-            parts_to_partition.append(('shell', p_outer))
+        parts_to_partition = [
+            ('shell', p_inner),
+            ('solid', p_core),
+            ('shell', p_outer),
+        ]
         partition_defect_zone(parts_to_partition, defect_params)
 
     # 4. Assign sections (healthy baseline + defect-zone overrides)
@@ -544,26 +545,10 @@ def generate_model(job_name, defect_params=None, project_root=None,
     inst_outer = a.Instance(name='Part-OuterSkin-1', part=p_outer, dependent=OFF)
     
     # 6. Interaction — Tie constraints are NOT used.
-    # With dependent=OFF instances, assembly-level surfaces don't export to INP correctly.
-    # The model solves under thermal load only (each part deforms independently).
+    # Each part deforms independently under thermal load.
     # Defect physics come from material property differences in the defect zone.
-    # (Tie + BC improvement is a future TODO for physically coupled model.)
-    
-    # 7. BCs - fix bottom (y=0) for static equilibrium — Abaqus: Y=axial
-    try:
-        bottom_faces = []
-        for inst in (inst_inner, inst_core, inst_outer):
-            for f in inst.faces:
-                if f.pointOn[0][1] < 1.0:  # y < 1
-                    bottom_faces.append(f)
-        if bottom_faces:
-            bot_set = a.Set(faces=bottom_faces, name='BC_Bottom')
-            model.DisplacementBC(name='Fix_Bottom', createStepName='Initial',
-                                region=bot_set, u1=0, u2=0, u3=0)
-    except Exception as e:
-        print("Warning: BC: %s" % str(e))
 
-    # 8. Step & Loads
+    # 7. Step & Loads
     model.StaticStep(name='Step-1', previous='Initial')
     # Thermal load: ascent heating (outer 120°C, inner 20°C) — applied in Step-1 after mesh
     model.fieldOutputRequests['F-Output-1'].setValues(variables=('S', 'U', 'RF', 'TEMP'))
@@ -586,34 +571,8 @@ def generate_model(job_name, defect_params=None, project_root=None,
         except Exception as e:
             print("Warning: Local seed skipped: %s" % str(e)[:60])
     a.generateMesh(regions=(inst_inner, inst_core, inst_outer))
-    
-    # 9. Temperature IC — single set for all nodes (avoids assembly set naming issues)
-    try:
-        all_nodes = []
-        for inst in (inst_inner, inst_core, inst_outer):
-            all_nodes.extend(list(inst.nodes))
-        set_all = a.Set(nodes=all_nodes, name='TempSet_All')
-        model.Temperature(name='Temp_IC', createStepName='Initial',
-                         region=set_all, distributionType=UNIFORM, magnitudes=(TEMP_INITIAL,))
-    except Exception as e:
-        print("Warning: Temperature IC skipped: %s" % str(e)[:60])
-    
-    # 9b. Thermal load in Step-1 (ascent heating: outer 120°C, inner 20°C, core gradient)
-    try:
-        set_outer = a.Set(nodes=list(inst_outer.nodes), name='TempSet_Outer')
-        set_inner = a.Set(nodes=list(inst_inner.nodes), name='TempSet_Inner')
-        set_core = a.Set(nodes=list(inst_core.nodes), name='TempSet_Core')
-        model.Temperature(name='Temp_Outer_Step1', createStepName='Step-1',
-                         region=set_outer, distributionType=UNIFORM, magnitudes=(TEMP_FINAL_OUTER,))
-        model.Temperature(name='Temp_Inner_Step1', createStepName='Step-1',
-                         region=set_inner, distributionType=UNIFORM, magnitudes=(TEMP_FINAL_INNER,))
-        temp_core = (TEMP_FINAL_OUTER + TEMP_FINAL_INNER) / 2.0
-        model.Temperature(name='Temp_Core_Step1', createStepName='Step-1',
-                         region=set_core, distributionType=UNIFORM, magnitudes=(temp_core,))
-        print("Thermal load applied: outer=%g C, inner=%g C, core=%g C" % (TEMP_FINAL_OUTER, TEMP_FINAL_INNER, temp_core))
-    except Exception as e:
-        print("Warning: Thermal load skipped: %s" % str(e)[:80])
-    
+    # Temperature IC and thermal load are handled by patch_inp_thermal.py post-processing.
+
     # 10. Job
     mdb.Job(name=job_name, model='Model-1', type=ANALYSIS, resultsFormat=ODB,
             numCpus=4, numDomains=4, multiprocessingMode=DEFAULT)
@@ -629,7 +588,7 @@ def generate_model(job_name, defect_params=None, project_root=None,
         print("Skipping patch and job execution (--no_run)")
         return
     if os.path.exists(inp_path):
-        # Find patch script: project_root arg, env, or search upward from inp dir
+        # Apply thermal patch directly (import patch_inp function)
         patch_script = None
         proj_root = project_root or os.environ.get('PROJECT_ROOT') or os.environ.get('PAYLOAD2026_ROOT')
         if proj_root:
@@ -643,10 +602,13 @@ def generate_model(job_name, defect_params=None, project_root=None,
                         patch_script = p
                         break
         if patch_script and os.path.exists(patch_script):
-            import subprocess
-            r = subprocess.call([sys.executable, patch_script, inp_path], cwd=os.path.dirname(inp_path))
-            if r == 0:
+            try:
+                _g = {'__name__': '_patch_module', '__file__': patch_script}
+                exec(open(patch_script).read(), _g)
+                _g['patch_inp'](inp_path)
                 print("INP patched for thermal load")
+            except Exception as e:
+                print("Warning: INP patch failed: %s" % str(e)[:80])
     print("Running job '%s' with patched INP..." % job_name)
     import subprocess
     cwd = os.path.dirname(inp_path) or '.'
