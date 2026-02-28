@@ -81,6 +81,8 @@ GLOBAL_SEED = 25.0     # mm
 DEFECT_SEED = 10.0     # mm (around defect zone)
 OPENING_SEED = 10.0    # mm (around openings)
 FRAME_SEED = 15.0      # mm (ring frames)
+BOUNDARY_SEED_RATIO = 0.4  # partition boundary seed = DEFECT_SEED * ratio
+BOUNDARY_MARGIN = 30.0     # mm — refinement width around partition boundaries
 
 # ==============================================================================
 # OPENING DEFINITIONS
@@ -974,6 +976,56 @@ def generate_mesh(assembly, inst_inner, inst_core, inst_outer,
                 print("  Defect mesh warning: %s" % str(e)[:60])
         print("  Local mesh: defect zone z=[%.0f, %.0f] seed=%.0f mm" % (
             z1, z2, defect_seed))
+
+        # 4b. Defect boundary refinement (partition edge vicinity)
+        #     Finer seed near the 4 partition planes to prevent sliver elements
+        boundary_seed = max(defect_seed * BOUNDARY_SEED_RATIO, 3.0)
+        bm = BOUNDARY_MARGIN
+        theta_deg = defect_params['theta_deg']
+
+        # Z-boundary planes: z_c - r_def and z_c + r_def
+        for z_plane in [z_c - r_def, z_c + r_def]:
+            z1b = max(1.0, z_plane - bm)
+            z2b = min(TOTAL_HEIGHT - 1.0, z_plane + bm)
+            for inst in all_skin_insts:
+                try:
+                    edges = inst.edges.getByBoundingBox(
+                        xMin=-r_box, xMax=r_box,
+                        yMin=z1b, yMax=z2b,
+                        zMin=-r_box, zMax=r_box)
+                    if len(edges) > 0:
+                        assembly.seedEdgeBySize(
+                            edges=edges, size=boundary_seed,
+                            constraint=FINER)
+                except Exception:
+                    pass
+
+        # Theta-boundary planes: theta +/- d_theta
+        r_local = get_radius_at_z(z_c) + CORE_T
+        if r_local < 1.0:
+            r_local = RADIUS
+        d_theta = min(r_def / r_local, math.radians(30.0))
+        theta_rad = math.radians(theta_deg)
+        z1_def = max(1.0, z_c - r_def - bm)
+        z2_def = min(TOTAL_HEIGHT - 1.0, z_c + r_def + bm)
+        for t_plane in [theta_rad - d_theta, theta_rad + d_theta]:
+            x_mid = r_local * math.cos(t_plane)
+            z_mid = r_local * math.sin(t_plane)
+            for inst in all_skin_insts:
+                try:
+                    edges = inst.edges.getByBoundingBox(
+                        xMin=x_mid - bm, xMax=x_mid + bm,
+                        yMin=z1_def, yMax=z2_def,
+                        zMin=z_mid - bm, zMax=z_mid + bm)
+                    if len(edges) > 0:
+                        assembly.seedEdgeBySize(
+                            edges=edges, size=boundary_seed,
+                            constraint=FINER)
+                except Exception:
+                    pass
+
+        print("  Local mesh: defect boundary seed=%.1f mm (margin=%.0f mm)" % (
+            boundary_seed, bm))
 
     # 5. Generate mesh
     regions_to_mesh = list(all_skin_insts) + list(frame_instances)
