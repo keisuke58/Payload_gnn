@@ -57,12 +57,17 @@
 - InnerSkin に **Tie** 拘束 (positionToleranceMethod=COMPUTED)
 - 開口部と干渉するフレームは自動スキップ
 
-### 3.3 Multi-Resolution Mesh
-| 領域 | シードサイズ | 備考 |
-|------|------------|------|
-| グローバル | 50 mm | S4R / C3D8R |
-| 開口周辺 | 15 mm | `seedEdgeBySize` |
-| リングフレーム | 25 mm | 各フレーム個別 |
+### 3.3 Multi-Resolution Mesh (5-Tier Seeding)
+| Tier | 領域 | シードサイズ | 備考 |
+|------|------|------------|------|
+| 1 | グローバル | 25 mm | S4R / C3D8R |
+| 2 | リングフレーム | 15 mm | 各フレーム個別 |
+| 3 | 開口周辺 | 10 mm | `seedEdgeBySize`, margin 可変 |
+| 4 | 欠陥ゾーン | 10 mm | 欠陥中心 ± (r_def + 150mm) |
+| **4b** | **パーティション境界** | **4 mm** | **境界 ± 30mm, `constraint=FINER`** |
+
+> Tier 4b はパーティション境界付近のスライバー要素防止のための局所リファイン。
+> 詳細: [[Mesh-Defect-Resolution]]
 
 ## 4. Results
 
