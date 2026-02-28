@@ -75,7 +75,7 @@ https://github.com/keisuke58/Payload_gnn/blob/main/wiki_repo/Home.md
 | **Issues** | 有効 |
 | **Discussions** | 有効 (Q&A 用) |
 | **Projects** | ロードマップ可視化に活用 |
-| **Wiki** | 既に wiki_repo で管理。GitHub Wiki は未使用で OK |
+| **Wiki** | wiki_repo で管理 → GitHub Wiki に自動同期 |
 
 ---
 
@@ -101,6 +101,16 @@ https://github.com/keisuke58/Payload_gnn/blob/main/wiki_repo/Home.md
 - リモート確認
 - 画像参照の簡易検証
 - `wiki_repo/` の stage → commit → push
+
+### 自動化（GitHub Actions）
+
+`main` に push すると、**wiki_repo の変更があれば GitHub Wiki へ自動同期**されます。
+
+| トリガー | 動作 |
+|----------|------|
+| `wiki_repo/**` または `scripts/sync_github_wiki.py` が変更された push | `sync_github_wiki.py` を実行 → GitHub Wiki に反映 |
+
+手動で同期する場合: `python scripts/sync_github_wiki.py`
 
 ---
 

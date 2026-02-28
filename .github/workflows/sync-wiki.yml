@@ -1,0 +1,31 @@
+# wiki_repo 更新時に GitHub Wiki へ自動同期
+# Trigger: push to main で wiki_repo/ または sync スクリプトが変更された場合
+
+name: Sync Wiki
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "wiki_repo/**"
+      - "scripts/sync_github_wiki.py"
+
+permissions:
+  contents: write  # wiki への push に必要
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Sync wiki_repo to GitHub Wiki
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python scripts/sync_github_wiki.py
