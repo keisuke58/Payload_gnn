@@ -10,7 +10,7 @@
 | カテゴリ | ページ |
 |----------|--------|
 | **概要** | [H3ロケット総覧](H3-Rocket-Overview), [フェアリング仕様](JAXA-Fairing-Specs) |
-| **技術** | [アーキテクチャ](Architecture), [**モデル別前処理**](Preprocessing-by-Model), [ML戦略](ML-Strategy), [超最先端ML](Cutting-Edge-ML), [熱解析](Thermal-Analysis), [**リアルFEM**](Realistic-Fairing-FEM), [**XAI**](XAI-Roadmap) |
+| **技術** | [アーキテクチャ](Architecture), [**モデル別前処理**](Preprocessing-by-Model), [ML戦略](ML-Strategy), [超最先端ML](Cutting-Edge-ML), [熱解析](Thermal-Analysis), [**リアルFEM**](Realistic-Fairing-FEM), [**FEMリアリズム計画**](FEM-Realism-Roadmap), [**XAI**](XAI-Roadmap) |
 | **データ** | [データセット形式](Dataset-Format), [**ノード特徴量**](Node-Features), [欠陥生成](Defect-Generation-and-Labeling), [**拡張欠陥タイプ**](Extended-Defect-Types), [欠陥タイプ検証](Defect-Types-Validation), [**欠陥物理量検証**](Defect-Physics-Validation), [**発生確率・データセット割合**](Defect-Occurrence-Probability-and-Dataset-Ratio), [生成状況](Dataset-Generation-Status), [完璧度スコア](Dataset-Perfect-Score), [マルチクラス](Multi-Class-Roadmap), [外部データセット調査](Dataset-Survey), [**メッシュ収束チェック**](Mesh-Convergence), [**リアルFEM検証**](Dataset-Validation-Realistic) |
 | **用語** | [英単語集](Vocabulary) |
 | **事故分析** | [F8事故](F8-Accident-Analysis), [SHM文脈](SHM-Context) |
@@ -24,8 +24,8 @@
 
 | 項目 | 状態 |
 |------|------|
-| **FEM モデル** | ✅ H3 Type-S 整合 (Barrel + Ogive, 1/6 セクション) |
-| **熱荷重** | ✅ 初期 20°C、Step-1 外板 100–220°C (z依存プロファイル) 適用・検証済み |
+| **FEM モデル** | ✅ H3 Type-S 整合, **C3D10 コア**, 2ステップ解析 (熱+機械) — [詳細](Realistic-Fairing-FEM) |
+| **荷重条件** | ✅ 熱勾配 + 差圧 50kPa (バレル) + 重力 3G — [リアリズム ~45%](FEM-Realism-Roadmap) |
 | **データセット** | ✅ 99/100 サンプル検証完了 (物理量正常), [詳細分布](Dataset-Generation-Status) |
 | **GNN** | ✅ GCN / GAT / GIN / SAGE 4 種実装・初回学習済 |
 | **計算環境** | CPU + **GPU 24GB × 4枚** |
