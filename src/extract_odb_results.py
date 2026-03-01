@@ -61,30 +61,52 @@ def extract_results(odb_path, output_dir, defect_params=None, strict=False):
         print("Error opening ODB: " + str(e))
         sys.exit(1)
         
-    # Get the last frame of the first analysis step (skip Initial if present)
+    # Get analysis steps — supports 2-step (thermal / thermal+mechanical) and legacy 1-step
     step_keys = list(odb.steps.keys())
     if not step_keys:
         print("Error: ODB has no steps (job may have failed)")
         sys.exit(1)
-    # Prefer first non-Initial step
-    step_name = step_keys[0]
+
+    # Identify Step-1 (thermal) and Step-2 (thermal+mechanical) if present
+    step1_name = None
+    step2_name = None
     for k in step_keys:
-        if k.upper() != 'INITIAL':
-            step_name = k
-            break
-    step_obj = odb.steps[step_name]
-    if len(step_obj.frames) == 0:
-        # Try first step with frames
-        for k in step_keys:
-            if len(odb.steps[k].frames) > 0:
-                step_name = k
-                step_obj = odb.steps[k]
-                break
-    if len(step_obj.frames) == 0:
-        print("Error: No frames in any step (job may have failed)")
+        ku = k.upper()
+        if ku == 'STEP-1':
+            step1_name = k
+        elif ku == 'STEP-2':
+            step2_name = k
+        elif ku != 'INITIAL' and step1_name is None:
+            step1_name = k  # fallback for non-standard step names
+
+    if step1_name is None:
+        print("Error: No analysis step found in ODB")
         sys.exit(1)
-    frame = step_obj.frames[-1]
-    
+
+    # Determine the main extraction frame (Step-2 if available, else Step-1)
+    if step2_name and len(odb.steps[step2_name].frames) > 0:
+        # 2-step model: extract total results from Step-2
+        step_name = step2_name
+        frame = odb.steps[step2_name].frames[-1]
+        frame_thermal = odb.steps[step1_name].frames[-1]
+        print("2-step analysis detected: thermal=%s, total=%s" % (step1_name, step2_name))
+    else:
+        # Legacy 1-step model: thermal = total (100% thermal loading)
+        step_name = step1_name
+        step_obj = odb.steps[step1_name]
+        if len(step_obj.frames) == 0:
+            for k in step_keys:
+                if len(odb.steps[k].frames) > 0:
+                    step_name = k
+                    step_obj = odb.steps[k]
+                    break
+        if len(step_obj.frames) == 0:
+            print("Error: No frames in any step (job may have failed)")
+            sys.exit(1)
+        frame = step_obj.frames[-1]
+        frame_thermal = None  # will fallback to total = thermal
+        print("1-step analysis (legacy): thermal_smises = smises")
+
     print("Extracting data from Step: " + step_name + ", Frame: " + str(frame.frameId))
     
     # ---------------------------------------------------------
@@ -110,11 +132,19 @@ def extract_results(odb_path, output_dir, defect_params=None, strict=False):
 
     # Field Outputs
     disp_field = frame.fieldOutputs['U']
+    # Nodal temperature: prefer NT11 (scalar nodal temp) over TEMP (element temp)
     temp_field = None
-    for key in ('NT11', 'NT12', 'NT', 'TEMP'):
+    for key in ('NT11', 'NT'):
         if key in frame.fieldOutputs:
             temp_field = frame.fieldOutputs[key]
             break
+    # Fallback: if total frame lacks nodal NT, try thermal frame (Step-1)
+    if temp_field is None and frame_thermal is not None:
+        for key in ('NT11', 'NT'):
+            if key in frame_thermal.fieldOutputs:
+                temp_field = frame_thermal.fieldOutputs[key]
+                print("  Temperature from Step-1 (not in Step-2)")
+                break
 
     # Stress field (per-node averaging)
     stress_field = None
@@ -170,6 +200,24 @@ def extract_results(odb_path, output_dir, defect_params=None, strict=False):
                 node_stress[nid][4] += 1
         except Exception as e:
             print("Warning: Stress extraction: " + str(e)[:80])
+
+    # Thermal-only stress from Step-1 (for 2-step analysis)
+    # {node_label: [sum_mises, count]}
+    node_thermal_stress = {}
+    if frame_thermal is not None:
+        thermal_s_field = frame_thermal.fieldOutputs['S'] if 'S' in frame_thermal.fieldOutputs else None
+        if thermal_s_field:
+            try:
+                ts_sub = thermal_s_field.getSubset(region=instance, position=ELEMENT_NODAL)
+                for val in ts_sub.values:
+                    nid = val.nodeLabel
+                    if nid not in node_thermal_stress:
+                        node_thermal_stress[nid] = [0.0, 0]
+                    node_thermal_stress[nid][0] += val.mises
+                    node_thermal_stress[nid][1] += 1
+                print("  Extracted thermal stress (Step-1) for %d nodes" % len(node_thermal_stress))
+            except Exception as e:
+                print("Warning: Thermal stress extraction: " + str(e)[:80])
 
     # Optional: Per-node strain (LE) - average from ELEMENT_NODAL if available
     node_strain = {}
@@ -230,10 +278,11 @@ def extract_results(odb_path, output_dir, defect_params=None, strict=False):
         # Derived: u_mag = |u|
         u_mag = math.sqrt(u[0]**2 + u[1]**2 + u[2]**2)
 
-        # thermal_smises: In this model, ALL loading is thermal (CTE mismatch).
-        # Therefore thermal von Mises ≈ total von Mises.
-        # Future: for mixed loading, extract STHERM field separately.
-        thermal_smises = smises
+        # thermal_smises: Step-1 von Mises (thermal only) if 2-step, else total
+        if nid in node_thermal_stress and node_thermal_stress[nid][1] > 0:
+            thermal_smises = node_thermal_stress[nid][0] / node_thermal_stress[nid][1]
+        else:
+            thermal_smises = smises  # fallback: single-step (100% thermal)
 
         # Strain (LE11, LE22, LE12) if extracted
         le11 = le22 = le12 = 0.0

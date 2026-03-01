@@ -158,13 +158,13 @@ def patch_inp(inp_path):
             modified = True
             print("  Added LE to Element Output: %s -> %s" % (old_vars.strip(), new_vars.strip()))
 
-    # ── 3. Add NT (nodal temperature) to Node Output ──
-    if '*Node Output' in content and ', NT' not in content:
+    # ── 3. Add NT (nodal temperature) to ALL Node Output blocks ──
+    if '*Node Output' in content:
         for pat, repl in [
             (r'(\*Node Output\s*\n\s*RF,\s*U)\s*\n', r'\1, NT\n'),
             (r'(\*Node Output\s*\n\s*U,\s*RF)\s*\n', r'\1, NT\n'),
         ]:
-            new_content = re.sub(pat, repl, content, count=1)
+            new_content = re.sub(pat, repl, content)  # no count limit
             if new_content != content:
                 content = new_content
                 modified = True
@@ -188,6 +188,16 @@ def patch_inp(inp_path):
                 content = new_content
                 modified = True
                 print("  Applied z-dependent temperature profile (%d lines)" % len(temp_lines))
+
+            # Remove CAE-generated uniform outer skin temperature (would override per-node)
+            outer_temp_pat = re.compile(
+                r'\*\*\s*Name:\s*Temp_Outer[^\n]*\n\*Temperature\s*\n'
+                r'Part-OuterSkin-1\.Set-All,\s*\d+\.?\d*\s*\n',
+                re.IGNORECASE)
+            cleaned = outer_temp_pat.sub('', content)
+            if cleaned != content:
+                content = cleaned
+                print("  Removed CAE uniform outer skin temperature (overridden by z-dependent)")
         else:
             # Fallback: uniform temperature if node parsing fails
             print("  Warning: Could not parse nodes, falling back to uniform temp")
