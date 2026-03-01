@@ -672,10 +672,13 @@ def create_base_parts_with_adhesive(model, adh_t):
         r_min=ADH_R_MIN)
 
     # --- Core (Solid, reduced thickness) ---
+    # Truncate ogive at r_min to match adhesive layers;
+    # avoids floating core nodes at tip where adhesive doesn't extend.
     p_core = _create_solid_revolve_part(
         model, 'Part-Core',
         r_core_inner, r_core_outer,
-        rho_core_inner, rho_core_outer)
+        rho_core_inner, rho_core_outer,
+        r_min=ADH_R_MIN)
 
     # --- Adhesive Outer (Solid, COH3D8) ---
     p_adh_outer = _create_solid_revolve_part(
@@ -1119,25 +1122,41 @@ def _classify_solid_faces(inst, r_inner_expected_fn, r_outer_expected_fn,
                           tol_fn):
     """Classify solid instance faces as inner, outer, or edge.
 
+    Uses nearest-match: each face is classified based on which expected
+    surface (inner or outer) its centroid radius is closer to.
+    Edge faces (y~0 bottom / ogive cap top) are skipped only when
+    their centroid is far from both expected surfaces.
+
     Args:
         inst: Assembly instance
         r_inner_expected_fn: function(y) -> expected inner radius at z=y
         r_outer_expected_fn: function(y) -> expected outer radius at z=y
-        tol_fn: function() -> tolerance for radius matching
+        tol_fn: function() -> tolerance (used as edge-face skip threshold)
 
     Returns: (inner_pts, outer_pts) - lists of (pointOn,) tuples
     """
     inner_pts = []
     outer_pts = []
     tol = tol_fn()
+    # Use generous threshold for edge-face detection: 10x tolerance or
+    # half the expected thickness, whichever is larger.
     for f in inst.faces:
         pt = f.pointOn[0]
         r = math.sqrt(pt[0]**2 + pt[2]**2)
         r_inner = r_inner_expected_fn(pt[1])
         r_outer = r_outer_expected_fn(pt[1])
-        if abs(r - r_inner) < tol:
+        d_inner = abs(r - r_inner)
+        d_outer = abs(r - r_outer)
+        thickness = abs(r_outer - r_inner)
+        # Skip true edge faces whose centroid is far from both surfaces
+        # (e.g. bottom annulus at y=0, top cap at ogive truncation)
+        edge_tol = max(tol * 10, thickness * 0.8)
+        if min(d_inner, d_outer) > edge_tol:
+            continue
+        # Nearest-match: classify by which expected surface is closer
+        if d_inner <= d_outer:
             inner_pts.append((pt,))
-        elif abs(r - r_outer) < tol:
+        else:
             outer_pts.append((pt,))
     return inner_pts, outer_pts
 
@@ -1326,10 +1345,11 @@ def apply_post_mesh_bcs_with_adhesive(model, assembly,
                                        inst_core, inst_adh_outer,
                                        inst_outer):
     """Post-mesh BCs: nose tip + VOID opening nodes (including adhesive)."""
-    # 1. Nose tip
+    # 1. Nose tip (all instances including core/adhesive truncated at r_min)
     nose_y_min = TOTAL_HEIGHT - 100.0
     nose_nodes = []
-    for inst in [inst_inner, inst_outer]:
+    for inst in [inst_inner, inst_adh_inner, inst_core,
+                 inst_adh_outer, inst_outer]:
         for node in inst.nodes:
             c = node.coordinates
             r = math.sqrt(c[0]**2 + c[2]**2)
@@ -1344,6 +1364,25 @@ def apply_post_mesh_bcs_with_adhesive(model, assembly,
                              region=nose_set, u1=0, u2=0, u3=0)
         print("BC: Nose tip pinned (y>%.0f, r<150mm): %d nodes" % (
             nose_y_min, len(nose_nodes)))
+
+    # 1b. Ogive truncation cap: solid nodes near r_min not tied to skins
+    cap_r_max = ADH_R_MIN + 5.0  # small tolerance around truncation radius
+    cap_nodes = []
+    for inst in [inst_adh_inner, inst_core, inst_adh_outer]:
+        for node in inst.nodes:
+            c = node.coordinates
+            r = math.sqrt(c[0]**2 + c[2]**2)
+            if r < cap_r_max and c[1] > H_BARREL:
+                cap_nodes.append(inst.nodes[node.label - 1:node.label])
+    if cap_nodes:
+        combined_cap = cap_nodes[0]
+        for ns in cap_nodes[1:]:
+            combined_cap = combined_cap + ns
+        cap_set = assembly.Set(name='BC_OgiveCap', nodes=combined_cap)
+        model.DisplacementBC(name='Fix_OgiveCap', createStepName='Initial',
+                             region=cap_set, u1=0, u2=0, u3=0)
+        print("BC: Ogive cap pinned (r<%.0f, y>%.0f): %d nodes" % (
+            cap_r_max, H_BARREL, len(cap_nodes)))
 
     # 2. VOID opening nodes: skins/core use Set-Opening,
     #    adhesive layers use coordinate-based detection (not partitioned).
@@ -1383,8 +1422,10 @@ def mesh_adhesive_parts(assembly, inst_adh_inner, inst_adh_outer,
       1. SWEEP + COH3D8 (ideal for cohesive elements)
       2. FREE TET + C3D10 fallback (model runs, but no CZM behavior)
     """
+    # Cap adhesive seed to avoid extreme aspect ratios (thickness=0.2mm)
+    adh_seed = min(global_seed, 25.0)
     for inst in [inst_adh_inner, inst_adh_outer]:
-        assembly.seedPartInstance(regions=(inst,), size=global_seed,
+        assembly.seedPartInstance(regions=(inst,), size=adh_seed,
                                   deviationFactor=0.1)
         meshed = False
         n_cells = len(inst.cells)
