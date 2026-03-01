@@ -355,6 +355,7 @@ Phase D (4週間): パラメータ校正 + データ生成テスト
 | ページ | 内容 |
 |--------|------|
 | [Realistic-Fairing-FEM](Realistic-Fairing-FEM) | 現行モデルの詳細・バリデーション結果 |
+| [CZM-Solver-Trials](CZM-Solver-Trials) | CZM ソルバー試行錯誤ログ (2026-03) |
 | [Roadmap](Roadmap) | 全体開発ロードマップ |
 | [2-Year-Goals](2-Year-Goals) | 2年研究計画 |
 | [Node-Features](Node-Features) | 34次元ノード特徴量 |
