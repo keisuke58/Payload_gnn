@@ -15,6 +15,11 @@
 | [#8](https://github.com/keisuke58/Payload_gnn/issues/8) | Phase 9: FNO サロゲート + PINN 逆問題 | Phase 9 |
 | [#10](https://github.com/keisuke58/Payload_gnn/issues/10) | Graph Mamba 実装・比較 (SOTA 2024) | 超最先端 ML |
 | [#11](https://github.com/keisuke58/Payload_gnn/issues/11) | E(3)-Equivariant GNN 検討 (NequIP / e3nn) | 超最先端 ML |
+| [#22](https://github.com/keisuke58/Payload_gnn/issues/22) | [RESEARCH] 物理・FEM モデルの不足・未考慮事項 | 研究 gaps |
+| [#23](https://github.com/keisuke58/Payload_gnn/issues/23) | [RESEARCH] データ・学習の不足・未考慮事項 | 研究 gaps |
+| [#24](https://github.com/keisuke58/Payload_gnn/issues/24) | [RESEARCH] Sim-to-Real・実運用の不足・未考慮事項 | 研究 gaps |
+| [#25](https://github.com/keisuke58/Payload_gnn/issues/25) | [RESEARCH] 規格・安全・説明可能性の不足・未考慮事項 | 研究 gaps |
+| [#26](https://github.com/keisuke58/Payload_gnn/issues/26) | [RESEARCH] 時間・経年・その他観点の不足・未考慮事項 | 研究 gaps |
 
 ## リンク
 
