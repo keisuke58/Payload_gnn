@@ -170,9 +170,20 @@ def train_epoch(model, loader, optimizer, criterion, device, num_classes=2,
         optimizer.zero_grad()
         out = model(batch.x, batch.edge_index, batch.edge_attr, batch.batch)
         if boundary_weight > 1.0:
-            # Per-node weighted loss
+            # Per-node weighted loss using the configured criterion
+            if isinstance(criterion, FocalLoss):
+                # FocalLoss: compute per-node focal loss
+                ce = F.cross_entropy(out, batch.y, reduction='none')
+                pt = torch.exp(-ce)
+                per_node_loss = (1 - pt) ** criterion.gamma * ce
+                if criterion.alpha is not None:
+                    alpha_t = criterion.alpha[batch.y]
+                    per_node_loss = alpha_t * per_node_loss
+            else:
+                # WeightedCE: use class weights in per-node CE
+                weight = criterion.weight if hasattr(criterion, 'weight') and criterion.weight is not None else None
+                per_node_loss = F.cross_entropy(out, batch.y, weight=weight, reduction='none')
             node_w = build_node_weights(batch, boundary_weight)
-            per_node_loss = F.cross_entropy(out, batch.y, reduction='none')
             loss = (per_node_loss * node_w).mean()
         else:
             loss = criterion(out, batch.y)
@@ -624,6 +635,8 @@ def main():
     # Misc
     parser.add_argument('--log_every', type=int, default=10)
     parser.add_argument('--seed', type=int, default=42)
+    parser.add_argument('--no_normalize', action='store_true', default=False,
+                        help='Skip feature normalization (debug only)')
     args = parser.parse_args()
 
     # DDP init
@@ -659,6 +672,38 @@ def main():
     val_data = torch.load(val_path, weights_only=False)
     if rank == 0:
         print("Train: %d samples | Val: %d samples" % (len(train_data), len(val_data)))
+
+    # --- Feature normalization ---
+    if not args.no_normalize:
+        norm_path = os.path.join(data_dir, 'norm_stats.pt')
+        if os.path.exists(norm_path):
+            norm_stats = torch.load(norm_path, weights_only=False)
+            x_mean = norm_stats['mean']
+            x_std = norm_stats['std']
+            # Normalize node features for all samples
+            for d in train_data + val_data:
+                d.x = (d.x - x_mean) / x_std
+            if rank == 0:
+                print("Normalized node features: %d dims (from norm_stats.pt)" % x_mean.shape[0])
+        else:
+            if rank == 0:
+                print("WARNING: norm_stats.pt not found — training without normalization")
+
+        # Normalize edge_attr (compute stats from train data)
+        edge_attrs = [d.edge_attr for d in train_data if d.edge_attr is not None]
+        if edge_attrs:
+            ea_cat = torch.cat(edge_attrs, dim=0)
+            ea_mean = ea_cat.mean(dim=0)
+            ea_std = ea_cat.std(dim=0)
+            ea_std[ea_std < 1e-8] = 1.0
+            for d in train_data + val_data:
+                if d.edge_attr is not None:
+                    d.edge_attr = (d.edge_attr - ea_mean) / ea_std
+            if rank == 0:
+                print("Normalized edge features: %d dims (computed from train)" % ea_mean.shape[0])
+    else:
+        if rank == 0:
+            print("Normalization SKIPPED (--no_normalize)")
 
     if args.gamma_search:
         # Grid search over gamma values
