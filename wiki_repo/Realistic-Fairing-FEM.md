@@ -3,7 +3,7 @@
 # Realistic H3 Fairing FEM Model
 
 > **Status**: Phase 1 & Phase 2 COMPLETED
-> **Date**: 2026-02-28
+> **Date**: 2026-03-01
 
 ## 1. Overview
 
@@ -17,7 +17,7 @@
 | ジオメトリ | 1/6 セクタ (60°), バレル 5000mm + タンジェントオジーブ 5400mm |
 | 構造 | CFRP/Al-HC サンドイッチ (Face 1.0mm + Core 38mm) |
 | 拘束 | Tie (InnerSkin ↔ Core ↔ OuterSkin + RingFrames) |
-| 荷重 | 熱勾配 (Outer 120°C, Inner 20°C, Core 70°C) |
+| 荷重 | 熱勾配 (Outer 120°C, Inner 20°C, Core 70°C) + **Max Q 圧力 (50 kPa)** |
 | BC | 底面 (y=0) 固定 |
 
 ## 2. Phase 構成
