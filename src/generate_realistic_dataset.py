@@ -86,8 +86,10 @@ AERO_PRESSURE_ZONES = [
     (0, 1000, 0.0),                  # バレル基部: Cp≈0 (軸流)
     (1000, 3000, 0.0),              # バレル中央: Cp≈0
     (3000, H_BARREL, 0.0),          # バレル上部: Cp≈0
-    (H_BARREL, 7500, 0.002),        # オジーブ前方: Cp~0.06, ~2 kPa
-    (7500, TOTAL_HEIGHT, 0.010),    # ノーズ近傍: Cp~0.3, ~10 kPa
+    # オジーブ/ノーズは空力圧力を適用しない。
+    # 実機ではノーズキャップ・補強リブが空力荷重を担うが、
+    # 本シェルモデルにはこれらが無く、薄肉オジーブが座屈する。
+    # デボンディング検出の主対象はバレル領域のため省略で妥当。
 ]
 
 # Internal-external differential pressure (MPa) — net outward from vent lag
@@ -1295,26 +1297,39 @@ def apply_mechanical_loads(model, assembly, inst_inner, inst_core, inst_outer):
             print("  Aero pressure zone %d: no faces in z=[%.0f,%.0f]" % (
                 i, z_lo, z_hi))
 
-    # --- 2. Differential pressure (inner skin, uniform) ---
-    # Use Set-All faces only (exclude VOID opening elements).
+    # --- 2. Differential pressure (inner skin, BARREL ONLY) ---
+    # Vent-lag overpressure acts on the sealed barrel section.
+    # The ogive/nose has different structural closure (separation mechanism)
+    # and applying pressure there causes unrealistic ballooning.
     try:
         try:
             inner_faces = inst_inner.sets['Set-All'].faces
-            print("  Inner skin: using Set-All (%d faces, VOID excluded)" % len(inner_faces))
         except KeyError:
             inner_faces = inst_inner.faces
-            print("  Inner skin: Set-All not found, using all faces (%d)" % len(inner_faces))
-        surf_inner = assembly.Surface(
-            side2Faces=inner_faces,
-            name='Surf-DiffPressure')
-        model.Pressure(
-            name='Diff_Pressure',
-            createStepName='Step-2',
-            region=surf_inner,
-            distributionType=UNIFORM,
-            magnitude=DIFF_PRESSURE)
-        print("  Differential pressure: %.3f MPa (%.1f kPa)" % (
-            DIFF_PRESSURE, DIFF_PRESSURE * 1000))
+        barrel_pts = []
+        for face in inner_faces:
+            try:
+                pt = face.pointOn[0]
+                if pt[1] < H_BARREL + 0.1:
+                    barrel_pts.append(face.pointOn)
+            except Exception:
+                pass
+        if barrel_pts:
+            barrel_face_seq = inst_inner.faces.findAt(*barrel_pts)
+            surf_inner = assembly.Surface(
+                side2Faces=barrel_face_seq,
+                name='Surf-DiffPressure')
+            model.Pressure(
+                name='Diff_Pressure',
+                createStepName='Step-2',
+                region=surf_inner,
+                distributionType=UNIFORM,
+                magnitude=DIFF_PRESSURE)
+            n_barrel = len(barrel_pts)
+            print("  Differential pressure: %.3f MPa (%.1f kPa), barrel only (%d faces, y<%.0f)" % (
+                DIFF_PRESSURE, DIFF_PRESSURE * 1000, n_barrel, H_BARREL))
+        else:
+            print("  Differential pressure: no barrel faces found")
     except Exception as e:
         print("  Diff pressure warning: %s" % str(e)[:80])
 
