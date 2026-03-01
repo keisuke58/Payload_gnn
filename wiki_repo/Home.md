@@ -25,7 +25,7 @@
 | 項目 | 状態 |
 |------|------|
 | **FEM モデル** | ✅ H3 Type-S 整合, **C3D10 コア**, 2ステップ解析 (熱+機械) — [詳細](Realistic-Fairing-FEM) |
-| **荷重条件** | ✅ 熱勾配 + 差圧 50kPa (バレル) + 重力 3G — [リアリズム ~45%](FEM-Realism-Roadmap) |
+| **荷重条件** | ✅ 熱勾配 + 差圧 5kPa (バレル) + 重力 3G — [リアリズム ~45%](FEM-Realism-Roadmap) |
 | **データセット** | ✅ 99/100 サンプル検証完了 (物理量正常), [詳細分布](Dataset-Generation-Status) |
 | **GNN** | ✅ GCN / GAT / GIN / SAGE 4 種実装・初回学習済 |
 | **計算環境** | CPU + **GPU 24GB × 4枚** |
