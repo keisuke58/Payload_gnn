@@ -67,7 +67,7 @@ def setup_logging(log_file):
     return logger
 
 
-def run_sample(sample, output_dir, n_cpus=4, logger=None, dry_run=False, keep_inp=False, keep_odb=False,
+def run_sample(sample, output_dir, n_cpus=4, memory='40gb', logger=None, dry_run=False, keep_inp=False, keep_odb=False,
               force=False, strict_extract=False, global_seed=None, defect_seed=None, opening_params=None,
               opening_seed=None):
     """
@@ -183,7 +183,8 @@ def run_sample(sample, output_dir, n_cpus=4, logger=None, dry_run=False, keep_in
     # --- Step 2c: Run Abaqus job ---
     try:
         run_result = subprocess.run(
-            ['abaqus', 'job=' + job_name, 'input=' + job_name + '.inp', 'cpus=%d' % n_cpus],
+            ['abaqus', 'job=' + job_name, 'input=' + job_name + '.inp',
+             'cpus=%d' % n_cpus, 'memory=%s' % memory],
             cwd=WORK_DIR, capture_output=True, text=True, timeout=7200)
         if run_result.returncode != 0 and logger:
             logger.warning("  Abaqus job exit %d (check .sta, .msg)" % run_result.returncode)
@@ -360,6 +361,8 @@ def main():
     parser.add_argument('--gen_script', type=str, default='simple',
                         choices=['simple', 'realistic'],
                         help='Generation script: simple (default) or realistic (openings+frames+Tie)')
+    parser.add_argument('--memory', type=str, default='40gb',
+                        help='Abaqus solver memory allocation (default: 40gb)')
     parser.add_argument('--work_dir', type=str, default=None,
                         help='Override Abaqus work directory (for parallel execution on multiple machines)')
     args = parser.parse_args()
@@ -401,6 +404,7 @@ def main():
     logger.info("  DOE: %s (%d samples)" % (args.doe, len(samples)))
     logger.info("  Output: %s" % output_dir)
     logger.info("  CPUs: %d" % args.n_cpus)
+    logger.info("  Memory: %s" % args.memory)
     logger.info("  Gen script: %s (%s)" % (args.gen_script, GEN_SCRIPT))
     logger.info("=" * 60)
 
@@ -417,6 +421,7 @@ def main():
         success = run_sample(
             sample, output_dir,
             n_cpus=args.n_cpus,
+            memory=args.memory,
             logger=logger,
             dry_run=args.dry_run,
             keep_inp=getattr(args, 'keep_inp', False),

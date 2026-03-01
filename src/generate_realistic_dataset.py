@@ -1010,7 +1010,10 @@ def generate_mesh(assembly, inst_inner, inst_core, inst_outer,
         assembly.seedPartInstance(regions=(inst,), size=frame_seed,
                                   deviationFactor=0.1)
 
-    # 3. Opening local refinement
+    # 3. Opening local refinement (skins only — Core uses global seed)
+    # Applying opening_seed (10mm) to Core edges creates too many through-thickness
+    # elements in the 38mm-thick solid, causing C3D10 mesh failure.
+    opening_insts = (inst_inner, inst_outer)
     for opening in openings:
         z_c = opening['z_center']
         r_half = opening['diameter'] / 2.0
@@ -1018,7 +1021,7 @@ def generate_mesh(assembly, inst_inner, inst_core, inst_outer,
         z1 = max(1.0, z_c - r_half - margin)
         z2 = min(TOTAL_HEIGHT - 1.0, z_c + r_half + margin)
         r_box = RADIUS + CORE_T + 200
-        for inst in all_skin_insts:
+        for inst in opening_insts:
             try:
                 edges = inst.edges.getByBoundingBox(
                     xMin=-r_box, xMax=r_box,
@@ -1041,7 +1044,11 @@ def generate_mesh(assembly, inst_inner, inst_core, inst_outer,
         z1 = max(1.0, z_c - r_def - margin)
         z2 = min(TOTAL_HEIGHT - 1.0, z_c + r_def + margin)
         r_box = RADIUS + CORE_T + 200
-        for inst in all_skin_insts:
+        # Exclude Core from defect refinement — fine seeds (10mm, 4mm) on the
+        # 38mm-thick solid create too many through-thickness elements and the
+        # C3D10 mesher fails.  Core uses global seed only.
+        skin_only_insts = (inst_inner, inst_outer)
+        for inst in skin_only_insts:
             try:
                 edges = inst.edges.getByBoundingBox(
                     xMin=-r_box, xMax=r_box,
@@ -1065,7 +1072,7 @@ def generate_mesh(assembly, inst_inner, inst_core, inst_outer,
         for z_plane in [z_c - r_def, z_c + r_def]:
             z1b = max(1.0, z_plane - bm)
             z2b = min(TOTAL_HEIGHT - 1.0, z_plane + bm)
-            for inst in all_skin_insts:
+            for inst in skin_only_insts:
                 try:
                     edges = inst.edges.getByBoundingBox(
                         xMin=-r_box, xMax=r_box,
@@ -1089,7 +1096,7 @@ def generate_mesh(assembly, inst_inner, inst_core, inst_outer,
         for t_plane in [theta_rad - d_theta, theta_rad + d_theta]:
             x_mid = r_local * math.cos(t_plane)
             z_mid = r_local * math.sin(t_plane)
-            for inst in all_skin_insts:
+            for inst in skin_only_insts:
                 try:
                     edges = inst.edges.getByBoundingBox(
                         xMin=x_mid - bm, xMax=x_mid + bm,
@@ -1481,11 +1488,16 @@ def generate_realistic_dataset(job_name, defect_params=None, phase=2,
 
     # 4. Partition defect zone
     if defect_params:
+        defect_type = defect_params.get('defect_type', 'debonding')
         parts_to_partition = [
             ('shell', p_inner),
-            ('solid', p_core),
             ('shell', p_outer),
         ]
+        # Only partition Core for defect types that modify core sections (fod, impact).
+        # Other types (debonding, delamination, etc.) only affect skin Tie → Core
+        # partitioning creates complex geometry that prevents C3D10 meshing.
+        if defect_type in ('fod', 'impact'):
+            parts_to_partition.append(('solid', p_core))
         partition_defect_zone(parts_to_partition, defect_params)
 
     # 5. 3-tier section assignment
