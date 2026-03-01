@@ -20,6 +20,7 @@ import argparse
 from abaqus import *
 from abaqusConstants import *
 from caeModules import *
+from mesh import ElemType
 from driverUtils import executeOnCaeStartup
 
 executeOnCaeStartup()
@@ -54,15 +55,16 @@ CFRP_DENSITY = 1600e-12   # tonne/mm^3
 CFRP_CTE = 2e-6           # /C
 
 # Aluminum Honeycomb Core (5052)
-E_CORE_1 = 1.0
-E_CORE_2 = 1.0
-E_CORE_3 = 1000.0
+# For cylindrical CS: 1=radial(through-thickness), 2=circumferential, 3=axial
+E_CORE_1 = 1000.0     # through-thickness (radial)
+E_CORE_2 = 1.0        # circumferential
+E_CORE_3 = 1.0        # axial
 NU_CORE_12 = 0.01
 NU_CORE_13 = 0.01
 NU_CORE_23 = 0.01
-G_CORE_12 = 1.0
-G_CORE_13 = 400.0
-G_CORE_23 = 240.0
+G_CORE_12 = 400.0     # R-theta shear
+G_CORE_13 = 240.0     # R-axial shear
+G_CORE_23 = 1.0       # theta-axial shear
 CORE_DENSITY = 50e-12
 CORE_CTE = 23e-6
 
@@ -73,6 +75,27 @@ TEMP_INITIAL = 20.0
 TEMP_FINAL_OUTER = 120.0
 TEMP_FINAL_INNER = 20.0
 TEMP_FINAL_CORE = 70.0
+
+# ==============================================================================
+# MECHANICAL LOAD PARAMETERS (H3 Max-Q flight condition)
+# ==============================================================================
+# Aerodynamic surface pressure — only on ogive/nose (barrel Cp ≈ 0 in axial flow)
+# Barrel experiences net OUTWARD pressure from internal overpressure (vent lag).
+# External aero compression is significant only on the ogive stagnation region.
+AERO_PRESSURE_ZONES = [
+    (0, 1000, 0.0),                  # バレル基部: Cp≈0 (軸流)
+    (1000, 3000, 0.0),              # バレル中央: Cp≈0
+    (3000, H_BARREL, 0.0),          # バレル上部: Cp≈0
+    (H_BARREL, 7500, 0.002),        # オジーブ前方: Cp~0.06, ~2 kPa
+    (7500, TOTAL_HEIGHT, 0.010),    # ノーズ近傍: Cp~0.3, ~10 kPa
+]
+
+# Internal-external differential pressure (MPa) — net outward from vent lag
+DIFF_PRESSURE = 0.005  # 5 kPa (内圧超過, ノミナル条件)
+
+# Launch acceleration
+LAUNCH_G = 3.0      # G (axial, H3-22S typical)
+G_ACCEL = 9810.0    # mm/s^2
 
 # ==============================================================================
 # MESH
@@ -626,9 +649,18 @@ def assign_sections_3tier(p_inner, p_core, p_outer, openings, defect_params):
 
     region = p_core.Set(cells=p_core.cells, name='Set-All')
     p_core.SectionAssignment(region=region, sectionName='Section-Core')
-    p_core.MaterialOrientation(region=region, orientationType=GLOBAL,
-                                axis=AXIS_3, additionalRotationType=ROTATION_NONE,
-                                localCsys=None)
+    # Cylindrical CS: 1=radial (through-thickness), 2=theta, 3=axial(Y)
+    # CYLINDRICAL CS: INP axis = cross(point1-origin, point2-origin)
+    # cross(Z, X) = Y (fairing axial direction)
+    cyl_datum = p_core.DatumCsysByThreePoints(
+        name='CylCS-Core', coordSysType=CYLINDRICAL,
+        origin=(0.0, 0.0, 0.0),
+        point1=(0.0, 0.0, 1.0),   # Z direction
+        point2=(1.0, 0.0, 0.0))   # X direction → axis = Z×X = Y
+    p_core.MaterialOrientation(
+        region=region, orientationType=SYSTEM,
+        axis=AXIS_3, additionalRotationType=ROTATION_NONE,
+        localCsys=p_core.datums[cyl_datum.id])
 
     region = p_outer.Set(faces=p_outer.faces, name='Set-All')
     p_outer.SectionAssignment(region=region, sectionName='Section-CFRP-Skin')
@@ -913,6 +945,50 @@ def apply_boundary_conditions(model, assembly,
         print("Warning: No BC geometry found at y=0")
 
 
+
+def apply_post_mesh_bcs(model, assembly,
+                        inst_inner, inst_core, inst_outer):
+    """Post-mesh BCs: pin nose tip + constrain VOID opening nodes.
+    Must be called after generate_mesh() because node selection requires mesh.
+    """
+    # 1. Nose tip
+    nose_y_min = TOTAL_HEIGHT - 100.0
+    nose_nodes = []
+    for inst in [inst_inner, inst_outer]:
+        for node in inst.nodes:
+            c = node.coordinates
+            r = math.sqrt(c[0]**2 + c[2]**2)
+            if c[1] > nose_y_min and r < 150.0:
+                nose_nodes.append(inst.nodes[node.label - 1:node.label])
+    if nose_nodes:
+        combined = nose_nodes[0]
+        for ns in nose_nodes[1:]:
+            combined = combined + ns
+        nose_set = assembly.Set(name='BC_NoseTip', nodes=combined)
+        model.DisplacementBC(name='Fix_NoseTip', createStepName='Initial',
+                             region=nose_set, u1=0, u2=0, u3=0)
+        print("BC: Nose tip pinned (y>%.0f, r<150mm): %d nodes" % (
+            nose_y_min, len(nose_nodes)))
+
+    # 2. VOID opening nodes: constrain to prevent ballooning under pressure.
+    void_node_seqs = []
+    for inst in [inst_inner, inst_core, inst_outer]:
+        try:
+            void_set = inst.sets['Set-Opening']
+            void_node_seqs.append(void_set.nodes)
+        except KeyError:
+            pass
+    if void_node_seqs:
+        combined = void_node_seqs[0]
+        for ns in void_node_seqs[1:]:
+            combined = combined + ns
+        void_bc_set = assembly.Set(name='BC_VoidOpening', nodes=combined)
+        model.DisplacementBC(name='Fix_VoidOpening', createStepName='Initial',
+                             region=void_bc_set, u1=0, u2=0, u3=0)
+        n_total = sum([len(ns) for ns in void_node_seqs])
+        print("BC: VOID opening nodes pinned: %d nodes" % n_total)
+
+
 # ==============================================================================
 # MESH
 # ==============================================================================
@@ -1027,24 +1103,74 @@ def generate_mesh(assembly, inst_inner, inst_core, inst_outer,
         print("  Local mesh: defect boundary seed=%.1f mm (margin=%.0f mm)" % (
             boundary_seed, bm))
 
-    # 5. Generate mesh
-    regions_to_mesh = list(all_skin_insts) + list(frame_instances)
+    # 5. Core mesh (separate - needs special handling for ogive)
+    # The core is a thin 3D solid (CORE_T mm thick) with complex ogive curvature.
+    # Default structured hex only meshes the barrel section. Free tet (C3D10)
+    # handles complex geometry. Seed must be <= CORE_T for through-thickness.
+    core_seed = min(global_seed, CORE_T)
+    assembly.seedPartInstance(regions=(inst_core,), size=core_seed,
+                              deviationFactor=0.1)
+
+    core_meshed = False
+    # FREE TET with C3D10
     try:
-        assembly.generateMesh(regions=tuple(regions_to_mesh))
+        assembly.setMeshControls(regions=inst_core.cells,
+                                 elemShape=TET, technique=FREE)
+        assembly.setElementType(
+            regions=(inst_core.cells,),
+            elemTypes=(ElemType(elemCode=C3D10, elemLibrary=STANDARD),))
+        assembly.generateMesh(regions=(inst_core,))
+        n_core = len(inst_core.nodes)
+        if n_core > 0:
+            core_meshed = True
+            print("  Core mesh (C3D10 free tet, seed=%.0f): %d nodes, %d elements" % (
+                core_seed, n_core, len(inst_core.elements)))
+        else:
+            print("  WARNING: Core free tet produced 0 nodes!")
     except Exception as e:
-        print("  Bulk mesh failed, trying per-instance: %s" % str(e)[:80])
-        for inst in regions_to_mesh:
+        print("  Core free tet failed: %s" % str(e)[:80])
+
+    if not core_meshed:
+        print("  WARNING: Core free tet failed, using default (partial barrel only)")
+        try:
+            assembly.deleteMesh(regions=(inst_core,))
+        except Exception:
+            pass
+        try:
+            assembly.setMeshControls(regions=inst_core.cells,
+                                     technique=STRUCTURED)
+        except Exception:
+            pass
+        try:
+            assembly.generateMesh(regions=(inst_core,))
+            print("  Core mesh (default): %d nodes, %d elements" % (
+                len(inst_core.nodes), len(inst_core.elements)))
+        except Exception as e:
+            print("  Core default mesh also failed: %s" % str(e)[:80])
+
+    # 6. Generate mesh (skins + frames, core already meshed)
+    skin_frame_insts = [inst_inner, inst_outer] + list(frame_instances)
+    try:
+        assembly.generateMesh(regions=tuple(skin_frame_insts))
+    except Exception as e:
+        print("  Bulk skin/frame mesh failed, trying per-instance: %s" % str(e)[:80])
+        for inst in skin_frame_insts:
             try:
                 assembly.generateMesh(regions=(inst,))
             except Exception as e2:
                 print("    Mesh failed for %s: %s" % (inst.name, str(e2)[:60]))
 
     # Report
+    all_insts = [inst_inner, inst_core, inst_outer] + list(frame_instances)
     total_nodes = 0
     total_elems = 0
-    for inst in regions_to_mesh:
-        total_nodes += len(inst.nodes)
-        total_elems += len(inst.elements)
+    for inst in all_insts:
+        n = len(inst.nodes)
+        e = len(inst.elements)
+        total_nodes += n
+        total_elems += e
+        if n == 0:
+            print("  WARNING: %s has 0 nodes!" % inst.name)
     print("Mesh: %d nodes, %d elements (global=%.0f mm)" % (
         total_nodes, total_elems, global_seed))
 
@@ -1105,6 +1231,108 @@ def apply_thermal_load(model, assembly,
 
 
 # ==============================================================================
+# MECHANICAL LOADS (Step-2: Thermal + Mechanical)
+# ==============================================================================
+
+def apply_mechanical_loads(model, assembly, inst_inner, inst_core, inst_outer):
+    """
+    Apply mechanical loads in Step-2 (on top of Step-1 thermal).
+
+    1. Aerodynamic pressure (z-dependent, outer skin)
+    2. Differential pressure (uniform, inner skin)
+    3. Gravity / launch acceleration (all parts)
+    """
+    # --- 1. Aerodynamic pressure (z-dependent on outer skin) ---
+    # Use Set-All faces only (exclude VOID opening elements which balloon
+    # under any pressure due to negligible stiffness E=1MPa, t=0.01mm).
+    # Classify faces by centroid y-coordinate using face.pointOn, then
+    # re-select via findAt for proper Abaqus FaceArray construction.
+    try:
+        outer_faces = inst_outer.sets['Set-All'].faces
+        print("  Outer skin: using Set-All (%d faces, VOID excluded)" % len(outer_faces))
+    except KeyError:
+        outer_faces = inst_outer.faces
+        print("  Outer skin: Set-All not found, using all faces (%d)" % len(outer_faces))
+    zone_face_points = {}  # zone_index -> list of pointOn tuples
+    for face in outer_faces:
+        try:
+            pt = face.pointOn[0]  # (x, y, z) on face
+            y_pos = pt[1]
+            for i, (z_lo, z_hi, p_mpa) in enumerate(AERO_PRESSURE_ZONES):
+                if z_lo - 0.1 <= y_pos < z_hi + 0.1:
+                    zone_face_points.setdefault(i, []).append(face.pointOn)
+                    break
+        except Exception:
+            pass
+
+    for i, (z_lo, z_hi, p_mpa) in enumerate(AERO_PRESSURE_ZONES):
+        if p_mpa < 1e-9:
+            continue  # skip zero-pressure barrel zones
+        pts = zone_face_points.get(i, [])
+        if pts:
+            try:
+                faces = inst_outer.faces.findAt(*pts)
+                if hasattr(faces, '__len__'):
+                    n_faces = len(faces)
+                else:
+                    faces = inst_outer.faces.findAt(pts[0])
+                    n_faces = 1
+                # SNEG = exterior surface of outer skin (SPOS faces core)
+                surf = assembly.Surface(
+                    side2Faces=faces,
+                    name='Surf-Aero-Zone-%d' % i)
+                model.Pressure(
+                    name='Aero_Pressure_%d' % i,
+                    createStepName='Step-2',
+                    region=surf,
+                    distributionType=UNIFORM,
+                    magnitude=p_mpa)
+                print("  Aero pressure zone %d: z=[%.0f,%.0f] P=%.3f MPa (%d faces)" % (
+                    i, z_lo, z_hi, p_mpa, n_faces))
+            except Exception as e:
+                print("  Aero pressure zone %d warning: %s" % (i, str(e)[:80]))
+        else:
+            print("  Aero pressure zone %d: no faces in z=[%.0f,%.0f]" % (
+                i, z_lo, z_hi))
+
+    # --- 2. Differential pressure (inner skin, uniform) ---
+    # Use Set-All faces only (exclude VOID opening elements).
+    try:
+        try:
+            inner_faces = inst_inner.sets['Set-All'].faces
+            print("  Inner skin: using Set-All (%d faces, VOID excluded)" % len(inner_faces))
+        except KeyError:
+            inner_faces = inst_inner.faces
+            print("  Inner skin: Set-All not found, using all faces (%d)" % len(inner_faces))
+        surf_inner = assembly.Surface(
+            side2Faces=inner_faces,
+            name='Surf-DiffPressure')
+        model.Pressure(
+            name='Diff_Pressure',
+            createStepName='Step-2',
+            region=surf_inner,
+            distributionType=UNIFORM,
+            magnitude=DIFF_PRESSURE)
+        print("  Differential pressure: %.3f MPa (%.1f kPa)" % (
+            DIFF_PRESSURE, DIFF_PRESSURE * 1000))
+    except Exception as e:
+        print("  Diff pressure warning: %s" % str(e)[:80])
+
+    # --- 3. Axial compression (gravity at launch G) ---
+    try:
+        model.Gravity(
+            name='Launch_Accel',
+            createStepName='Step-2',
+            comp2=-(LAUNCH_G * G_ACCEL),  # -Y direction (axial)
+            distributionType=UNIFORM,
+            field='')
+        print("  Launch accel: %.1f G (%.0f mm/s^2, -Y)" % (
+            LAUNCH_G, LAUNCH_G * G_ACCEL))
+    except Exception as e:
+        print("  Gravity warning: %s" % str(e)[:80])
+
+
+# ==============================================================================
 # JOB
 # ==============================================================================
 
@@ -1148,7 +1376,8 @@ def create_and_run_job(model, job_name, no_run=False, project_root=None):
     import subprocess
     cwd = os.path.dirname(inp_path) or '.'
     r = subprocess.call(
-        ['abaqus', 'job=' + job_name, 'input=' + job_name + '.inp', 'cpus=4'],
+        ['abaqus', 'job=' + job_name, 'input=' + job_name + '.inp',
+         'cpus=4', 'memory=40gb'],
         cwd=cwd)
     if r == 0:
         print("Job COMPLETED: %s.odb" % job_name)
@@ -1262,21 +1491,33 @@ def generate_realistic_dataset(job_name, defect_params=None, phase=2,
     apply_boundary_conditions(model, a, inst_inner, inst_core, inst_outer,
                               frame_insts)
 
-    # 10. Step + Field Output
-    model.StaticStep(name='Step-1', previous='Initial')
+    # 10. Steps (2-step: thermal only -> thermal + mechanical)
+    model.StaticStep(name='Step-1', previous='Initial',
+                     description='Thermal load only (CTE mismatch)')
+    model.StaticStep(name='Step-2', previous='Step-1',
+                     description='Thermal + Mechanical (Max-Q)')
     model.fieldOutputRequests['F-Output-1'].setValues(
-        variables=('S', 'U', 'RF', 'TEMP', 'LE'))
+        variables=('S', 'U', 'RF', 'TEMP', 'NT', 'LE'))
+    model.FieldOutputRequest(name='F-Output-2',
+                             createStepName='Step-2',
+                             variables=('S', 'U', 'RF', 'TEMP', 'NT', 'LE'))
 
     # 11. Mesh
     generate_mesh(a, inst_inner, inst_core, inst_outer, frame_insts,
                   openings, defect_params,
                   g_seed, o_seed, d_seed, f_seed)
 
-    # 12. Thermal load
+    # 11b. Post-mesh BCs: nose tip + VOID opening nodes
+    apply_post_mesh_bcs(model, a, inst_inner, inst_core, inst_outer)
+
+    # 12. Thermal load (applied in Step-1, propagated to Step-2)
     apply_thermal_load(model, a, inst_inner, inst_core, inst_outer,
                        frame_insts)
 
-    # 13. Job
+    # 13. Mechanical loads (applied in Step-2 only)
+    apply_mechanical_loads(model, a, inst_inner, inst_core, inst_outer)
+
+    # 14. Job
     create_and_run_job(model, job_name, no_run, project_root)
 
     print("=" * 70)
