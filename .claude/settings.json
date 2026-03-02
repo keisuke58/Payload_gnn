@@ -2,7 +2,12 @@
   "permissions": {
     "allow": [
       "Bash(pdftotext \"/home/nishioka/Payload2026/JAXA_LIBRARY/JAXA-JMR-002E.pdf\" -)",
-      "Bash(pdftotext \"/home/nishioka/Payload2026/JAXA_LIBRARY/EpsilonUsersManual_e.pdf\" -)"
+      "Bash(pdftotext \"/home/nishioka/Payload2026/JAXA_LIBRARY/EpsilonUsersManual_e.pdf\" -)",
+      "Bash(chmod +x /home/nishioka/Payload2026/run_batch_thermal.sh)",
+      "Bash(LD_LIBRARY_PATH=\"\" /usr/bin/ssh vancouver02 \"ps aux | grep train.py | grep -v grep\")",
+      "Bash(LD_LIBRARY_PATH=\"\" /usr/bin/ssh frontale02 'git log --oneline -3')",
+      "Bash(while read f)",
+      "Bash(do)"
     ]
   }
 }
