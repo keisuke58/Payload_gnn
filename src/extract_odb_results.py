@@ -61,39 +61,64 @@ def extract_results(odb_path, output_dir, defect_params=None, strict=False):
         print("Error opening ODB: " + str(e))
         sys.exit(1)
         
-    # Get analysis steps — supports 2-step (thermal / thermal+mechanical) and legacy 1-step
+    # Get analysis steps — supports:
+    #   GT 3-step: Step-Cure / Step-Thermal / Step-Mechanical
+    #   Legacy 2-step: Step-1 (thermal) / Step-2 (thermal+mechanical)
+    #   Legacy 1-step: single step
     step_keys = list(odb.steps.keys())
     if not step_keys:
         print("Error: ODB has no steps (job may have failed)")
         sys.exit(1)
 
-    # Identify Step-1 (thermal) and Step-2 (thermal+mechanical) if present
-    step1_name = None
-    step2_name = None
+    print("ODB steps: %s" % str(step_keys))
+
+    # --- Detect step naming pattern ---
+    step_cure = step_thermal = step_mechanical = None
+    step1_name = step2_name = None
+
     for k in step_keys:
         ku = k.upper()
-        if ku == 'STEP-1':
+        if 'CURE' in ku:
+            step_cure = k
+        elif 'THERMAL' in ku:
+            step_thermal = k
+        elif 'MECHANICAL' in ku:
+            step_mechanical = k
+        elif ku == 'STEP-1':
             step1_name = k
         elif ku == 'STEP-2':
             step2_name = k
-        elif ku != 'INITIAL' and step1_name is None:
-            step1_name = k  # fallback for non-standard step names
 
-    if step1_name is None:
-        print("Error: No analysis step found in ODB")
-        sys.exit(1)
+    # --- Determine main extraction frame and thermal-only frame ---
+    if step_mechanical and len(odb.steps[step_mechanical].frames) > 0:
+        # GT 3-step model: main=Step-Mechanical, thermal=Step-Thermal (or Step-Cure)
+        step_name = step_mechanical
+        frame = odb.steps[step_mechanical].frames[-1]
+        thermal_step = step_thermal or step_cure
+        frame_thermal = odb.steps[thermal_step].frames[-1] if thermal_step else None
+        print("3-step GT analysis: cure=%s, thermal=%s, mechanical=%s" % (
+            step_cure, step_thermal, step_mechanical))
 
-    # Determine the main extraction frame (Step-2 if available, else Step-1)
-    if step2_name and len(odb.steps[step2_name].frames) > 0:
-        # 2-step model: extract total results from Step-2
+    elif step2_name and len(odb.steps[step2_name].frames) > 0:
+        # Legacy 2-step model: main=Step-2, thermal=Step-1
         step_name = step2_name
         frame = odb.steps[step2_name].frames[-1]
-        frame_thermal = odb.steps[step1_name].frames[-1]
+        frame_thermal = odb.steps[step1_name].frames[-1] if step1_name else None
         print("2-step analysis detected: thermal=%s, total=%s" % (step1_name, step2_name))
+
     else:
-        # Legacy 1-step model: thermal = total (100% thermal loading)
-        step_name = step1_name
-        step_obj = odb.steps[step1_name]
+        # Legacy 1-step (or fallback): thermal = total
+        fallback = step1_name
+        if fallback is None:
+            for k in step_keys:
+                if k.upper() != 'INITIAL':
+                    fallback = k
+                    break
+        if fallback is None:
+            print("Error: No analysis step found in ODB")
+            sys.exit(1)
+        step_name = fallback
+        step_obj = odb.steps[fallback]
         if len(step_obj.frames) == 0:
             for k in step_keys:
                 if len(odb.steps[k].frames) > 0:
