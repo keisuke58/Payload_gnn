@@ -3,16 +3,21 @@
 """
 Prepare ML Data — FEM CSV → PyG train/val split
 
-Scans dataset dir (dataset_output_100, dataset_output_50mm_100, etc.),
+Scans dataset dir (dataset_output_100, batch_s12_100, etc.),
 builds curvature-aware graphs for each sample, splits into train/val,
 saves train.pt, val.pt, norm_stats.pt.
 
+Supports two directory layouts:
+  1. sample_*/  — legacy (nodes.csv, elements.csv directly inside)
+  2. Job-S12-D*/ — CZM S12 batch (nodes.csv, elements.csv inside results/)
+
 Usage:
   python src/prepare_ml_data.py --input dataset_output_100 --output data/processed_50mm_100
-  python src/prepare_ml_data.py --input dataset_output_50mm_100 --output data/processed_50mm_100 --val_ratio 0.2
+  python src/prepare_ml_data.py --input abaqus_work/batch_s12_100 --output data/processed_s12_czm_96
 """
 
 import argparse
+import json
 import os
 import sys
 
@@ -37,6 +42,44 @@ def load_sample(sample_dir):
     return df_nodes, df_elems
 
 
+def _collect_sample_dirs(input_dir):
+    """Collect data directories, supporting both legacy and S12 batch layouts."""
+    sample_dirs = []
+
+    # Check for S12 batch layout (Job-S12-D* with results/ subdir)
+    batch_status_path = os.path.join(input_dir, 'batch_status.json')
+    has_batch_status = os.path.exists(batch_status_path)
+
+    # Load batch_status.json to skip failed jobs
+    failed_jobs = set()
+    if has_batch_status:
+        with open(batch_status_path) as f:
+            status = json.load(f)
+        for job_name, result in status.get('results', {}).items():
+            if result != 'completed':
+                failed_jobs.add(job_name)
+        if failed_jobs:
+            print("Skipping %d failed jobs: %s" % (len(failed_jobs), sorted(failed_jobs)))
+
+    for name in sorted(os.listdir(input_dir)):
+        path = os.path.join(input_dir, name)
+        if not os.path.isdir(path):
+            continue
+
+        # S12 batch layout: Job-S12-D*/results/
+        if name.startswith('Job-'):
+            if name in failed_jobs:
+                continue
+            results_dir = os.path.join(path, 'results')
+            if os.path.isdir(results_dir):
+                sample_dirs.append(results_dir)
+        # Legacy layout: sample_* or healthy_baseline
+        elif name.startswith('sample_') or name == 'healthy_baseline':
+            sample_dirs.append(path)
+
+    return sample_dirs
+
+
 def prepare_dataset(input_dir, output_dir, val_ratio=0.2, seed=42, no_geodesic=True):
     """
     Process all samples in input_dir, build graphs, split train/val, save.
@@ -45,17 +88,10 @@ def prepare_dataset(input_dir, output_dir, val_ratio=0.2, seed=42, no_geodesic=T
     output_dir = os.path.join(PROJECT_ROOT, output_dir)
     os.makedirs(output_dir, exist_ok=True)
 
-    # Collect sample dirs (sample_* + healthy_baseline)
-    sample_dirs = []
-    for name in sorted(os.listdir(input_dir)):
-        path = os.path.join(input_dir, name)
-        if not os.path.isdir(path):
-            continue
-        if name.startswith('sample_') or name == 'healthy_baseline':
-            sample_dirs.append(path)
+    sample_dirs = _collect_sample_dirs(input_dir)
 
     if not sample_dirs:
-        print("No sample_* or healthy_baseline directories found in %s" % input_dir)
+        print("No sample directories found in %s" % input_dir)
         return
 
     print("Found %d samples in %s" % (len(sample_dirs), input_dir))
