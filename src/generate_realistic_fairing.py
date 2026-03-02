@@ -49,7 +49,8 @@ G12 = 5000.0
 G13 = 5000.0
 G23 = 3000.0
 CFRP_DENSITY = 1600e-12   # tonne/mm^3
-CFRP_CTE = 2e-6           # /C
+CFRP_CTE_11 = -0.3e-6        # /C  fiber direction (negative for T1000G carbon)
+CFRP_CTE_22 = 28e-6          # /C  transverse direction
 
 # Aluminum Honeycomb Core (5052)
 # For cylindrical CS: 1=radial(through-thickness), 2=circumferential, 3=axial
@@ -222,7 +223,7 @@ def create_materials(model):
     mat = model.Material(name='CFRP_T1000G')
     mat.Elastic(type=LAMINA, table=((E1, E2, NU12, G12, G13, G23),))
     mat.Density(table=((CFRP_DENSITY,),))
-    mat.Expansion(table=((CFRP_CTE, CFRP_CTE, 0.0),))
+    mat.Expansion(table=((CFRP_CTE_11, CFRP_CTE_22, 0.0),))
 
     # Aluminum Honeycomb Core
     mat = model.Material(name='AL_HONEYCOMB')
@@ -238,7 +239,7 @@ def create_materials(model):
     mat = model.Material(name='CFRP_FRAME')
     mat.Elastic(type=ISOTROPIC, table=((70000.0, 0.3),))
     mat.Density(table=((CFRP_DENSITY,),))
-    mat.Expansion(table=((CFRP_CTE,),))
+    mat.Expansion(table=((2e-6,),))  # quasi-isotropic effective CTE for frame
 
     # Void material for opening regions (isotropic, negligible stiffness)
     mat = model.Material(name='VOID')
