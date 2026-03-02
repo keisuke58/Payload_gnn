@@ -1,7 +1,7 @@
 # Project Wiki: JAXA H3 Rocket — CFRP Fairing SHM
 
 > **本プロジェクトの技術的根拠・背景情報を集約したドキュメント**  
-> 最終更新: 2026-03-01
+> 最終更新: 2026-03-03
 
 ---
 
@@ -10,8 +10,8 @@
 | カテゴリ | ページ |
 |----------|--------|
 | **概要** | [H3ロケット総覧](H3-Rocket-Overview), [フェアリング仕様](JAXA-Fairing-Specs) |
-| **技術** | [アーキテクチャ](Architecture), [**モデル別前処理**](Preprocessing-by-Model), [ML戦略](ML-Strategy), [超最先端ML](Cutting-Edge-ML), [熱解析](Thermal-Analysis), [**リアルFEM**](Realistic-Fairing-FEM), [**FEMリアリズム計画**](FEM-Realism-Roadmap), [**Ground Truth FEM**](Ground-Truth-FEM), [**CZMソルバー試行錯誤**](CZM-Solver-Trials), [**XAI**](XAI-Roadmap) |
-| **データ** | [データセット形式](Dataset-Format), [**ノード特徴量**](Node-Features), [欠陥生成](Defect-Generation-and-Labeling), [**拡張欠陥タイプ**](Extended-Defect-Types), [欠陥タイプ検証](Defect-Types-Validation), [**欠陥物理量検証**](Defect-Physics-Validation), [**発生確率・データセット割合**](Defect-Occurrence-Probability-and-Dataset-Ratio), [生成状況](Dataset-Generation-Status), [完璧度スコア](Dataset-Perfect-Score), [マルチクラス](Multi-Class-Roadmap), [外部データセット調査](Dataset-Survey), [**メッシュ収束チェック**](Mesh-Convergence), [**リアルFEM検証**](Dataset-Validation-Realistic) |
+| **技術** | [アーキテクチャ](Architecture), [**モデル別前処理**](Preprocessing-by-Model), [ML戦略](ML-Strategy), [超最先端ML](Cutting-Edge-ML), [熱解析](Thermal-Analysis), [**リアルFEM**](Realistic-Fairing-FEM), [**FEMリアリズム計画**](FEM-Realism-Roadmap), [**Ground Truth FEM**](Ground-Truth-FEM), [**GT vs Baseline**](GT-vs-Baseline-Comparison), [**CZMソルバー試行錯誤**](CZM-Solver-Trials), [**XAI**](XAI-Roadmap) |
+| **データ** | [データセット形式](Dataset-Format), [**ノード特徴量**](Node-Features), [欠陥生成](Defect-Generation-and-Labeling), [**拡張欠陥タイプ**](Extended-Defect-Types), [欠陥タイプ検証](Defect-Types-Validation), [**欠陥物理量検証**](Defect-Physics-Validation), [**発生確率・データセット割合**](Defect-Occurrence-Probability-and-Dataset-Ratio), [生成状況](Dataset-Generation-Status), [完璧度スコア](Dataset-Perfect-Score), [マルチクラス](Multi-Class-Roadmap), [外部データセット調査](Dataset-Survey), [**メッシュ収束チェック**](Mesh-Convergence), [**リアルFEM検証**](Dataset-Validation-Realistic), [**バッチINP生成状況**](Batch-INP-Status) |
 | **用語** | [英単語集](Vocabulary) |
 | **事故分析** | [F8事故](F8-Accident-Analysis), [SHM文脈](SHM-Context) |
 | **研究** | [2年目標](2-Year-Goals), [ロードマップ](Roadmap), [ベンチマーク目標](Benchmark-Targets), [理想vs実装](Ideal-vs-Implementation), [文献レビュー](Literature-Review), [研究レポート](Research-Report), [投稿先](Publication-Venues), [想定Q&A](Anticipated-QA) |
@@ -20,17 +20,18 @@
 
 ---
 
-## プロジェクトステータス (2026-02-28)
+## プロジェクトステータス (2026-03-03)
 
 | 項目 | 状態 |
 |------|------|
-| **FEM モデル** | ✅ H3 Type-S 整合, **C3D10 コア**, 2ステップ解析 (熱+機械) — [詳細](Realistic-Fairing-FEM) |
-| **荷重条件** | ✅ 熱勾配 + 差圧 5kPa (バレル) + 重力 3G — [リアリズム ~45%](FEM-Realism-Roadmap) |
-| **データセット** | ✅ 99/100 サンプル検証完了 (物理量正常), [詳細分布](Dataset-Generation-Status) |
+| **FEM モデル** | ✅ CZM S12 (1/12セクター, COH3D8接着層) + C3D10 ソリッドコア — [詳細](Realistic-Fairing-FEM) |
+| **荷重条件** | ✅ 熱勾配 + 差圧 30kPa + 重力 3G — [リアリズム ~75%](FEM-Realism-Roadmap) |
+| **バッチ INP** | ✅ **250 INP 生成完了** (161 Debond + 41 FOD + 38 Impact + 10 他) — [詳細](Batch-INP-Status) |
+| **ソルバー** | 🔄 Abaqus 実行中 (13/250 完了) — [進捗](Batch-INP-Status#3-ソルバー実行状況) |
+| **既存データ** | ✅ S12 CZM 96サンプル PyG変換済 — [S12データセット](S12-CZM-Dataset) |
 | **GNN** | ✅ GCN / GAT / GIN / SAGE 4 種実装・初回学習済 |
-| **計算環境** | CPU + **GPU 24GB × 4枚** |
-| **現フェーズ** | **Phase 2: ベンチマーク学習** → [ロードマップ](Roadmap) |
-| **検証** | `scripts/validate_defect_types.py`, `scripts/validate_defect_physics.py`, `scripts/verify_odb_thermal.py`, `scripts/verify_dataset_quality.py` |
+| **計算環境** | CPU (frontale×3 + marinos) + **GPU 24GB × 4枚** (vancouver02) |
+| **現フェーズ** | **Phase 3: 大規模バッチソルバー実行** → [ロードマップ](Roadmap) |
 
 ---
 
