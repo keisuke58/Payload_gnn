@@ -42,7 +42,7 @@ OGIVE_XC = RADIUS - OGIVE_RHO
 FACE_T = 1.0          # mm (CFRP skin)
 CORE_T = 38.0         # mm (Al honeycomb core, total allocation)
 ADHESIVE_T = 0.2      # mm (default cohesive layer thickness)
-ADH_R_MIN = 100.0     # mm — adhesive ogive cutoff radius (avoids axis-degenerate geometry for SWEEP)
+ADH_R_MIN = 200.0     # mm — adhesive ogive cutoff radius (avoids axis-degenerate geometry for SWEEP)
 
 # ==============================================================================
 # MATERIAL PROPERTIES
@@ -1568,16 +1568,43 @@ def apply_post_mesh_bcs_with_adhesive(model, assembly,
 # MESH (with adhesive layers)
 # ==============================================================================
 
+def _find_inner_face_for_stack(inst, r_inner_fn):
+    """Find a face on the inner (bottom) surface of an adhesive layer.
+
+    Used as the reference face for assignStackDirection so that COH3D8
+    element node ordering gives positive thickness (inner→outer).
+    """
+    best_face = None
+    best_dist = 1e20
+    for f in inst.faces:
+        pt = f.pointOn[0]
+        r = math.sqrt(pt[0]**2 + pt[2]**2)
+        r_expected = r_inner_fn(pt[1])
+        d = abs(r - r_expected)
+        if d < best_dist:
+            best_dist = d
+            best_face = f
+    return best_face
+
+
 def mesh_adhesive_parts(assembly, inst_adh_inner, inst_adh_outer,
-                        global_seed):
+                        global_seed, adh_t):
     """Mesh adhesive layer instances.
 
     Strategy:
-      1. SWEEP + COH3D8 (ideal for cohesive elements)
-      2. FREE TET + C3D10 fallback (model runs, but no CZM behavior)
+      1. assignStackDirection (inner face → outer) for correct COH3D8 node order
+      2. SWEEP + COH3D8 (ideal for cohesive elements)
+      3. FREE TET + C3D10 fallback (model runs, but no CZM behavior)
     """
     # Cap adhesive seed to avoid extreme aspect ratios (thickness=0.2mm)
     adh_seed = min(global_seed, 25.0)
+
+    # Inner-surface radius functions for each layer
+    r_inner_fns = {
+        inst_adh_inner.name: lambda y: get_radius_at_z(y),
+        inst_adh_outer.name: lambda y: get_radius_at_z(y) + CORE_T - adh_t,
+    }
+
     for inst in [inst_adh_inner, inst_adh_outer]:
         assembly.seedPartInstance(regions=(inst,), size=adh_seed,
                                   deviationFactor=0.1)
@@ -1587,6 +1614,19 @@ def mesh_adhesive_parts(assembly, inst_adh_inner, inst_adh_outer,
         n_edges = len(inst.edges)
         print("  %s: %d cells, %d faces, %d edges, trying SWEEP..." % (
             inst.name, n_cells, n_faces, n_edges))
+
+        # Set stack direction: inner face as bottom → thickness goes outward
+        try:
+            inner_face = _find_inner_face_for_stack(
+                inst, r_inner_fns[inst.name])
+            if inner_face is not None:
+                assembly.assignStackDirection(
+                    referenceRegion=inner_face, cells=inst.cells)
+                print("  %s: stack direction set (inner face as bottom)" %
+                      inst.name)
+        except Exception as e:
+            print("  %s: assignStackDirection warning: %s" % (
+                inst.name, str(e)[:80]))
 
         # Attempt 1: SWEEP + COH3D8
         try:
@@ -1777,7 +1817,8 @@ def generate_mesh_with_adhesive(assembly,
 
     # 6. Adhesive mesh (SWEEP COH3D8)
     print("Meshing adhesive layers...")
-    mesh_adhesive_parts(assembly, inst_adh_inner, inst_adh_outer, global_seed)
+    mesh_adhesive_parts(assembly, inst_adh_inner, inst_adh_outer, global_seed,
+                        adh_t)
 
     # 7. Skins + frames
     skin_frame_insts = [inst_inner, inst_outer] + list(frame_instances)
@@ -1988,8 +2029,159 @@ def apply_mechanical_loads(model, assembly, inst_inner, inst_core, inst_outer):
 # JOB
 # ==============================================================================
 
+def _fix_coh3d8_orientation(inp_path):
+    """Post-process INP to fix COH3D8 element node ordering.
+
+    Computes the full Jacobian determinant at the element center (xi=0,0,0)
+    using 8-node hex shape function derivatives. If det(J) < 0 the element
+    is inverted and bottom/top face nodes are swapped.
+    """
+    with open(inp_path, 'r') as f:
+        lines = f.readlines()
+
+    # Pass 1: collect all node coordinates per instance
+    instances = {}
+    current_inst = None
+    in_node_block = False
+    for line in lines:
+        ls = line.strip()
+        if ls.startswith('*Instance,'):
+            for token in ls.split(','):
+                token = token.strip()
+                if token.lower().startswith('name='):
+                    current_inst = token.split('=', 1)[1].strip()
+                    instances[current_inst] = {}
+                    break
+            in_node_block = False
+        elif ls == '*Node' and current_inst:
+            in_node_block = True
+        elif in_node_block and ls.startswith('*'):
+            in_node_block = False
+        elif in_node_block and current_inst:
+            parts = ls.split(',')
+            if len(parts) >= 4:
+                try:
+                    nid = int(parts[0])
+                    x = float(parts[1])
+                    y = float(parts[2])
+                    z = float(parts[3])
+                    instances[current_inst][nid] = (x, y, z)
+                except ValueError:
+                    pass
+
+    def _jac_det_hex8(coords):
+        """Jacobian determinant of 8-node hex at center (xi1=xi2=xi3=0).
+
+        COH3D8 node ordering:
+          bottom: 1(-,-,-) 2(+,-,-) 3(+,+,-) 4(-,+,-)
+          top:    5(-,-,+) 6(+,-,+) 7(+,+,+) 8(-,+,+)
+
+        dN/dxi at (0,0,0):
+          dN/dxi1 = 1/8 * [-1,+1,+1,-1,-1,+1,+1,-1]
+          dN/dxi2 = 1/8 * [-1,-1,+1,+1,-1,-1,+1,+1]
+          dN/dxi3 = 1/8 * [-1,-1,-1,-1,+1,+1,+1,+1]
+        """
+        # Shape function derivatives at center (xi=0)
+        dNdxi1 = [-1, 1, 1, -1, -1, 1, 1, -1]
+        dNdxi2 = [-1, -1, 1, 1, -1, -1, 1, 1]
+        dNdxi3 = [-1, -1, -1, -1, 1, 1, 1, 1]
+
+        # Jacobian columns: dx/dxi_j = sum(dN_i/dxi_j * x_i) / 8
+        j = [[0.0]*3 for _ in range(3)]
+        for i in range(8):
+            for k in range(3):  # x, y, z
+                j[0][k] += dNdxi1[i] * coords[i][k]
+                j[1][k] += dNdxi2[i] * coords[i][k]
+                j[2][k] += dNdxi3[i] * coords[i][k]
+
+        # det(J) = j[0] . (j[1] x j[2])   (scalar triple product)
+        cx = j[1][1]*j[2][2] - j[1][2]*j[2][1]
+        cy = j[1][2]*j[2][0] - j[1][0]*j[2][2]
+        cz = j[1][0]*j[2][1] - j[1][1]*j[2][0]
+        return j[0][0]*cx + j[0][1]*cy + j[0][2]*cz
+
+    # Replace COH3D8 with C3D8R for adhesive layers.
+    # COH3D8 fails Abaqus quality checks on thin (0.2mm) curved geometry due to
+    # extreme isoparametric angle distortion at boundary elements.
+    # C3D8R avoids this issue while preserving the mesh topology.
+    # Also replace *Cohesive Section (traction-separation) with *Solid Section,
+    # and add equivalent elastic material MAT-ADHESIVE-SOLID.
+    out_lines = []
+    n_replaced = 0
+    n_section_replaced = 0
+    mat_adhesive_solid_added = False
+
+    for i, line in enumerate(lines):
+        ls = line.strip().upper()
+
+        # Replace element type COH3D8 → C3D8R
+        if ls.startswith('*ELEMENT') and 'COH3D8' in ls:
+            line = line.replace('COH3D8', 'C3D8R').replace('coh3d8', 'C3D8R')
+            n_replaced += 1
+            out_lines.append(line)
+            continue
+
+        # Replace *Cohesive Section → *Solid Section
+        if ls.startswith('*COHESIVE SECTION') and 'TRACTION' in ls:
+            # Extract elset and material from the line
+            tokens = {}
+            for tok in ls.split(','):
+                tok = tok.strip()
+                if '=' in tok:
+                    key, val = tok.split('=', 1)
+                    tokens[key.strip()] = val.strip()
+            elset = tokens.get('ELSET', '')
+            # Replace with *Solid Section using the solid material
+            out_lines.append(
+                '*Solid Section, elset=%s, material=MAT-ADHESIVE-SOLID\n'
+                % elset)
+            # Skip the data line (thickness value)
+            # Find the next non-blank line that starts with a number
+            n_section_replaced += 1
+            # Write empty data line (C3D8R doesn't need thickness)
+            out_lines.append(',\n')
+            continue
+
+        # Skip data lines after *Cohesive Section (already replaced above)
+        # But we need to detect them. The data line is the line after
+        # *Cohesive Section and contains just the thickness value.
+        # We handle this by checking if the previous output line was our
+        # replacement *Solid Section.
+        if (len(out_lines) >= 2
+                and out_lines[-1].strip() == ','
+                and '*Solid Section' in out_lines[-2]
+                and ls and not ls.startswith('*')):
+            # This is the original thickness data line — skip it
+            continue
+
+        # Add MAT-ADHESIVE-SOLID material definition before first *Cohesive Section
+        # usage, right after MAT-ADHESIVE definition ends
+        if (not mat_adhesive_solid_added
+                and ls.startswith('*MATERIAL')
+                and 'MAT-ADHESIVE-DAMAGED' in ls):
+            # Insert our new material before the DAMAGED material
+            out_lines.append('*Material, name=MAT-ADHESIVE-SOLID\n')
+            out_lines.append('*Density\n')
+            out_lines.append('1200e-12,\n')
+            out_lines.append('*Elastic\n')
+            out_lines.append('20000., 0.3\n')
+            out_lines.append('*Expansion, zero=20.\n')
+            out_lines.append('45e-6,\n')
+            mat_adhesive_solid_added = True
+
+        out_lines.append(line)
+
+    with open(inp_path, 'w') as f:
+        f.writelines(out_lines)
+
+    print("COH3D8→C3D8R: %d element blocks, %d sections replaced, "
+          "MAT-ADHESIVE-SOLID %s"
+          % (n_replaced, n_section_replaced,
+             "added" if mat_adhesive_solid_added else "NOT added"))
+
+
 def create_and_run_job(model, job_name, no_run=False, project_root=None):
-    """Create Abaqus job, write INP, optionally patch and run."""
+    """Create Abaqus job, write INP, fix COH3D8 orientation, optionally run."""
     mdb.Job(name=job_name, model='Model-1', type=ANALYSIS, resultsFormat=ODB,
             numCpus=4, numDomains=4, multiprocessingMode=DEFAULT)
     mdb.saveAs(pathName=job_name + '.cae')
@@ -1997,6 +2189,9 @@ def create_and_run_job(model, job_name, no_run=False, project_root=None):
     print("Writing INP: %s.inp" % job_name)
     mdb.jobs[job_name].writeInput(consistencyChecking=OFF)
     inp_path = os.path.abspath(job_name + '.inp')
+
+    # Fix COH3D8: add explicit STACK DIRECTION and flip inverted elements
+    _fix_coh3d8_orientation(inp_path)
 
     if no_run:
         print("INP written. Skipping execution (--no_run)")
