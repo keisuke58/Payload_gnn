@@ -32,7 +32,38 @@ import time
 import numpy as np
 import torch
 import torch.nn.functional as F
-from sklearn.metrics import f1_score
+
+
+def _f1_binary(targets, preds):
+    """Binary F1 score (pure numpy)."""
+    tp = ((preds == 1) & (targets == 1)).sum()
+    fp = ((preds == 1) & (targets == 0)).sum()
+    fn = ((preds == 0) & (targets == 1)).sum()
+    prec = tp / max(tp + fp, 1)
+    rec = tp / max(tp + fn, 1)
+    return 2 * prec * rec / max(prec + rec, 1e-12)
+
+
+def _auc_binary(targets, probs):
+    """Binary ROC-AUC (pure numpy, trapezoidal)."""
+    desc = np.argsort(-probs)
+    targets = targets[desc]
+    n_pos = targets.sum()
+    n_neg = len(targets) - n_pos
+    if n_pos == 0 or n_neg == 0:
+        return 0.0
+    tpr_prev, fpr_prev, auc = 0.0, 0.0, 0.0
+    tp, fp = 0, 0
+    for i in range(len(targets)):
+        if targets[i] == 1:
+            tp += 1
+        else:
+            fp += 1
+        tpr = tp / n_pos
+        fpr = fp / n_neg
+        auc += (fpr - fpr_prev) * (tpr + tpr_prev) / 2
+        tpr_prev, fpr_prev = tpr, fpr
+    return float(auc)
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(PROJECT_ROOT, 'src'))
@@ -73,31 +104,34 @@ FEATURE_GROUPS = {
 
 
 @torch.no_grad()
-def evaluate_f1(model, data_list, device):
-    """全データに対するF1を計算"""
+def evaluate_metric(model, data_list, device, metric='auc'):
+    """全データに対する指標を計算 (f1 or auc)"""
     model.eval()
-    all_preds, all_targets = [], []
+    all_preds, all_probs, all_targets = [], [], []
     for data in data_list:
         data = data.to(device)
         out = model(data.x, data.edge_index, data.edge_attr, data.batch if hasattr(data, 'batch') else None)
-        preds = out.argmax(dim=1).cpu()
-        all_preds.append(preds)
+        all_preds.append(out.argmax(dim=1).cpu())
+        all_probs.append(F.softmax(out, dim=1)[:, 1].cpu())
         all_targets.append(data.y.cpu())
     preds = torch.cat(all_preds).numpy()
+    probs = torch.cat(all_probs).numpy()
     targets = torch.cat(all_targets).numpy()
-    return f1_score(targets, preds, zero_division=0)
+    if metric == 'auc':
+        return _auc_binary(targets, probs)
+    return _f1_binary(targets, preds)
 
 
 @torch.no_grad()
-def permutation_importance(model, data_list, device, n_repeats=3):
+def permutation_importance(model, data_list, device, n_repeats=3, metric='auc'):
     """
-    Permutation importance: 各特徴量をシャッフルしてF1低下を測定
+    Permutation importance: 各特徴量をシャッフルして指標低下を測定
 
     Returns:
-        base_f1: シャッフルなしのF1
+        base_score: シャッフルなしのスコア
         importances: dict[feat_idx] = {'mean': float, 'std': float, 'drops': list}
     """
-    base_f1 = evaluate_f1(model, data_list, device)
+    base_score = evaluate_metric(model, data_list, device, metric=metric)
     n_features = data_list[0].x.shape[1]
 
     importances = {}
@@ -115,8 +149,8 @@ def permutation_importance(model, data_list, device, n_repeats=3):
                 d.x[:, feat_idx] = d.x[perm, feat_idx]
                 shuffled_data.append(d)
 
-            shuffled_f1 = evaluate_f1(model, shuffled_data, device)
-            drops.append(base_f1 - shuffled_f1)
+            shuffled_score = evaluate_metric(model, shuffled_data, device, metric=metric)
+            drops.append(base_score - shuffled_score)
 
         importances[feat_idx] = {
             'mean': float(np.mean(drops)),
@@ -124,13 +158,13 @@ def permutation_importance(model, data_list, device, n_repeats=3):
             'drops': drops,
         }
 
-    return base_f1, importances
+    return base_score, importances
 
 
 @torch.no_grad()
-def group_importance(model, data_list, device, n_repeats=3):
+def group_importance(model, data_list, device, n_repeats=3, metric='auc'):
     """グループ単位の重要度 (グループ内全特徴量を同時シャッフル)"""
-    base_f1 = evaluate_f1(model, data_list, device)
+    base_score = evaluate_metric(model, data_list, device, metric=metric)
     n_features = data_list[0].x.shape[1]
 
     group_results = {}
@@ -150,8 +184,8 @@ def group_importance(model, data_list, device, n_repeats=3):
                 for idx in valid_indices:
                     d.x[:, idx] = d.x[perm, idx]
                 shuffled_data.append(d)
-            shuffled_f1 = evaluate_f1(model, shuffled_data, device)
-            drops.append(base_f1 - shuffled_f1)
+            shuffled_score = evaluate_metric(model, shuffled_data, device, metric=metric)
+            drops.append(base_score - shuffled_score)
 
         group_results[group_name] = {
             'mean': float(np.mean(drops)),
@@ -162,20 +196,21 @@ def group_importance(model, data_list, device, n_repeats=3):
     return group_results
 
 
-def print_results(base_f1, importances, group_results):
+def print_results(base_score, importances, group_results, metric='auc'):
     """結果をテーブル表示"""
     n_features = len(importances)
+    metric_upper = metric.upper()
 
     print("\n" + "=" * 60)
-    print(" Permutation Feature Importance")
-    print(" Base F1: %.4f" % base_f1)
+    print(" Permutation Feature Importance (metric=%s)" % metric_upper)
+    print(" Base %s: %.4f" % (metric_upper, base_score))
     print("=" * 60)
 
     # 個別特徴量 (重要度降順)
     sorted_feats = sorted(importances.items(), key=lambda x: -x[1]['mean'])
 
-    print("\n--- Per-Feature Importance (F1 drop when shuffled) ---")
-    print("%-5s %-18s %10s %10s %8s" % ("Rank", "Feature", "F1 drop", "± std", "Impact"))
+    print("\n--- Per-Feature Importance (%s drop when shuffled) ---" % metric_upper)
+    print("%-5s %-18s %10s %10s %8s" % ("Rank", "Feature", "%s drop" % metric_upper, "± std", "Impact"))
     print("-" * 55)
     for rank, (idx, imp) in enumerate(sorted_feats, 1):
         name = FEATURE_NAMES[idx] if idx < len(FEATURE_NAMES) else 'feat_%d' % idx
@@ -196,7 +231,7 @@ def print_results(base_f1, importances, group_results):
     # 不要特徴量候補
     negligible = [(idx, imp) for idx, imp in sorted_feats if imp['mean'] <= 0.0]
     if negligible:
-        print("\n  Candidate features for removal (F1 drop <= 0):")
+        print("\n  Candidate features for removal (%s drop <= 0):" % metric_upper)
         for idx, imp in negligible:
             name = FEATURE_NAMES[idx] if idx < len(FEATURE_NAMES) else 'feat_%d' % idx
             print("    %s (drop=%.5f)" % (name, imp['mean']))
@@ -204,7 +239,7 @@ def print_results(base_f1, importances, group_results):
     # グループ重要度
     if group_results:
         print("\n--- Group Importance ---")
-        print("%-15s %10s %10s %6s" % ("Group", "F1 drop", "± std", "#feat"))
+        print("%-15s %10s %10s %6s" % ("Group", "%s drop" % metric_upper, "± std", "#feat"))
         print("-" * 45)
         sorted_groups = sorted(group_results.items(), key=lambda x: -x[1]['mean'])
         for name, g in sorted_groups:
@@ -295,6 +330,9 @@ def main():
                         help='Which split to evaluate on')
     parser.add_argument('--output_dir', type=str, default=None,
                         help='Output dir for plots (default: same as checkpoint dir)')
+    parser.add_argument('--metric', type=str, default='auc',
+                        choices=['auc', 'f1'],
+                        help='Metric to use for importance (default: auc)')
     parser.add_argument('--no_plot', action='store_true', default=False)
     args = parser.parse_args()
 
@@ -324,11 +362,11 @@ def main():
     num_classes = ckpt_args.get('num_classes', 2)
     use_residual = ckpt_args.get('residual', False)
 
-    # Auto-detect num_classes from state_dict
+    # Auto-detect num_classes from final head layer
     state = ckpt.get('model_state_dict', ckpt)
-    for key in state:
-        if 'head' in key and key.endswith('.weight'):
-            num_classes = max(num_classes, state[key].shape[0])
+    head_keys = sorted([k for k in state if 'head' in k and k.endswith('.weight')])
+    if head_keys:
+        num_classes = state[head_keys[-1]].shape[0]  # last Linear output dim
 
     model = build_model(
         arch, in_channels, edge_attr_dim,
@@ -358,20 +396,21 @@ def main():
         print("  Normalized with norm_stats.pt")
 
     # Run permutation importance
-    print("\nRunning permutation importance (n_repeats=%d)..." % args.n_repeats)
+    print("\nRunning permutation importance (metric=%s, n_repeats=%d)..." % (
+        args.metric.upper(), args.n_repeats))
     t0 = time.time()
-    base_f1, importances = permutation_importance(
-        model, data_list, device, n_repeats=args.n_repeats)
+    base_score, importances = permutation_importance(
+        model, data_list, device, n_repeats=args.n_repeats, metric=args.metric)
     elapsed = time.time() - t0
     print("  Done in %.1fs" % elapsed)
 
     # Run group importance
     print("Running group importance...")
     group_results = group_importance(
-        model, data_list, device, n_repeats=args.n_repeats)
+        model, data_list, device, n_repeats=args.n_repeats, metric=args.metric)
 
     # Results
-    print_results(base_f1, importances, group_results)
+    print_results(base_score, importances, group_results, metric=args.metric)
 
     # Plots
     if not args.no_plot:
@@ -382,7 +421,8 @@ def main():
     import json
     result_path = os.path.join(args.output_dir, 'feature_importance.json')
     result = {
-        'base_f1': base_f1,
+        'base_%s' % args.metric: base_score,
+        'metric': args.metric,
         'n_repeats': args.n_repeats,
         'features': {},
         'groups': {},
