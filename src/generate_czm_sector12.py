@@ -42,7 +42,7 @@ OGIVE_XC = RADIUS - OGIVE_RHO
 FACE_T = 1.0          # mm (CFRP skin)
 CORE_T = 38.0         # mm (Al honeycomb core, total allocation)
 ADHESIVE_T = 0.2      # mm (default cohesive layer thickness)
-ADH_R_MIN = 200.0     # mm — adhesive ogive cutoff radius (avoids axis-degenerate geometry for SWEEP)
+ADH_R_MIN = 300.0     # mm — adhesive ogive cutoff radius (avoids degenerate elements near axis)
 
 # ==============================================================================
 # MATERIAL PROPERTIES
