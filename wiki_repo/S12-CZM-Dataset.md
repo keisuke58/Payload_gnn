@@ -24,8 +24,8 @@ doe_sector12_100.json
 | パス | 内容 |
 |------|------|
 | `abaqus_work/batch_s12_100/` | 生データ (INP, ODB, CSV) |
-| `data/processed_s12_100/` | PyGデータ (8クラス) |
-| `data/processed_s12_100_binary/` | PyGデータ (2クラス: healthy/defect) |
+| `data/processed_s12_czm_96/` | PyGデータ (8クラス) |
+| `data/processed_s12_czm_96_binary/` | PyGデータ (2クラス: healthy/defect) |
 | `doe_sector12_100.json` | DOE パラメータ (100サンプル定義) |
 
 ## メッシュ仕様
@@ -79,8 +79,9 @@ doe_sector12_100.json
 | 4 | 法線角度差 |
 
 ### ラベル (y)
-- **8クラス版** (`processed_s12_100`): 0=healthy, 1-7=欠陥タイプ
-- **2クラス版** (`processed_s12_100_binary`): 0=healthy, 1=defect
+- **8クラス版** (`processed_s12_czm_96`): 0=healthy, 1-7=欠陥タイプ
+- **2クラス版** (`processed_s12_czm_96_binary`): 0=healthy, 1=defect
+- Binary分類の詳細は [Binary-Classification](Binary-Classification) を参照
 
 ## データ統計
 
