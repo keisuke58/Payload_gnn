@@ -2770,8 +2770,10 @@ def generate_ground_truth_model(job_name, defect_params=None,
 
     # 10. Steps: 4-step analysis (cure + thermal + mechanical)
     model.StaticStep(name='Step-Cure', previous='Initial',
+                     nlgeom=ON,
                      description='Cure cooldown: 175C -> 20C (residual stress)')
     model.StaticStep(name='Step-Thermal', previous='Step-Cure',
+                     nlgeom=ON,
                      description='Operational heating (z-dependent)')
     model.StaticStep(name='Step-Mechanical', previous='Step-Thermal',
                      nlgeom=ON,
