@@ -3,7 +3,7 @@
 # Binary Classification (2クラス: Healthy vs Defect)
 
 **Date**: 2026-03-03
-**Status**: 学習準備完了、vancouver02 で実行待ち
+**Status**: 非熱モデル学習完了 (F1=0.8686) / 熱有バッチ実行中
 
 ## 背景
 
@@ -28,12 +28,18 @@
 | Train defect 率 | 0.59% (6,947 / 1,170,862) |
 | Val defect 率 | 0.48% (1,400 / 288,914) |
 
-## 学習設定
+## 学習結果 (非熱, SAGE)
 
-```bash
-# vancouver02 で実行
-nohup bash scripts/sweep_binary.sh > sweep_binary.log 2>&1 &
-```
+### 基本性能
+
+| 指標 | argmax (t=0.50) | 最適閾値 (t=0.88) |
+|------|----------------|-------------------|
+| **F1** | 0.6731 | **0.8686** |
+| Precision | - | 0.8548 |
+| Recall | - | 0.8829 |
+| AUC | 0.9997 | 0.9997 |
+
+### 学習設定
 
 | パラメータ | 値 |
 |-----------|------|
@@ -45,19 +51,55 @@ nohup bash scripts/sweep_binary.sh > sweep_binary.log 2>&1 &
 | Epochs | 200 (patience=30) |
 | Batch size | 4 |
 
-学習後に `optimize_threshold.py` で閾値最適化 (default 0.5 → 最適値探索)。
+## エラー分析
 
-## 精度向上の戦略
+### 欠陥タイプ別 F1 (threshold=0.88)
 
-| 手法 | 期待効果 | 状態 |
-|------|---------|------|
-| 8→2クラス化 | F1: 0.25 → 0.8+ | ✅ 完了 |
-| 34次元特徴量 (旧20次元→) | 物理量充実 | ✅ 完了 |
-| 閾値最適化 | F1 +0.03–0.10 | ✅ スクリプト準備済み |
-| Architecture sweep | 最適モデル選定 | 🔄 次フェーズ |
-| Boundary weight | 境界ノード重み付け | 🔄 次フェーズ |
-| Residual connections | 深層GNN安定化 | 📋 計画中 |
-| DropEdge / Feature noise | 正則化 | 📋 計画中 |
+| タイプ | Val数 | 欠陥ノード | TP | FP | FN | 平均F1 | P(defect) | P(healthy) |
+|--------|--------|-----------|-----|-----|-----|--------|-----------|------------|
+| thermal_progression | 2 | 274 | 236 | 23 | 38 | **0.883** | 0.914 | 0.044 |
+| delamination | 5 | 245 | 232 | 61 | 13 | 0.862 | 0.956 | 0.045 |
+| debonding | 5 | 209 | 186 | 31 | 23 | 0.853 | 0.936 | 0.042 |
+| impact | 3 | 241 | 227 | 63 | 14 | 0.849 | 0.964 | 0.049 |
+| acoustic_fatigue | 2 | 299 | 247 | 19 | 52 | 0.819 | 0.917 | 0.045 |
+| fod | 2 | 132 | 108 | 13 | 24 | **0.714** | 0.917 | 0.043 |
+
+### 最も検出困難なグラフ
+
+| Graph | タイプ | 欠陥ノード | F1 | TP/FP/FN | 原因 |
+|-------|--------|-----------|------|----------|------|
+| #8 | fod | 16 | **0.55** | 6/0/10 | 小欠陥、prob mean=0.85 が閾値0.88の直下 |
+| #11 | acoustic_fatigue | 71 | 0.72 | 43/5/28 | FN多い |
+| #12 | debonding | 14 | 0.78 | 9/0/5 | 小欠陥 |
+
+### 確率分布
+
+| ノード種別 | P10 | P25 | P50 | P75 | P90 |
+|-----------|------|------|------|------|------|
+| **Defect** (n=1,400) | 0.868 | 0.925 | 0.951 | 0.971 | 0.983 |
+| **Healthy** (n=287,514) | - | - | - | - | 0.070 |
+
+- Separation (mean_defect - mean_healthy): **0.890**
+- FP率: 0.073% (210 / 287,514)
+- Overlap: defect min=0.35 vs healthy P99.9=0.86
+
+### 改善の方向性
+
+| 施策 | 対象 | 期待効果 |
+|------|------|---------|
+| 熱荷重データで再学習 | 全タイプ | 温度+熱応力(3次元)に情報追加 → F1↑ |
+| 差圧30kPaデータ | 全タイプ | 応力レベル6x → 欠陥の応力差拡大 |
+| グラフ別適応閾値 | fod, 小欠陥 | 小欠陥で閾値を下げてFN削減 |
+| FODサンプル増加 | fod | valに2グラフしかない → 過小評価リスク |
+| acoustic_fatigue改善 | acoustic_fatigue | Recall 0.61 → boundary weight調整 |
+
+## 進行中
+
+### 熱有バッチ (CTE修正 + 差圧30kPa)
+- Template: `Job-CZM-S12-Thermal.inp` (CTE: -0.3e-6/28e-6, 差圧: 30kPa)
+- 実行: frontale02 (並列4ジョブ)
+- 2ステップ: Step-1 (熱のみ) → Step-2 (熱+機械)
+- 完了後: PyG変換 → binary変換 → vancouver02で学習 → 精度比較
 
 ## 関連ファイル
 
@@ -66,5 +108,6 @@ nohup bash scripts/sweep_binary.sh > sweep_binary.log 2>&1 &
 | `scripts/convert_to_binary.py` | 8クラス → 2クラス変換 |
 | `scripts/sweep_binary.sh` | 学習 + 閾値最適化 |
 | `scripts/optimize_threshold.py` | 閾値スイープ F1 最大化 |
+| `scripts/error_analysis.py` | 欠陥タイプ別エラー分析 |
 | `src/prepare_ml_data.py` | CSV → PyG 前処理 (Job-S12-D* 対応) |
 | `src/train.py` | GNN 学習 (binary 自動検出) |
