@@ -181,7 +181,7 @@ def create_materials(model):
     mat_cfrp = model.Material(name='CFRP_T1000G')
     mat_cfrp.Elastic(type=LAMINA, table=((E1, E2, NU12, G12, G13, G23), ))
     mat_cfrp.Density(table=((1600e-12, ), )) # tonne/mm^3
-    mat_cfrp.Expansion(table=((2e-6, 2e-6, 0.0), )) # Alpha11, Alpha22, Alpha33 (local)
+    mat_cfrp.Expansion(table=((-0.3e-6, 28e-6, 0.0), )) # Alpha11, Alpha22, Alpha12 (local)
 
     # Honeycomb
     mat_core = model.Material(name='AL_HONEYCOMB')
@@ -226,7 +226,7 @@ def create_defect_materials(model, defect_params):
             G12 * 0.01, G13 * 0.01, G23 * 0.01
         ), ))
         mat.Density(table=((1600e-12, ), ))
-        mat.Expansion(table=((2e-6, 2e-6, 0.0), ))
+        mat.Expansion(table=((-0.3e-6, 28e-6, 0.0), ))
 
     elif defect_type == 'fod':
         # Stiff FOD inclusion. MDPI Appl. Sci. 2024 16(3):1459. CTE 12e-6 for metallic FOD.
@@ -253,7 +253,7 @@ def create_defect_materials(model, defect_params):
             G23 * dr
         ), ))
         mat_skin.Density(table=((1600e-12, ), ))
-        mat_skin.Expansion(table=((2e-6, 2e-6, 0.0), ))
+        mat_skin.Expansion(table=((-0.3e-6, 28e-6, 0.0), ))
 
         # Crushed honeycomb. Composites Part A 2019: cell buckling under impact.
         mat_core = model.Material(name='AL_HONEYCOMB_CRUSHED')
@@ -277,7 +277,7 @@ def create_defect_materials(model, defect_params):
             G12 * shear_red, G13 * shear_red, G23 * shear_red
         ), ))
         mat.Density(table=((1600e-12, ), ))
-        mat.Expansion(table=((2e-6, 2e-6, 0.0), ))
+        mat.Expansion(table=((-0.3e-6, 28e-6, 0.0), ))
 
     elif defect_type == 'inner_debond':
         # Inner skin-core. Same mechanics as debonding. NASA NTRS, DEFECT_PLAN.
@@ -287,7 +287,7 @@ def create_defect_materials(model, defect_params):
             G12 * 0.01, G13 * 0.01, G23 * 0.01
         ), ))
         mat.Density(table=((1600e-12, ), ))
-        mat.Expansion(table=((2e-6, 2e-6, 0.0), ))
+        mat.Expansion(table=((-0.3e-6, 28e-6, 0.0), ))
 
     elif defect_type == 'thermal_progression':
         # CTE mismatch (CFRP -0.3 vs Al 23e-6) induced interface damage
@@ -298,7 +298,7 @@ def create_defect_materials(model, defect_params):
         ), ))
         mat.Density(table=((1600e-12, ), ))
         # Higher effective CTE simulates thermally-opened interface
-        mat.Expansion(table=((8e-6, 8e-6, 0.0), ))
+        mat.Expansion(table=((5e-6, 40e-6, 0.0), ))  # thermally damaged: fiber CTE +, matrix CTE increased
 
     elif defect_type == 'acoustic_fatigue':
         # 147-148 dB launch acoustic fatigue. UTIAS 2019: interface weakening.
@@ -309,7 +309,7 @@ def create_defect_materials(model, defect_params):
             G12 * sev, G13 * sev, G23 * sev
         ), ))
         mat.Density(table=((1600e-12, ), ))
-        mat.Expansion(table=((2e-6, 2e-6, 0.0), ))
+        mat.Expansion(table=((-0.3e-6, 28e-6, 0.0), ))
 
     print("Defect materials created: type=%s" % defect_type)
 
