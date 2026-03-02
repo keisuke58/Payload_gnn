@@ -2063,28 +2063,62 @@ def generate_mesh_with_adhesive(assembly,
         print("  Local mesh: defect boundary seed=%.1f mm (margin=%.0f mm)" % (
             boundary_seed, bm))
 
-    # 5. Core mesh (C3D10 free tet)
+    # 5. Core mesh — try SWEEP C3D8R first (robust for thin revolve solids),
+    #    then fall back to FREE TET C3D10 if SWEEP fails.
     effective_core_t = CORE_T - 2 * adh_t
     core_seed = min(global_seed, effective_core_t)
-    print("Meshing core (C3D10 free tet, seed=%.0f mm, %d cells)..." % (
+    print("Meshing core (seed=%.0f mm, %d cells)..." % (
         core_seed, len(inst_core.cells)))
     assembly.seedPartInstance(regions=(inst_core,), size=core_seed,
                               deviationFactor=0.1)
+    core_meshed = False
+
+    # Attempt 1: SWEEP + C3D8R (preferred for thin-walled revolve solids)
     try:
         assembly.setMeshControls(regions=inst_core.cells,
-                                 elemShape=TET, technique=FREE)
+                                 elemShape=HEX, technique=SWEEP)
         assembly.setElementType(
             regions=(inst_core.cells,),
-            elemTypes=(ElemType(elemCode=C3D10, elemLibrary=STANDARD),))
+            elemTypes=(
+                ElemType(elemCode=C3D8R, elemLibrary=STANDARD),
+                ElemType(elemCode=C3D6, elemLibrary=STANDARD),
+            ))
         assembly.generateMesh(regions=(inst_core,))
         n_core = len(inst_core.nodes)
         if n_core > 0:
-            print("  Core mesh: %d nodes, %d elements" % (
+            core_meshed = True
+            print("  Core mesh: SWEEP C3D8R OK (%d nodes, %d elements)" % (
                 n_core, len(inst_core.elements)))
         else:
-            print("  WARNING: Core free tet produced 0 nodes!")
+            print("  Core SWEEP produced 0 nodes, trying FREE TET...")
     except Exception as e:
-        print("  Core free tet failed: %s" % str(e)[:120])
+        print("  Core SWEEP failed: %s — trying FREE TET..." % str(e)[:100])
+
+    # Attempt 2: FREE TET + C3D10 (fallback)
+    if not core_meshed:
+        try:
+            assembly.deleteMesh(regions=(inst_core,))
+        except Exception:
+            pass
+        try:
+            assembly.setMeshControls(regions=inst_core.cells,
+                                     elemShape=TET, technique=FREE)
+            assembly.setElementType(
+                regions=(inst_core.cells,),
+                elemTypes=(ElemType(elemCode=C3D10, elemLibrary=STANDARD),))
+            assembly.generateMesh(regions=(inst_core,))
+            n_core = len(inst_core.nodes)
+            if n_core > 0:
+                core_meshed = True
+                print("  Core mesh: FREE TET C3D10 (%d nodes, %d elements)" % (
+                    n_core, len(inst_core.elements)))
+            else:
+                print("  WARNING: Core FREE TET also produced 0 nodes!")
+        except Exception as e:
+            print("  Core FREE TET failed: %s" % str(e)[:120])
+
+    if not core_meshed:
+        print("  CRITICAL: Core mesh FAILED — model will have errors!")
 
     # 6. Adhesive mesh (SWEEP COH3D8)
     print("Meshing adhesive layers...")
