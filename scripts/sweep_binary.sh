@@ -5,6 +5,12 @@
 #   nohup bash scripts/sweep_binary.sh > sweep_binary.log 2>&1 &
 set -euo pipefail
 
+# Conda activation (vancouver02: miniforge3)
+if [ -f "$HOME/miniforge3/etc/profile.d/conda.sh" ]; then
+    source "$HOME/miniforge3/etc/profile.d/conda.sh"
+    conda activate base
+fi
+
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$PROJECT_ROOT"
 
@@ -18,7 +24,7 @@ echo " Data: $DATA_DIR"
 echo " Started: $(date)"
 echo "========================================"
 
-python src/train.py \
+python3 src/train.py \
     --data_dir "$DATA_DIR" \
     --output_dir "$OUT_DIR" \
     --arch sage \
@@ -32,7 +38,7 @@ echo ""
 echo "=== Threshold Optimization ==="
 BEST_PT=$(find "$OUT_DIR" -name "best_model.pt" -newer "$OUT_DIR" 2>/dev/null | head -1)
 if [ -n "$BEST_PT" ]; then
-    python scripts/optimize_threshold.py \
+    python3 scripts/optimize_threshold.py \
         --checkpoint "$BEST_PT" \
         --data_dir "$DATA_DIR"
 fi
