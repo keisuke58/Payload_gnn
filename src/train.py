@@ -102,6 +102,27 @@ def build_node_weights(data, boundary_weight=1.0):
 
 
 # =========================================================================
+# Graph augmentation (DropEdge / Feature Noise)
+# =========================================================================
+def drop_edge(edge_index, edge_attr, drop_rate):
+    """Randomly drop edges during training."""
+    if drop_rate <= 0:
+        return edge_index, edge_attr
+    num_edges = edge_index.shape[1]
+    mask = torch.rand(num_edges, device=edge_index.device) >= drop_rate
+    new_edge_index = edge_index[:, mask]
+    new_edge_attr = edge_attr[mask] if edge_attr is not None else None
+    return new_edge_index, new_edge_attr
+
+
+def add_feature_noise(x, noise_std):
+    """Add Gaussian noise to node features during training."""
+    if noise_std <= 0:
+        return x
+    return x + torch.randn_like(x) * noise_std
+
+
+# =========================================================================
 # Metrics
 # =========================================================================
 DEFECT_TYPE_NAMES = [
@@ -160,7 +181,7 @@ def compute_metrics(logits, targets, num_classes=2):
 # Training loop
 # =========================================================================
 def train_epoch(model, loader, optimizer, criterion, device, num_classes=2,
-                boundary_weight=1.0):
+                boundary_weight=1.0, drop_edge_rate=0.0, feature_noise_std=0.0):
     model.train()
     total_loss = 0.0
     all_logits, all_targets = [], []
@@ -168,7 +189,10 @@ def train_epoch(model, loader, optimizer, criterion, device, num_classes=2,
     for batch in loader:
         batch = batch.to(device)
         optimizer.zero_grad()
-        out = model(batch.x, batch.edge_index, batch.edge_attr, batch.batch)
+        # Augmentation
+        x = add_feature_noise(batch.x, feature_noise_std) if feature_noise_std > 0 else batch.x
+        ei, ea = drop_edge(batch.edge_index, batch.edge_attr, drop_edge_rate) if drop_edge_rate > 0 else (batch.edge_index, batch.edge_attr)
+        out = model(x, ei, ea, batch.batch)
         if boundary_weight > 1.0:
             # Per-node weighted loss using the configured criterion
             if isinstance(criterion, FocalLoss):
@@ -203,7 +227,8 @@ def train_epoch(model, loader, optimizer, criterion, device, num_classes=2,
 
 
 def train_epoch_subgraph(model, train_data, sampler, optimizer, criterion,
-                         device, num_classes=2):
+                         device, num_classes=2, drop_edge_rate=0.0,
+                         feature_noise_std=0.0):
     """Training epoch with defect-centric sub-graph sampling."""
     model.train()
     total_loss = 0.0
@@ -215,7 +240,9 @@ def train_epoch_subgraph(model, train_data, sampler, optimizer, criterion,
         for sg in subgraphs:
             sg = sg.to(device)
             optimizer.zero_grad()
-            out = model(sg.x, sg.edge_index, sg.edge_attr, None)
+            x = add_feature_noise(sg.x, feature_noise_std) if feature_noise_std > 0 else sg.x
+            ei, ea = drop_edge(sg.edge_index, sg.edge_attr, drop_edge_rate) if drop_edge_rate > 0 else (sg.edge_index, sg.edge_attr)
+            out = model(x, ei, ea, None)
             loss = criterion(out, sg.y)
             loss.backward()
             optimizer.step()
@@ -402,6 +429,16 @@ def train(args, train_data, val_data, fold=None):
             print("Sampler: DefectCentricSampler (hops=%d, healthy_ratio=%d)" % (
                 args.subgraph_hops, args.healthy_ratio))
 
+    # Augmentation info
+    if is_main:
+        aug_parts = []
+        if getattr(args, 'drop_edge', 0) > 0:
+            aug_parts.append("DropEdge=%.2f" % args.drop_edge)
+        if getattr(args, 'feature_noise', 0) > 0:
+            aug_parts.append("FeatureNoise=%.3f" % args.feature_noise)
+        if aug_parts:
+            print("Augmentation: %s" % ', '.join(aug_parts))
+
     # Logging (main process only)
     fold_str = '_fold%d' % fold if fold is not None else ''
     gpu_suffix = '_ddp%d' % world_size if multi_gpu else ''
@@ -427,14 +464,18 @@ def train(args, train_data, val_data, fold=None):
         t0 = time.time()
         if multi_gpu:
             train_sampler.set_epoch(epoch)
+        de_rate = getattr(args, 'drop_edge', 0.0)
+        fn_std = getattr(args, 'feature_noise', 0.0)
         if use_subgraph:
             train_m = train_epoch_subgraph(
                 model, train_data, sampler, optimizer, criterion,
-                device, num_classes=num_classes)
+                device, num_classes=num_classes,
+                drop_edge_rate=de_rate, feature_noise_std=fn_std)
         else:
             train_m = train_epoch(model, train_loader, optimizer, criterion, device,
                                    num_classes=num_classes,
-                                   boundary_weight=getattr(args, 'boundary_weight', 1.0))
+                                   boundary_weight=getattr(args, 'boundary_weight', 1.0),
+                                   drop_edge_rate=de_rate, feature_noise_std=fn_std)
         val_m = eval_epoch(model, val_loader, criterion, device, num_classes=num_classes)
         scheduler.step()
         elapsed = time.time() - t0
@@ -622,6 +663,11 @@ def main():
                         help='k-hop expansion for defect_centric sampler')
     parser.add_argument('--healthy_ratio', type=int, default=5,
                         help='Extra healthy nodes per defect node')
+    # Graph augmentation
+    parser.add_argument('--drop_edge', type=float, default=0.0,
+                        help='DropEdge rate: fraction of edges to drop per epoch (0=off)')
+    parser.add_argument('--feature_noise', type=float, default=0.0,
+                        help='Gaussian noise std added to node features per epoch (0=off)')
     # Boundary-aware loss
     parser.add_argument('--boundary_weight', type=float, default=1.0,
                         help='Weight multiplier for boundary nodes (healthy adjacent to defect)')
