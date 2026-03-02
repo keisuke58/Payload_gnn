@@ -55,7 +55,8 @@ G12 = 5000.0
 G13 = 5000.0
 G23 = 3000.0
 CFRP_DENSITY = 1600e-12   # tonne/mm^3
-CFRP_CTE = 2e-6           # /C
+CFRP_CTE_11 = -0.3e-6        # /C  fiber direction (negative for T1000G carbon)
+CFRP_CTE_22 = 28e-6          # /C  transverse direction
 
 # Aluminum Honeycomb Core (5052)
 E_CORE_1 = 1000.0     # through-thickness (radial)
@@ -258,7 +259,7 @@ def create_materials(model):
     mat = model.Material(name='CFRP_T1000G')
     mat.Elastic(type=LAMINA, table=((E1, E2, NU12, G12, G13, G23),))
     mat.Density(table=((CFRP_DENSITY,),))
-    mat.Expansion(table=((CFRP_CTE, CFRP_CTE, 0.0),))
+    mat.Expansion(table=((CFRP_CTE_11, CFRP_CTE_22, 0.0),))
 
     mat = model.Material(name='AL_HONEYCOMB')
     mat.Elastic(type=ENGINEERING_CONSTANTS, table=((
@@ -272,7 +273,7 @@ def create_materials(model):
     mat = model.Material(name='CFRP_FRAME')
     mat.Elastic(type=ISOTROPIC, table=((70000.0, 0.3),))
     mat.Density(table=((CFRP_DENSITY,),))
-    mat.Expansion(table=((CFRP_CTE,),))
+    mat.Expansion(table=((2e-6,),))  # quasi-isotropic effective CTE for frame
 
     mat = model.Material(name='VOID')
     mat.Elastic(type=ISOTROPIC, table=((1.0, 0.3),))
@@ -316,7 +317,7 @@ def create_defect_materials(model, defect_params):
             G12 * 0.01, G13 * 0.01, G23 * 0.01
         ),))
         mat.Density(table=((CFRP_DENSITY,),))
-        mat.Expansion(table=((CFRP_CTE, CFRP_CTE, 0.0),))
+        mat.Expansion(table=((CFRP_CTE_11, CFRP_CTE_22, 0.0),))
 
     elif defect_type == 'fod':
         sf = defect_params.get('stiffness_factor', 10.0)
@@ -337,7 +338,7 @@ def create_defect_materials(model, defect_params):
             G12 * dr, G13 * dr, G23 * dr
         ),))
         mat_skin.Density(table=((CFRP_DENSITY,),))
-        mat_skin.Expansion(table=((CFRP_CTE, CFRP_CTE, 0.0),))
+        mat_skin.Expansion(table=((CFRP_CTE_11, CFRP_CTE_22, 0.0),))
 
         mat_core = model.Material(name='AL_HONEYCOMB_CRUSHED')
         mat_core.Elastic(type=ENGINEERING_CONSTANTS, table=((
@@ -357,7 +358,7 @@ def create_defect_materials(model, defect_params):
             G12 * shear_red, G13 * shear_red, G23 * shear_red
         ),))
         mat.Density(table=((CFRP_DENSITY,),))
-        mat.Expansion(table=((CFRP_CTE, CFRP_CTE, 0.0),))
+        mat.Expansion(table=((CFRP_CTE_11, CFRP_CTE_22, 0.0),))
 
     elif defect_type == 'inner_debond':
         mat = model.Material(name='CFRP_INNER_DEBONDED')
@@ -366,7 +367,7 @@ def create_defect_materials(model, defect_params):
             G12 * 0.01, G13 * 0.01, G23 * 0.01
         ),))
         mat.Density(table=((CFRP_DENSITY,),))
-        mat.Expansion(table=((CFRP_CTE, CFRP_CTE, 0.0),))
+        mat.Expansion(table=((CFRP_CTE_11, CFRP_CTE_22, 0.0),))
 
     elif defect_type == 'thermal_progression':
         mat = model.Material(name='CFRP_THERMAL_DAMAGED')
@@ -375,7 +376,7 @@ def create_defect_materials(model, defect_params):
             G12 * 0.05, G13 * 0.05, G23 * 0.05
         ),))
         mat.Density(table=((CFRP_DENSITY,),))
-        mat.Expansion(table=((8e-6, 8e-6, 0.0),))
+        mat.Expansion(table=((5e-6, 40e-6, 0.0),))  # thermally damaged: fiber CTE +, matrix CTE increased
 
     elif defect_type == 'acoustic_fatigue':
         sev = defect_params.get('fatigue_severity', 0.35)
@@ -385,7 +386,7 @@ def create_defect_materials(model, defect_params):
             G12 * sev, G13 * sev, G23 * sev
         ),))
         mat.Density(table=((CFRP_DENSITY,),))
-        mat.Expansion(table=((CFRP_CTE, CFRP_CTE, 0.0),))
+        mat.Expansion(table=((CFRP_CTE_11, CFRP_CTE_22, 0.0),))
 
     print("Defect materials created: type=%s" % defect_type)
 
