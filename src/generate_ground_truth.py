@@ -2774,7 +2774,13 @@ def generate_ground_truth_model(job_name, defect_params=None,
     model.StaticStep(name='Step-Thermal', previous='Step-Cure',
                      description='Operational heating (z-dependent)')
     model.StaticStep(name='Step-Mechanical', previous='Step-Thermal',
-                     description='Cp(z) + diff pressure + 3G gravity')
+                     nlgeom=ON,
+                     initialInc=0.1, maxInc=0.5, minInc=1e-8, maxNumInc=100,
+                     stabilizationMagnitude=1e-6,
+                     stabilizationMethod=DISSIPATED_ENERGY_FRACTION,
+                     continueDampingFactors=False,
+                     adaptiveDampingRatio=0.05,
+                     description='Cp(z) + diff pressure + 3G gravity (NLGEOM)')
     model.fieldOutputRequests['F-Output-1'].setValues(
         variables=('S', 'U', 'RF', 'TEMP', 'NT', 'LE', 'SDEG', 'STATUS'))
     model.FieldOutputRequest(name='F-Output-Thermal',
