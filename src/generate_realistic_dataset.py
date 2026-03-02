@@ -94,7 +94,7 @@ AERO_PRESSURE_ZONES = [
 ]
 
 # Internal-external differential pressure (MPa) — net outward from vent lag
-DIFF_PRESSURE = 0.005  # 5 kPa (内圧超過, ノミナル条件)
+DIFF_PRESSURE = 0.030  # 30 kPa (Max-Q)
 
 # Launch acceleration
 LAUNCH_G = 3.0      # G (axial, H3-22S typical)
