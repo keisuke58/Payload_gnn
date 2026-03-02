@@ -298,6 +298,7 @@ def train(args, train_data, val_data, fold=None):
         args.arch, in_channels, edge_attr_dim,
         hidden_channels=args.hidden, num_layers=args.layers,
         dropout=args.dropout, num_classes=num_classes,
+        use_residual=getattr(args, 'residual', False),
     ).to(device)
 
     # Transfer learning: load pretrained weights
@@ -347,8 +348,9 @@ def train(args, train_data, val_data, fold=None):
     param_count = sum(p.numel() for p in raw_model.parameters() if p.requires_grad)
     if is_main:
         gpu_info = "GPU x%d" % world_size if multi_gpu else str(device)
-        print("Model: %s | Params: %d | Classes: %d | Device: %s" % (
-            args.arch.upper(), param_count, num_classes, gpu_info))
+        res_str = " | Residual: ON" if getattr(args, 'residual', False) else ""
+        print("Model: %s | Params: %d | Classes: %d | Device: %s%s" % (
+            args.arch.upper(), param_count, num_classes, gpu_info, res_str))
 
     # Compute class distribution
     n_total = all_labels.numel()
@@ -596,6 +598,8 @@ def main():
     parser.add_argument('--hidden', type=int, default=128)
     parser.add_argument('--layers', type=int, default=4)
     parser.add_argument('--dropout', type=float, default=0.1)
+    parser.add_argument('--residual', action='store_true', default=False,
+                        help='Add residual (skip) connections to GNN layers')
     # Training
     parser.add_argument('--epochs', type=int, default=200)
     parser.add_argument('--batch_size', type=int, default=4)
