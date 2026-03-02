@@ -29,13 +29,15 @@ class BaseGNN(nn.Module):
     """Shared skeleton for all GNN variants."""
 
     def __init__(self, in_channels, hidden_channels, num_classes,
-                 num_layers, dropout):
+                 num_layers, dropout, use_residual=False):
         super().__init__()
         self.num_layers = num_layers
         self.dropout = dropout
+        self.use_residual = use_residual
 
         self.convs = nn.ModuleList()
         self.norms = nn.ModuleList()
+        self.skip_projs = nn.ModuleList()  # residual projections
 
         # Head (node classifier)
         self.head = nn.Sequential(
@@ -47,10 +49,13 @@ class BaseGNN(nn.Module):
 
     def encode(self, x, edge_index, edge_attr=None):
         for i, conv in enumerate(self.convs):
+            residual = x
             x = self._conv_forward(conv, x, edge_index, edge_attr)
             x = self.norms[i](x)
             x = F.relu(x)
             x = F.dropout(x, p=self.dropout, training=self.training)
+            if self.use_residual:
+                x = x + self.skip_projs[i](residual)
         return x
 
     def _conv_forward(self, conv, x, edge_index, edge_attr):
@@ -67,13 +72,18 @@ class BaseGNN(nn.Module):
 # =========================================================================
 class GCNModel(BaseGNN):
     def __init__(self, in_channels, hidden_channels=128, num_classes=2,
-                 num_layers=4, dropout=0.1):
+                 num_layers=4, dropout=0.1, use_residual=False):
         super().__init__(in_channels, hidden_channels, num_classes,
-                         num_layers, dropout)
+                         num_layers, dropout, use_residual)
         for i in range(num_layers):
             inc = in_channels if i == 0 else hidden_channels
             self.convs.append(GCNConv(inc, hidden_channels))
             self.norms.append(BatchNorm(hidden_channels))
+            if use_residual:
+                if inc != hidden_channels:
+                    self.skip_projs.append(nn.Linear(inc, hidden_channels))
+                else:
+                    self.skip_projs.append(nn.Identity())
 
 
 # =========================================================================
@@ -81,9 +91,10 @@ class GCNModel(BaseGNN):
 # =========================================================================
 class GATModel(BaseGNN):
     def __init__(self, in_channels, hidden_channels=128, num_classes=2,
-                 num_layers=4, dropout=0.1, heads=4, edge_attr_dim=0):
+                 num_layers=4, dropout=0.1, heads=4, edge_attr_dim=0,
+                 use_residual=False):
         super().__init__(in_channels, hidden_channels, num_classes,
-                         num_layers, dropout)
+                         num_layers, dropout, use_residual)
         self.edge_attr_dim = edge_attr_dim
 
         for i in range(num_layers):
@@ -101,7 +112,13 @@ class GATModel(BaseGNN):
                 inc, out_c, heads=h, concat=concat, dropout=dropout,
                 edge_dim=edge_attr_dim if edge_attr_dim > 0 else None,
             ))
-            self.norms.append(BatchNorm(out_c * h if concat else out_c))
+            out_dim = out_c * h if concat else out_c
+            self.norms.append(BatchNorm(out_dim))
+            if use_residual:
+                if inc != out_dim:
+                    self.skip_projs.append(nn.Linear(inc, out_dim))
+                else:
+                    self.skip_projs.append(nn.Identity())
 
     def _conv_forward(self, conv, x, edge_index, edge_attr):
         if self.edge_attr_dim > 0 and edge_attr is not None:
@@ -114,9 +131,9 @@ class GATModel(BaseGNN):
 # =========================================================================
 class GINModel(BaseGNN):
     def __init__(self, in_channels, hidden_channels=128, num_classes=2,
-                 num_layers=4, dropout=0.1):
+                 num_layers=4, dropout=0.1, use_residual=False):
         super().__init__(in_channels, hidden_channels, num_classes,
-                         num_layers, dropout)
+                         num_layers, dropout, use_residual)
         for i in range(num_layers):
             inc = in_channels if i == 0 else hidden_channels
             mlp = nn.Sequential(
@@ -126,6 +143,11 @@ class GINModel(BaseGNN):
             )
             self.convs.append(GINConv(mlp))
             self.norms.append(BatchNorm(hidden_channels))
+            if use_residual:
+                if inc != hidden_channels:
+                    self.skip_projs.append(nn.Linear(inc, hidden_channels))
+                else:
+                    self.skip_projs.append(nn.Identity())
 
 
 # =========================================================================
@@ -133,13 +155,18 @@ class GINModel(BaseGNN):
 # =========================================================================
 class SAGEModel(BaseGNN):
     def __init__(self, in_channels, hidden_channels=128, num_classes=2,
-                 num_layers=4, dropout=0.1):
+                 num_layers=4, dropout=0.1, use_residual=False):
         super().__init__(in_channels, hidden_channels, num_classes,
-                         num_layers, dropout)
+                         num_layers, dropout, use_residual)
         for i in range(num_layers):
             inc = in_channels if i == 0 else hidden_channels
             self.convs.append(SAGEConv(inc, hidden_channels))
             self.norms.append(BatchNorm(hidden_channels))
+            if use_residual:
+                if inc != hidden_channels:
+                    self.skip_projs.append(nn.Linear(inc, hidden_channels))
+                else:
+                    self.skip_projs.append(nn.Identity())
 
 
 # =========================================================================
@@ -162,6 +189,7 @@ def build_model(arch, in_channels, edge_attr_dim=0, **kwargs):
         in_channels: number of node input features
         edge_attr_dim: number of edge attributes (used by GAT)
         **kwargs: forwarded to model constructor
+                  (hidden_channels, num_layers, dropout, num_classes, use_residual)
     """
     if arch not in MODEL_REGISTRY:
         raise ValueError("Unknown architecture '%s'. Choose from: %s" %
