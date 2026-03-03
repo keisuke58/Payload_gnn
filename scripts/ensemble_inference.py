@@ -57,6 +57,9 @@ BASELINE_FOLD_DIRS = [
 DATA_DIR = os.path.join(PROJECT_ROOT, 'data', 'processed_s12_czm_thermal_200_binary')
 
 
+DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+
 def load_fold_model(fold_dir):
     """Load a single fold model."""
     ckpt_path = os.path.join(fold_dir, 'best_model.pt')
@@ -78,6 +81,7 @@ def load_fold_model(fold_dir):
     )
     model.load_state_dict(ckpt['model_state_dict'])
     model.eval()
+    model.to(DEVICE)
     return model
 
 
@@ -92,12 +96,15 @@ def ensemble_predict(models, val_data, node_mean, node_std):
         x = graph.x.clone()
         if node_mean is not None:
             x = (x - node_mean) / node_std.clamp(min=1e-8)
+        x = x.to(DEVICE)
+        ei = graph.edge_index.to(DEVICE)
+        ea = graph.edge_attr.to(DEVICE) if graph.edge_attr is not None else None
 
         # Average across models
         prob_sum = np.zeros(graph.x.shape[0], dtype=np.float64)
         for model in models:
-            logits = model(x, graph.edge_index, graph.edge_attr, None)
-            probs = F.softmax(logits, dim=1)[:, 1].numpy()
+            logits = model(x, ei, ea, None)
+            probs = F.softmax(logits, dim=1)[:, 1].cpu().numpy()
             prob_sum += probs
         avg_probs = (prob_sum / len(models)).astype(np.float32)
 
@@ -373,8 +380,11 @@ def main():
             x = graph.x.clone()
             if node_mean is not None:
                 x = (x - node_mean) / node_std.clamp(min=1e-8)
+            x = x.to(DEVICE)
+            ei = graph.edge_index.to(DEVICE)
+            ea = graph.edge_attr.to(DEVICE) if graph.edge_attr is not None else None
             mean_p, std_p, _ = ensemble_predict_with_uncertainty(
-                models, x, graph.edge_index, graph.edge_attr)
+                models, x, ei, ea)
             all_ens_probs.append(mean_p)
             all_ens_std.append(std_p)
             all_targets_unc.append(graph.y.numpy())
@@ -411,8 +421,11 @@ def main():
             x = graph.x.clone()
             if node_mean is not None:
                 x = (x - node_mean) / node_std.clamp(min=1e-8)
+            x = x.to(DEVICE)
+            ei = graph.edge_index.to(DEVICE)
+            ea = graph.edge_attr.to(DEVICE) if graph.edge_attr is not None else None
             mean_p, total_s, epi_s, _ = ensemble_mc_predict(
-                models, x, graph.edge_index, graph.edge_attr, T=args.mc_T)
+                models, x, ei, ea, T=args.mc_T)
             all_mc_probs.append(mean_p)
             all_mc_total.append(total_s)
             all_mc_epi.append(epi_s)
