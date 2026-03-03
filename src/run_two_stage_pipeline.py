@@ -35,8 +35,14 @@ os.chdir(PROJECT_ROOT)
 sys.path.insert(0, os.path.join(PROJECT_ROOT, "src"))
 
 
+PYTHON = sys.executable
+
+
 def run_cmd(cmd, desc=""):
     """Run a shell command and stream output."""
+    # Replace 'python' with the current interpreter path
+    if cmd.startswith("python "):
+        cmd = PYTHON + cmd[6:]
     print("\n" + "=" * 60)
     print("PHASE: %s" % desc)
     print("CMD: %s" % cmd)
