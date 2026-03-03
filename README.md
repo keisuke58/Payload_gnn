@@ -40,6 +40,15 @@ The **H3 F8 accident (Dec 2025)** identified CFRP/Al-Honeycomb interface debondi
 
 ---
 
+## 🎥 H3 Rocket Launch (JAXA)
+
+<div align="center">
+  <video src="docs/videos/clips/H3_TF2_Clip_00-58_to_01-31.mp4" controls width="80%"></video>
+  <p><em>H3 Rocket Test Flight No.2 Lift-off (Source: <a href="https://jda.jaxa.jp/">JAXA Digital Archives</a>)</em></p>
+</div>
+
+---
+
 ## ✨ Features
 
 - **Geometry-Aware Graph Construction**: Surface normals, principal curvature, geodesic distance — no UV-mapping distortion

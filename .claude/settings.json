@@ -11,7 +11,9 @@
       "Bash(export DISPLAY=:99)",
       "Bash(export PATH=/home/nishioka/DassaultSystemes/SIMULIA/Commands:$PATH)",
       "Bash(abaqus cae noGUI=src/generate_ground_truth.py -- --job Job-GT-D002 --defect gt_defect_d002.json)",
-      "Bash(git push origin main)"
+      "Bash(git push origin main)",
+      "Bash(python3 -c \"import json; data = json.load\\(open\\(''/home/nishioka/Payload2026/doe_realistic_25mm_100.json''\\)\\); print\\(''Keys:'', data.keys\\(\\)\\); print\\(''Defect types:'', data.get\\(''defect_types'', []\\)\\); print\\(''Type counts:'', data.get\\(''type_counts'', {}\\)\\); print\\(''N total:'', data.get\\(''n_total''\\)\\); print\\(''N healthy:'', data.get\\(''n_healthy''\\)\\); print\\(''N defective:'', data.get\\(''n_defective''\\)\\)\")",
+      "Bash(du -sh /home/nishioka/Payload2026/dataset_realistic_25mm_100/sample_0000/*.csv)"
     ]
   }
 }
