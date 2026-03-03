@@ -2,7 +2,7 @@
 
 # Physics-Residual Anomaly Detection (PRAD)
 
-> **Status**: Stage 1+2 完了 — **ROC-AUC 0.992 / F1 0.775** (Stage 1)、**蒸留 R²=0.998** (Stage 2)
+> **Status**: Stage 1+2+Augmentation 完了 — **ROC-AUC 0.968 / F1 0.818** (Augmented)、**蒸留 R²=0.998** (Stage 2)
 > **Date**: 2026-03-04
 > **前提**: バイナリ GNN F1 > 0.8 達成済み
 > **方針**: 既存コード (`models.py`, `train.py` 等) に一切干渉しない。全て新規ファイルで実装。
@@ -423,6 +423,45 @@ MAE は binary (healthy/defect) で学習したが、マルチクラスラベル
 1. **6/7 タイプで ROC-AUC > 0.999** — 欠陥の種類に依らず高い検出能力
 2. **inner_debond が例外的に低い** — 内側デボンディングは外面応力場への影響が小さく、34次元特徴量から検出が困難
 3. **クラスタリングは限定的** — 残差パターンの方向性にはタイプ間の違いがあるが、ノイズが大きい
+
+### 6.7 データ増強 + スコアリング最適化
+
+**A) スコアリングパラメータ最適化** (再学習なし):
+
+7戦略 × 複数パラメータのスイープで最適スコアリングを探索:
+- Baseline (cosine + L1), Extended dims, Mahalanobis, Isolation Forest, Per-graph z-score, Max dim
+
+| パラメータ | 旧 | 最適化後 |
+|-----------|-----|---------|
+| alpha (cosine vs L1 blend) | 0.7 | **0.9** |
+| smooth_rounds | 1 | **2** |
+| smooth_alpha | 0.7 | **0.5** |
+| F1 | 0.775 | **0.795** (+0.020) |
+
+**B) Augmented Training** (DropEdge + Feature Noise + Variable Mask):
+
+学習時データ増強で MAE の汎化性能を向上:
+- DropEdge: 10% のエッジをランダム削除 → 過度な平滑化防止
+- Feature Noise: multiplicative 1% + additive 1% → センサーノイズ耐性
+- Variable Mask: マスク比を [0.3, 0.7] でランダム変更 → ロバスト再構成
+
+**重要発見: val_loss と F1 の乖離**:
+- val_loss は epoch 200 まで単調減少するが、F1 は epoch ~70-80 でピーク
+- 再構成が良すぎると欠陥ノードも正確に再構成 → 検出能力低下
+- **F1 ベースの早期停止**を導入して解決
+
+| 手法 | ROC-AUC | PR-AUC | F1 | Precision | Recall |
+|------|---------|--------|------|-----------|--------|
+| Stage 1 (元モデル, 旧スコアリング) | 0.992 | 0.708 | 0.775 | — | — |
+| Stage 1 (元モデル, 最適スコアリング) | 0.991 | 0.784 | 0.795 | 0.857 | 0.740 |
+| **Augmented + F1 早期停止** | **0.968** | **0.790** | **0.818** | **0.913** | **0.740** |
+
+**知見**:
+1. **スコアリング最適化だけで +0.020** — cosine 重み増 + 強めの graph smoothing が効果的
+2. **Augmented training で +0.023 追加** — 合計 +0.043 の改善
+3. **Precision 91.3%** — 偽陽性が非常に少ない（SHM 運用で重要）
+4. **Recall 74.0% がボトルネック** — 26% の欠陥ノードを検出できていない
+5. **F1 0.85 にはあと 0.032** — recall 改善が必要 (追加データ or アーキテクチャ改善)
 
 ---
 
