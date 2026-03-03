@@ -7,7 +7,10 @@
       "Bash(LD_LIBRARY_PATH=\"\" /usr/bin/ssh vancouver02 \"ps aux | grep train.py | grep -v grep\")",
       "Bash(LD_LIBRARY_PATH=\"\" /usr/bin/ssh frontale02 'git log --oneline -3')",
       "Bash(while read f)",
-      "Bash(do)"
+      "Bash(do)",
+      "Bash(export DISPLAY=:99)",
+      "Bash(export PATH=/home/nishioka/DassaultSystemes/SIMULIA/Commands:$PATH)",
+      "Bash(abaqus cae noGUI=src/generate_ground_truth.py -- --job Job-GT-D002 --defect gt_defect_d002.json)"
     ]
   }
 }
