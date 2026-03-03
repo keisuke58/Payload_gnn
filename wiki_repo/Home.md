@@ -40,20 +40,29 @@
 
 GNNの入力となる34次元ノード特徴量の構成。詳細は [Node-Features](Node-Features) を参照。
 
-| 特徴量マップ | カテゴリ構成 |
-|------------|-----------|
-| ![Feature Map](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/node_features/01_feature_map.png) | ![Category](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/node_features/02_category_breakdown.png) |
-
-| 欠陥 vs 健全 | パイプライン |
-|------------|-----------|
-| ![Defect vs Healthy](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/node_features/03_defect_vs_healthy.png) | ![Pipeline](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/node_features/04_pipeline_flow.png) |
+<table>
+<tr><th>特徴量マップ</th><th>カテゴリ構成</th></tr>
+<tr>
+<td><img src="https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/node_features/01_feature_map.png" width="100%"></td>
+<td><img src="https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/node_features/02_category_breakdown.png" width="100%"></td>
+</tr>
+<tr><th>欠陥 vs 健全</th><th>パイプライン</th></tr>
+<tr>
+<td><img src="https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/node_features/03_defect_vs_healthy.png" width="100%"></td>
+<td><img src="https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/node_features/04_pipeline_flow.png" width="100%"></td>
+</tr>
+</table>
 
 ## データセット可視化
 最新のデータセット (N=99) の分布状況。詳細は [Dataset-Generation-Status](Dataset-Generation-Status) を参照。
 
-| 空間分布 | 欠陥サイズ分布 |
-|----------|----------------|
-| ![Spatial](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/dataset_summary/01_spatial_distribution.png) | ![Radius](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/dataset_summary/02_radius_distribution.png) |
+<table>
+<tr><th>空間分布</th><th>欠陥サイズ分布</th></tr>
+<tr>
+<td><img src="https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/dataset_summary/01_spatial_distribution.png" width="100%"></td>
+<td><img src="https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/dataset_summary/02_radius_distribution.png" width="100%"></td>
+</tr>
+</table>
 
 ## 目次
 
@@ -249,11 +258,11 @@ H3 フェアリングの製造には 2 つの革新技術が導入された:
 
 **2D 断面 (R-z)**
 
-![Fairing 2D cross-section](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/fairing_h3_check.png)
+<img src="https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/fairing_h3_check.png" width="100%">
 
 **3D 表示 (1/6 セクション)**
 
-![Fairing 3D view](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/fairing_3d.png)
+<img src="https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/fairing_3d.png" width="100%">
 
 可視化スクリプト:
 ```bash
@@ -421,7 +430,7 @@ python src/run_batch.py --doe doe_phase1.json --output_dir dataset_output
 
 ### 6.2 ノード特徴量設計 (34次元)
 
-![34次元特徴量マップ](https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/node_features/01_feature_map.png)
+<img src="https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/node_features/01_feature_map.png" width="100%">
 
 | # | 特徴量 | 次元 | 物理的意味 |
 | :---: | :--- | :---: | :--- |
