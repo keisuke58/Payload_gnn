@@ -434,7 +434,14 @@ def fig_c_3d_fairing(results, out_dir):
     targets = best['targets']
     probs = best['probs']
 
-    fig = plt.figure(figsize=(16, 6))
+    fig = plt.figure(figsize=(18, 10))
+
+    # Compute real-scale box aspect ratio from data extents
+    x_range = pos[:, 0].max() - pos[:, 0].min()
+    y_range = pos[:, 1].max() - pos[:, 1].min()
+    z_range = pos[:, 2].max() - pos[:, 2].min()
+    # Avoid zero range
+    ranges = np.array([max(x_range, 1.0), max(y_range, 1.0), max(z_range, 1.0)])
 
     # (a) GT 3D
     ax1 = fig.add_subplot(131, projection='3d')
@@ -489,9 +496,10 @@ def fig_c_3d_fairing(results, out_dir):
     ax3.set_zlabel('Z [mm]', fontsize=8, labelpad=0)
     ax3.tick_params(labelsize=6)
 
-    # Set same view angle
+    # Set same view angle and real-scale aspect ratio
     for ax in [ax1, ax2, ax3]:
-        ax.view_init(elev=25, azim=-60)
+        ax.set_box_aspect(ranges)
+        ax.view_init(elev=20, azim=-65)
 
     fig.suptitle('3D Fairing Defect Visualization — Sample %d (1/12 Sector, F1 = %.3f)' % (
         best['idx'], best['f1']),
