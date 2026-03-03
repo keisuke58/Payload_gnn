@@ -43,9 +43,15 @@
 
 ## 4. 3Dフェアリング表示 (Fig C)
 
-1/12セクター円筒シェル上での欠陥分布を3次元で可視化。
+1/12セクター円筒シェル上での欠陥分布を3次元で可視化。実寸比（`set_box_aspect`）で描画。
 
 ![3D Fairing](images/paper/fig_c_3d_fairing.png)
+
+### 視野角バリエーション
+
+| View A: 斜め (elev=20, azim=-65) | View B: 側面 (elev=10, azim=-80) | View C: 俯瞰 (elev=35, azim=-45) |
+|:---:|:---:|:---:|
+| ![View A](images/paper/fig_c_3d_fairing_view_A.png) | ![View B](images/paper/fig_c_3d_fairing_view_B.png) | ![View C](images/paper/fig_c_3d_fairing_view_C.png) |
 
 ---
 
