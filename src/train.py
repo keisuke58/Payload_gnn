@@ -131,6 +131,103 @@ def add_feature_noise(x, noise_std):
     return x + torch.randn_like(x) * noise_std
 
 
+def mask_features(x, mask_rate):
+    """Randomly zero out feature dimensions during training.
+
+    Args:
+        x: (N, D) node features
+        mask_rate: probability of masking each element
+    """
+    if mask_rate <= 0:
+        return x
+    mask = torch.rand_like(x) >= mask_rate
+    return x * mask.float()
+
+
+def circumferential_flip(data):
+    """Apply circumferential flip exploiting fairing axial symmetry.
+
+    Negates x,z position/normal/fiber components and circumferential angle.
+    Feature dims (from build_graph.py):
+      0,2: x,z | 3,5: nx,nz | 24,26: fiber_x,z | 31: θ
+    """
+    x = data.x.clone()
+    for dim in (0, 2, 3, 5, 24, 26, 31):
+        x[:, dim] = -x[:, dim]
+    data = data.clone()
+    data.x = x
+    # Also flip edge relative position (dx, dz) — dims 0, 2 of edge_attr
+    if data.edge_attr is not None:
+        ea = data.edge_attr.clone()
+        ea[:, 0] = -ea[:, 0]
+        if ea.shape[1] > 2:
+            ea[:, 2] = -ea[:, 2]
+        data.edge_attr = ea
+    return data
+
+
+# =========================================================================
+# Physics-informed loss functions
+# =========================================================================
+def spatial_smoothness_loss(logits, edge_index):
+    """Laplacian smoothness on P(defect) between adjacent nodes.
+
+    Penalizes difference in defect probability between neighbors,
+    reducing isolated false positive predictions.
+    """
+    probs = F.softmax(logits, dim=1)[:, 1]
+    src, dst = edge_index[0], edge_index[1]
+    diff = probs[src] - probs[dst]
+    return (diff ** 2).mean()
+
+
+def stress_gradient_loss(logits, x, edge_index, stress_dim=18):
+    """Penalize defect predictions at nodes with low stress gradient.
+
+    Physical rationale: debonding defects cause local stress concentrations.
+    If stress is uniform around a node, it is unlikely a defect boundary.
+    """
+    probs = F.softmax(logits, dim=1)[:, 1]
+    stress = x[:, stress_dim]
+
+    src, dst = edge_index[0], edge_index[1]
+    stress_diff = torch.abs(stress[src] - stress[dst])
+
+    # Max stress gradient per node
+    max_grad = torch.zeros(x.shape[0], device=x.device)
+    max_grad.scatter_reduce_(0, src, stress_diff, reduce='amax', include_self=False)
+
+    # Normalize to [0, 1]
+    grad_max = max_grad.max()
+    max_grad_norm = max_grad / (grad_max + 1e-8) if grad_max > 0 else max_grad
+
+    # Penalize: high P(defect) at low-gradient nodes
+    penalty = probs * (1.0 - max_grad_norm)
+    return penalty.mean()
+
+
+def connected_component_penalty(logits, edge_index):
+    """Penalize isolated defect predictions (neighbors not predicted as defect).
+
+    Differentiable approximation: for each node, compute average P(defect)
+    of its neighbors. Penalize when a node has high P(defect) but neighbors
+    do not.
+    """
+    probs = F.softmax(logits, dim=1)[:, 1]
+    src, dst = edge_index[0], edge_index[1]
+
+    neighbor_prob_sum = torch.zeros(logits.shape[0], device=logits.device)
+    degree = torch.zeros(logits.shape[0], device=logits.device)
+    neighbor_prob_sum.scatter_add_(0, src, probs[dst])
+    degree.scatter_add_(0, src, torch.ones_like(probs[dst]))
+
+    avg_neighbor_prob = neighbor_prob_sum / (degree + 1e-8)
+
+    # Node has high P(defect) but neighbors have low P(defect)
+    isolation_score = probs * (1.0 - avg_neighbor_prob)
+    return isolation_score.mean()
+
+
 # =========================================================================
 # Metrics
 # =========================================================================
@@ -206,17 +303,29 @@ def _compute_weighted_loss(criterion, out, y, node_weights):
 
 def train_epoch(model, loader, optimizer, criterion, device, num_classes=2,
                 boundary_weight=1.0, defect_weight=1.0,
-                drop_edge_rate=0.0, feature_noise_std=0.0):
+                drop_edge_rate=0.0, feature_noise_std=0.0,
+                feature_mask_rate=0.0, flip_prob=0.0,
+                lambda_smooth=0.0, lambda_stress=0.0, lambda_connected=0.0,
+                stress_dim=18):
     model.train()
     total_loss = 0.0
+    total_physics = {'smooth': 0.0, 'stress': 0.0, 'connected': 0.0}
     all_logits, all_targets = [], []
     use_node_weights = (boundary_weight > 1.0 or defect_weight > 1.0)
+    n_batches = 0
 
     for batch in loader:
         batch = batch.to(device)
         optimizer.zero_grad()
-        # Augmentation
-        x = add_feature_noise(batch.x, feature_noise_std) if feature_noise_std > 0 else batch.x
+        # Augmentation: circumferential flip
+        if flip_prob > 0 and torch.rand(1).item() < flip_prob:
+            batch = circumferential_flip(batch)
+        # Augmentation: feature noise + masking
+        x = batch.x
+        if feature_noise_std > 0:
+            x = add_feature_noise(x, feature_noise_std)
+        if feature_mask_rate > 0:
+            x = mask_features(x, feature_mask_rate)
         ei, ea = drop_edge(batch.edge_index, batch.edge_attr, drop_edge_rate) if drop_edge_rate > 0 else (batch.edge_index, batch.edge_attr)
         out = model(x, ei, ea, batch.batch)
         if use_node_weights:
@@ -224,38 +333,65 @@ def train_epoch(model, loader, optimizer, criterion, device, num_classes=2,
             loss = _compute_weighted_loss(criterion, out, batch.y, node_w)
         else:
             loss = criterion(out, batch.y)
+        # Physics-informed losses
+        if lambda_smooth > 0:
+            l_s = spatial_smoothness_loss(out, ei)
+            loss = loss + lambda_smooth * l_s
+            total_physics['smooth'] += l_s.item()
+        if lambda_stress > 0:
+            l_st = stress_gradient_loss(out, x, ei, stress_dim=stress_dim)
+            loss = loss + lambda_stress * l_st
+            total_physics['stress'] += l_st.item()
+        if lambda_connected > 0:
+            l_c = connected_component_penalty(out, ei)
+            loss = loss + lambda_connected * l_c
+            total_physics['connected'] += l_c.item()
         loss.backward()
         optimizer.step()
 
         total_loss += loss.item() * batch.num_graphs
         all_logits.append(out.detach())
         all_targets.append(batch.y.detach())
+        n_batches += 1
 
     avg_loss = total_loss / len(loader.dataset)
     logits_cat = torch.cat(all_logits, dim=0)
     targets_cat = torch.cat(all_targets, dim=0)
     metrics = compute_metrics(logits_cat, targets_cat, num_classes=num_classes)
     metrics['loss'] = avg_loss
+    # Average physics losses for logging
+    for k, v in total_physics.items():
+        if v > 0:
+            metrics['physics_%s' % k] = v / n_batches
     return metrics
 
 
 def train_epoch_subgraph(model, train_data, sampler, optimizer, criterion,
                          device, num_classes=2, drop_edge_rate=0.0,
                          feature_noise_std=0.0,
-                         boundary_weight=1.0, defect_weight=1.0):
+                         boundary_weight=1.0, defect_weight=1.0,
+                         feature_mask_rate=0.0,
+                         lambda_smooth=0.0, lambda_stress=0.0,
+                         lambda_connected=0.0, stress_dim=18):
     """Training epoch with defect-centric sub-graph sampling."""
     model.train()
     total_loss = 0.0
     total_nodes = 0
+    total_physics = {'smooth': 0.0, 'stress': 0.0, 'connected': 0.0}
     all_logits, all_targets = [], []
     use_node_weights = (boundary_weight > 1.0 or defect_weight > 1.0)
+    n_batches = 0
 
     for graph in train_data:
         subgraphs = sampler.sample(graph)
         for sg in subgraphs:
             sg = sg.to(device)
             optimizer.zero_grad()
-            x = add_feature_noise(sg.x, feature_noise_std) if feature_noise_std > 0 else sg.x
+            x = sg.x
+            if feature_noise_std > 0:
+                x = add_feature_noise(x, feature_noise_std)
+            if feature_mask_rate > 0:
+                x = mask_features(x, feature_mask_rate)
             ei, ea = drop_edge(sg.edge_index, sg.edge_attr, drop_edge_rate) if drop_edge_rate > 0 else (sg.edge_index, sg.edge_attr)
             out = model(x, ei, ea, None)
             if use_node_weights:
@@ -263,6 +399,19 @@ def train_epoch_subgraph(model, train_data, sampler, optimizer, criterion,
                 loss = _compute_weighted_loss(criterion, out, sg.y, node_w)
             else:
                 loss = criterion(out, sg.y)
+            # Physics-informed losses
+            if lambda_smooth > 0:
+                l_s = spatial_smoothness_loss(out, ei)
+                loss = loss + lambda_smooth * l_s
+                total_physics['smooth'] += l_s.item()
+            if lambda_stress > 0:
+                l_st = stress_gradient_loss(out, x, ei, stress_dim=stress_dim)
+                loss = loss + lambda_stress * l_st
+                total_physics['stress'] += l_st.item()
+            if lambda_connected > 0:
+                l_c = connected_component_penalty(out, ei)
+                loss = loss + lambda_connected * l_c
+                total_physics['connected'] += l_c.item()
             loss.backward()
             optimizer.step()
 
@@ -271,12 +420,16 @@ def train_epoch_subgraph(model, train_data, sampler, optimizer, criterion,
             total_nodes += n
             all_logits.append(out.detach())
             all_targets.append(sg.y.detach())
+            n_batches += 1
 
     avg_loss = total_loss / max(total_nodes, 1)
     logits_cat = torch.cat(all_logits, dim=0)
     targets_cat = torch.cat(all_targets, dim=0)
     metrics = compute_metrics(logits_cat, targets_cat, num_classes=num_classes)
     metrics['loss'] = avg_loss
+    for k, v in total_physics.items():
+        if v > 0:
+            metrics['physics_%s' % k] = v / max(n_batches, 1)
     return metrics
 
 
@@ -455,6 +608,10 @@ def train(args, train_data, val_data, fold=None):
             aug_parts.append("DropEdge=%.2f" % args.drop_edge)
         if getattr(args, 'feature_noise', 0) > 0:
             aug_parts.append("FeatureNoise=%.3f" % args.feature_noise)
+        if getattr(args, 'feature_mask', 0) > 0:
+            aug_parts.append("FeatureMask=%.2f" % args.feature_mask)
+        if getattr(args, 'augment_flip', 0) > 0:
+            aug_parts.append("CircumFlip=%.2f" % args.augment_flip)
         if aug_parts:
             print("Augmentation: %s" % ', '.join(aug_parts))
         weight_parts = []
@@ -464,6 +621,17 @@ def train(args, train_data, val_data, fold=None):
             weight_parts.append("defect=%.1f" % args.defect_weight)
         if weight_parts:
             print("Node weights: %s" % ', '.join(weight_parts))
+        # Physics-informed loss info
+        physics_parts = []
+        if getattr(args, 'physics_lambda_smooth', 0) > 0:
+            physics_parts.append("smooth=%.3f" % args.physics_lambda_smooth)
+        if getattr(args, 'physics_lambda_stress', 0) > 0:
+            physics_parts.append("stress=%.3f" % args.physics_lambda_stress)
+        if getattr(args, 'physics_lambda_connected', 0) > 0:
+            physics_parts.append("connected=%.3f" % args.physics_lambda_connected)
+        if physics_parts:
+            print("Physics loss: %s (stress_dim=%d)" % (
+                ', '.join(physics_parts), getattr(args, 'stress_dim', 18)))
 
     # Logging (main process only)
     fold_str = '_fold%d' % fold if fold is not None else ''
@@ -492,19 +660,31 @@ def train(args, train_data, val_data, fold=None):
             train_sampler.set_epoch(epoch)
         de_rate = getattr(args, 'drop_edge', 0.0)
         fn_std = getattr(args, 'feature_noise', 0.0)
+        fm_rate = getattr(args, 'feature_mask', 0.0)
+        flip_p = getattr(args, 'augment_flip', 0.0)
         bw = getattr(args, 'boundary_weight', 1.0)
         dw = getattr(args, 'defect_weight', 1.0)
+        ls = getattr(args, 'physics_lambda_smooth', 0.0)
+        lst = getattr(args, 'physics_lambda_stress', 0.0)
+        lc = getattr(args, 'physics_lambda_connected', 0.0)
+        sd = getattr(args, 'stress_dim', 18)
         if use_subgraph:
             train_m = train_epoch_subgraph(
                 model, train_data, sampler, optimizer, criterion,
                 device, num_classes=num_classes,
                 drop_edge_rate=de_rate, feature_noise_std=fn_std,
-                boundary_weight=bw, defect_weight=dw)
+                boundary_weight=bw, defect_weight=dw,
+                feature_mask_rate=fm_rate,
+                lambda_smooth=ls, lambda_stress=lst,
+                lambda_connected=lc, stress_dim=sd)
         else:
             train_m = train_epoch(model, train_loader, optimizer, criterion, device,
                                    num_classes=num_classes,
                                    boundary_weight=bw, defect_weight=dw,
-                                   drop_edge_rate=de_rate, feature_noise_std=fn_std)
+                                   drop_edge_rate=de_rate, feature_noise_std=fn_std,
+                                   feature_mask_rate=fm_rate, flip_prob=flip_p,
+                                   lambda_smooth=ls, lambda_stress=lst,
+                                   lambda_connected=lc, stress_dim=sd)
         val_m = eval_epoch(model, val_loader, criterion, device, num_classes=num_classes)
         scheduler.step()
         elapsed = time.time() - t0
@@ -530,6 +710,10 @@ def train(args, train_data, val_data, fold=None):
                 tb_writer.add_scalar('val/precision', val_m['precision'], epoch)
                 tb_writer.add_scalar('val/recall', val_m['recall'], epoch)
                 tb_writer.add_scalar('lr', lr, epoch)
+                # Physics-informed loss components
+                for pk in ('physics_smooth', 'physics_stress', 'physics_connected'):
+                    if pk in train_m:
+                        tb_writer.add_scalar('physics/%s' % pk, train_m[pk], epoch)
                 if num_classes > 2:
                     for c in range(num_classes):
                         name = DEFECT_TYPE_NAMES[c] if c < len(DEFECT_TYPE_NAMES) else 'class_%d' % c
@@ -697,6 +881,19 @@ def main():
                         help='DropEdge rate: fraction of edges to drop per epoch (0=off)')
     parser.add_argument('--feature_noise', type=float, default=0.0,
                         help='Gaussian noise std added to node features per epoch (0=off)')
+    parser.add_argument('--feature_mask', type=float, default=0.0,
+                        help='Random feature masking rate (0=off)')
+    parser.add_argument('--augment_flip', type=float, default=0.0,
+                        help='Probability of circumferential flip per batch (0=off)')
+    # Physics-informed loss
+    parser.add_argument('--physics_lambda_smooth', type=float, default=0.0,
+                        help='Laplacian smoothness loss weight (0=off)')
+    parser.add_argument('--physics_lambda_stress', type=float, default=0.0,
+                        help='Stress gradient consistency loss weight (0=off)')
+    parser.add_argument('--physics_lambda_connected', type=float, default=0.0,
+                        help='Connected component penalty weight (0=off)')
+    parser.add_argument('--stress_dim', type=int, default=18,
+                        help='Feature dim index for von Mises stress (default: 18)')
     # Node-level loss weighting
     parser.add_argument('--boundary_weight', type=float, default=1.0,
                         help='Weight multiplier for boundary nodes (healthy adjacent to defect)')
