@@ -28,6 +28,11 @@ from caeModules import *
 from mesh import ElemType
 from driverUtils import executeOnCaeStartup
 
+# Add src/ to path for manufacturing_variability import
+_src_dir = os.path.dirname(os.path.abspath(__file__))
+if _src_dir not in sys.path:
+    sys.path.insert(0, _src_dir)
+
 executeOnCaeStartup()
 
 # ==============================================================================
@@ -163,6 +168,13 @@ G_ACCEL = 9810.0
 SECTOR_ANGLE = 45.0   # degrees (1/8 of full fairing)
 
 # ==============================================================================
+# CZM MODE
+# ==============================================================================
+# True  = 3-part model (InnerSkin|Core|OuterSkin) with surface-based CZM contact
+# False = 5-part model (legacy, COH3D8->C3D8R workaround, no real CZM)
+USE_SURFACE_CZM = True
+
+# ==============================================================================
 # DOUBLER REINFORCEMENT ZONES
 # ==============================================================================
 # 16-ply (2mm) reinforcement at key frame junctions
@@ -177,11 +189,13 @@ DOUBLER_THICKNESS = FACE_T * 2.0  # 2.0 mm (double normal skin)
 # ==============================================================================
 # OGIVE STRINGER
 # ==============================================================================
-STRINGER_THETA = 15.0       # degrees (sector center)
+STRINGER_THETA = 15.0       # degrees (sector center) — used for single-stringer 45deg
 STRINGER_HEIGHT = 30.0      # mm (rib height, radially outward)
 STRINGER_THICKNESS = 2.0    # mm
 STRINGER_Z_START = H_BARREL          # 5000 mm (barrel-ogive junction)
 STRINGER_Z_END = TOTAL_HEIGHT - 500  # 9900 mm (before nose tip)
+# For 360 deg: 4 stringers at 90-degree intervals on ogive
+STRINGER_THETAS_360 = [0.0, 90.0, 180.0, 270.0]
 
 # ==============================================================================
 # MESH
@@ -196,7 +210,7 @@ BOUNDARY_MARGIN = 30.0
 # ==============================================================================
 # SOLVER MEMORY
 # ==============================================================================
-SOLVER_MEMORY = '8 gb'
+SOLVER_MEMORY = '32 gb' if SECTOR_ANGLE >= 360.0 else '8 gb'
 
 # ==============================================================================
 # OPENING DEFINITIONS
@@ -241,6 +255,24 @@ OPENINGS_PHASE2 = [
         'z_center': 300.0,
         'diameter': 100.0,
     },
+]
+
+# Full 360 degree openings (realistic H3 fairing layout)
+OPENINGS_360 = [
+    # Access doors (2, opposing sides)
+    {'name': 'AccessDoor_1', 'theta_deg': 22.5, 'z_center': 1500.0, 'diameter': 1300.0},
+    {'name': 'AccessDoor_2', 'theta_deg': 202.5, 'z_center': 1500.0, 'diameter': 1300.0},
+    # HVAC doors (2, 90 deg offset)
+    {'name': 'HVAC_1', 'theta_deg': 112.5, 'z_center': 2500.0, 'diameter': 400.0},
+    {'name': 'HVAC_2', 'theta_deg': 292.5, 'z_center': 2500.0, 'diameter': 400.0},
+    # RF windows (2, barrel region, opposing)
+    {'name': 'RF_Window_1', 'theta_deg': 67.5, 'z_center': 4000.0, 'diameter': 400.0},
+    {'name': 'RF_Window_2', 'theta_deg': 247.5, 'z_center': 4000.0, 'diameter': 400.0},
+    # Vent holes (4, equally spaced, near base)
+    {'name': 'Vent_1', 'theta_deg': 45.0, 'z_center': 300.0, 'diameter': 100.0},
+    {'name': 'Vent_2', 'theta_deg': 135.0, 'z_center': 300.0, 'diameter': 100.0},
+    {'name': 'Vent_3', 'theta_deg': 225.0, 'z_center': 300.0, 'diameter': 100.0},
+    {'name': 'Vent_4', 'theta_deg': 315.0, 'z_center': 300.0, 'diameter': 100.0},
 ]
 
 # ==============================================================================
@@ -336,25 +368,56 @@ def is_cell_in_defect_zone(cell, defect_params, openings=None):
 # MATERIALS AND SECTIONS (Base)
 # ==============================================================================
 
-def create_materials(model):
-    """Define CFRP, Honeycomb, frame, and void materials."""
+def create_materials(model, cfrp_props=None, core_props=None):
+    """Define CFRP, Honeycomb, frame, and void materials.
+
+    Args:
+        cfrp_props: dict with keys E1,E2,NU12,G12,G13,G23,CTE_11,CTE_22,density
+                    (from ManufacturingVariability.perturb_cfrp). None = nominal.
+        core_props: dict with keys E1..E3,NU12..NU23,G12..G23,CTE,density
+                    (from ManufacturingVariability.perturb_core). None = nominal.
+    """
+    # CFRP face sheet
+    c = cfrp_props or {}
+    _e1 = c.get('E1', E1)
+    _e2 = c.get('E2', E2)
+    _nu12 = c.get('NU12', NU12)
+    _g12 = c.get('G12', G12)
+    _g13 = c.get('G13', G13)
+    _g23 = c.get('G23', G23)
+    _cte11 = c.get('CTE_11', CFRP_CTE_11)
+    _cte22 = c.get('CTE_22', CFRP_CTE_22)
+    _cfrp_rho = c.get('density', CFRP_DENSITY)
+
     mat = model.Material(name='CFRP_T1000G')
-    mat.Elastic(type=LAMINA, table=((E1, E2, NU12, G12, G13, G23),))
-    mat.Density(table=((CFRP_DENSITY,),))
-    mat.Expansion(table=((CFRP_CTE_11, CFRP_CTE_22, 0.0),))
+    mat.Elastic(type=LAMINA, table=((_e1, _e2, _nu12, _g12, _g13, _g23),))
+    mat.Density(table=((_cfrp_rho,),))
+    mat.Expansion(table=((_cte11, _cte22, 0.0),))
+
+    # Honeycomb core
+    k = core_props or {}
+    _ce1 = k.get('E1', E_CORE_1)
+    _ce2 = k.get('E2', E_CORE_2)
+    _ce3 = k.get('E3', E_CORE_3)
+    _cnu12 = k.get('NU12', NU_CORE_12)
+    _cnu13 = k.get('NU13', NU_CORE_13)
+    _cnu23 = k.get('NU23', NU_CORE_23)
+    _cg12 = k.get('G12', G_CORE_12)
+    _cg13 = k.get('G13', G_CORE_13)
+    _cg23 = k.get('G23', G_CORE_23)
+    _ccte = k.get('CTE', CORE_CTE)
+    _core_rho = k.get('density', CORE_DENSITY)
 
     mat = model.Material(name='AL_HONEYCOMB')
     mat.Elastic(type=ENGINEERING_CONSTANTS, table=((
-        E_CORE_1, E_CORE_2, E_CORE_3,
-        NU_CORE_12, NU_CORE_13, NU_CORE_23,
-        G_CORE_12, G_CORE_13, G_CORE_23
+        _ce1, _ce2, _ce3, _cnu12, _cnu13, _cnu23, _cg12, _cg13, _cg23
     ),))
-    mat.Density(table=((CORE_DENSITY,),))
-    mat.Expansion(table=((CORE_CTE,),))
+    mat.Density(table=((_core_rho,),))
+    mat.Expansion(table=((_ccte,),))
 
     mat = model.Material(name='CFRP_FRAME')
     mat.Elastic(type=ISOTROPIC, table=((70000.0, 0.3),))
-    mat.Density(table=((CFRP_DENSITY,),))
+    mat.Density(table=((_cfrp_rho,),))
     mat.Expansion(table=((2e-6,),))  # quasi-isotropic effective CTE for frame
 
     mat = model.Material(name='VOID')
@@ -363,11 +426,18 @@ def create_materials(model):
     mat.Expansion(table=((0.0,),))
 
 
-def create_sections(model):
-    """Create shell and solid sections for healthy, void, and frame."""
-    angles = [45.0, 0.0, -45.0, 90.0, 90.0, -45.0, 0.0, 45.0]
+def create_sections(model, ply_angles_8=None, face_t=None):
+    """Create shell and solid sections for healthy, void, and frame.
+
+    Args:
+        ply_angles_8: list of 8 ply angles (degrees). None = nominal [45,0,-45,90]s.
+        face_t: face sheet thickness (mm). None = nominal FACE_T.
+    """
+    angles = ply_angles_8 if ply_angles_8 is not None else \
+        [45.0, 0.0, -45.0, 90.0, 90.0, -45.0, 0.0, 45.0]
+    _ft = face_t if face_t is not None else FACE_T
     entries = [section.SectionLayer(
-        thickness=FACE_T / 8.0, orientAngle=ang, material='CFRP_T1000G')
+        thickness=_ft / 8.0, orientAngle=ang, material='CFRP_T1000G')
         for ang in angles]
     model.CompositeShellSection(
         name='Section-CFRP-Skin', preIntegrate=OFF,
@@ -388,10 +458,11 @@ def create_sections(model):
         name='Section-Void-Solid', material='VOID')
 
     # --- Ground Truth: Doubler section (16-ply) ---
-    angles_16 = [45.0, 0.0, -45.0, 90.0, 90.0, -45.0, 0.0, 45.0,
-                 45.0, 0.0, -45.0, 90.0, 90.0, -45.0, 0.0, 45.0]
+    # Double the 8-ply layup
+    angles_16 = list(angles) + list(angles)
+    _dblr_t = DOUBLER_THICKNESS * (_ft / FACE_T) if face_t else DOUBLER_THICKNESS
     doubler_entries = [section.SectionLayer(
-        thickness=DOUBLER_THICKNESS / float(DOUBLER_PLY_COUNT),
+        thickness=_dblr_t / float(DOUBLER_PLY_COUNT),
         orientAngle=ang, material='CFRP_T1000G')
         for ang in angles_16]
     model.CompositeShellSection(
@@ -681,6 +752,813 @@ def create_adhesive_sections(model, adh_t):
         initialThickness=adh_t)
 
     print("Adhesive sections created (Healthy, Damaged, PartialDamage, Void)")
+
+
+# ==============================================================================
+# SURFACE-BASED CZM: CONTACT PROPERTIES
+# ==============================================================================
+
+def create_contact_properties(model, czm_params):
+    """Create ContactProperty definitions with surface-based cohesive behavior.
+
+    Replaces solid adhesive elements (COH3D8/C3D8R) with contact-based CZM.
+    This avoids element distortion issues on thin curved adhesive layers while
+    providing true traction-separation + damage evolution behavior.
+    """
+    Kn = czm_params['Kn']
+    Ks = czm_params['Ks']
+    tn = czm_params['tn']
+    ts = czm_params['ts']
+    GIc = czm_params['GIc']
+    GIIc = czm_params['GIIc']
+    BK_eta = czm_params['BK_eta']
+
+    # Healthy cohesive property (traction-separation + BK damage)
+    prop = model.ContactProperty('IntProp-CZM-Healthy')
+    prop.NormalBehavior(
+        pressureOverclosure=HARD, allowSeparation=ON,
+        constraintEnforcementMethod=DEFAULT)
+    prop.TangentialBehavior(formulation=FRICTIONLESS)
+    prop.CohesiveBehavior(
+        defaultPenalties=OFF,
+        table=((Kn, Ks, Ks),))
+    prop.Damage(
+        initTable=((tn, ts, ts),),
+        useEvolution=ON,
+        evolutionType=ENERGY,
+        evolTable=((GIc, GIIc, GIIc),),
+        useMixedMode=ON,
+        mixedModeType=BK,
+        exponent=BK_eta)
+    print("  IntProp-CZM-Healthy: Kn=%.0e Ks=%.0e tn=%.0f ts=%.0f "
+          "GIc=%.2f GIIc=%.2f" % (Kn, Ks, tn, ts, GIc, GIIc))
+
+    # Damaged (pre-debonded): minimal cohesion, allows separation
+    prop_d = model.ContactProperty('IntProp-CZM-Damaged')
+    prop_d.NormalBehavior(
+        pressureOverclosure=HARD, allowSeparation=ON,
+        constraintEnforcementMethod=DEFAULT)
+    prop_d.TangentialBehavior(formulation=FRICTIONLESS)
+    print("  IntProp-CZM-Damaged: frictionless contact (pre-debonded)")
+
+    # Partial damage (impact): reduced CZM strength
+    prop_p = model.ContactProperty('IntProp-CZM-Partial')
+    prop_p.NormalBehavior(
+        pressureOverclosure=HARD, allowSeparation=ON,
+        constraintEnforcementMethod=DEFAULT)
+    prop_p.TangentialBehavior(formulation=FRICTIONLESS)
+    prop_p.CohesiveBehavior(
+        defaultPenalties=OFF,
+        table=((Kn / 10.0, Ks / 10.0, Ks / 10.0),))
+    prop_p.Damage(
+        initTable=((tn * 0.3, ts * 0.3, ts * 0.3),),
+        useEvolution=ON,
+        evolutionType=ENERGY,
+        evolTable=((GIc * 0.3, GIIc * 0.3, GIIc * 0.3),),
+        useMixedMode=ON,
+        mixedModeType=BK,
+        exponent=BK_eta)
+    print("  IntProp-CZM-Partial: K/10, strength*0.3 (impact)")
+
+    print("Surface-based CZM contact properties created")
+
+
+def create_base_parts_3part(model):
+    """Create 3-part sandwich: InnerSkin(shell) | Core(solid, full CORE_T) | OuterSkin(shell).
+
+    Used with USE_SURFACE_CZM=True. Adhesive layers are modeled as
+    surface-based cohesive contact between skin-core interfaces.
+    """
+    r_inner_skin = RADIUS
+    r_core_inner = RADIUS
+    r_core_outer = RADIUS + CORE_T
+    r_outer_skin = RADIUS + CORE_T
+
+    rho_inner = OGIVE_RHO
+    rho_core_inner = OGIVE_RHO
+    rho_core_outer = OGIVE_RHO + CORE_T
+
+    z_tip_outer = H_BARREL + math.sqrt(rho_core_outer**2 - OGIVE_XC**2)
+
+    # --- Inner Skin (Shell at r=RADIUS) ---
+    s1 = model.ConstrainedSketch(name='profile_inner', sheetSize=20000.0)
+    s1.setPrimaryObject(option=STANDALONE)
+    s1.ConstructionLine(point1=(0.0, -100.0),
+                        point2=(0.0, TOTAL_HEIGHT + 1000.0))
+    s1.Line(point1=(r_inner_skin, 0.0), point2=(r_inner_skin, H_BARREL))
+    s1.Line(point1=(r_inner_skin, H_BARREL), point2=(0.0, TOTAL_HEIGHT))
+
+    p_inner = model.Part(name='Part-InnerSkin', dimensionality=THREE_D,
+                         type=DEFORMABLE_BODY)
+    p_inner.BaseShellRevolve(sketch=s1, angle=SECTOR_ANGLE, flipRevolveDirection=OFF)
+
+    # --- Core (Solid, full CORE_T thickness) ---
+    p_core = _create_solid_revolve_part(
+        model, 'Part-Core',
+        r_core_inner, r_core_outer,
+        rho_core_inner, rho_core_outer,
+        r_min=ADH_R_MIN)
+
+    # --- Outer Skin (Shell at r=RADIUS+CORE_T) ---
+    s3 = model.ConstrainedSketch(name='profile_outer', sheetSize=20000.0)
+    s3.setPrimaryObject(option=STANDALONE)
+    s3.ConstructionLine(point1=(0.0, -100.0),
+                        point2=(0.0, TOTAL_HEIGHT + 1000.0))
+    s3.Line(point1=(r_outer_skin, 0.0), point2=(r_outer_skin, H_BARREL))
+    s3.ArcByCenterEnds(
+        center=(OGIVE_XC, H_BARREL),
+        point1=(r_outer_skin, H_BARREL),
+        point2=(0.0, z_tip_outer),
+        direction=COUNTERCLOCKWISE)
+
+    p_outer = model.Part(name='Part-OuterSkin', dimensionality=THREE_D,
+                         type=DEFORMABLE_BODY)
+    p_outer.BaseShellRevolve(sketch=s3, angle=SECTOR_ANGLE, flipRevolveDirection=OFF)
+
+    print("3-part sandwich created (surface CZM):")
+    print("  InnerSkin(shell) | Core(%.1fmm, solid) | OuterSkin(shell)" % CORE_T)
+    print("  CZM via surface-based cohesive contact at skin-core interfaces")
+    return p_inner, p_core, p_outer
+
+
+def create_assembly_3part(model, p_inner, p_core, p_outer, frame_parts,
+                           stringer_part=None, stringer_rotate=0.0,
+                           stringer_thetas=None):
+    """Instance 3 base parts + frames + stringer(s) into the assembly.
+
+    Args:
+        stringer_thetas: list of theta angles for 360-deg stringer placement.
+                         If None, use single stringer with stringer_rotate.
+    """
+    a = model.rootAssembly
+    a.DatumCsysByDefault(CARTESIAN)
+
+    inst_inner = a.Instance(name='Part-InnerSkin-1', part=p_inner, dependent=OFF)
+    inst_core = a.Instance(name='Part-Core-1', part=p_core, dependent=OFF)
+    inst_outer = a.Instance(name='Part-OuterSkin-1', part=p_outer, dependent=OFF)
+
+    frame_instances = []
+    for i, fp in enumerate(frame_parts):
+        inst = a.Instance(name='Part-Frame-%d-1' % i, part=fp, dependent=OFF)
+        frame_instances.append(inst)
+
+    stringer_instances = []
+    if stringer_part is not None:
+        if stringer_thetas and len(stringer_thetas) > 1:
+            # Multiple stringers for 360-deg model
+            # The stringer part is built at theta=0 (stringer_rotate=0)
+            # and we instance+rotate to each theta
+            for idx, theta in enumerate(stringer_thetas):
+                iname = 'Part-Stringer-%d-1' % idx
+                inst_s = a.Instance(name=iname, part=stringer_part,
+                                    dependent=OFF)
+                rot_angle = theta - stringer_rotate  # net rotation needed
+                if stringer_rotate != 0:
+                    rot_angle = theta
+                if abs(rot_angle) > 0.001:
+                    a.rotate(instanceList=(iname,),
+                             axisPoint=(0.0, 0.0, 0.0),
+                             axisDirection=(0.0, 1.0, 0.0),
+                             angle=rot_angle)
+                stringer_instances.append(inst_s)
+                print("  Stringer %d instanced at theta=%.1f deg" % (idx, theta))
+        else:
+            # Single stringer (sector model)
+            inst_s = a.Instance(name='Part-Stringer-1',
+                                part=stringer_part, dependent=OFF)
+            if abs(stringer_rotate) > 0.001:
+                a.rotate(instanceList=('Part-Stringer-1',),
+                         axisPoint=(0.0, 0.0, 0.0),
+                         axisDirection=(0.0, 1.0, 0.0),
+                         angle=stringer_rotate)
+            stringer_instances.append(inst_s)
+            print("  Stringer instanced and rotated by %.3f deg"
+                  % stringer_rotate)
+
+    print("Assembly: 3 base parts + %d ring frames + %d stringers" % (
+        len(frame_instances), len(stringer_instances)))
+    return (a, inst_inner, inst_core, inst_outer,
+            frame_instances, stringer_instances)
+
+
+def create_surface_czm_interactions(model, assembly, inst_inner, inst_core,
+                                     inst_outer, defect_params=None):
+    """Create surface-based CZM contact between skin-core interfaces.
+
+    Contact pair 1: Core(inner face) <-> InnerSkin
+    Contact pair 2: Core(outer face) <-> OuterSkin
+
+    For defect zones, separate contact pairs with damaged CZM property.
+    """
+    core_tol = CORE_T * 0.3
+
+    # Classify core faces into inner/outer
+    core_inner_pts, core_outer_pts = _classify_solid_faces(
+        inst_core,
+        r_inner_expected_fn=lambda y: get_radius_at_z(y),
+        r_outer_expected_fn=lambda y: get_radius_at_z(y) + CORE_T,
+        tol_fn=lambda: core_tol)
+
+    # Skin surfaces
+    surf_inner_skin = assembly.Surface(
+        side1Faces=inst_inner.faces, name='Surf-InnerSkin')
+    surf_outer_skin = assembly.Surface(
+        side1Faces=inst_outer.faces, name='Surf-OuterSkin')
+
+    # Core inner surface -> contact with InnerSkin
+    if core_inner_pts:
+        core_inner_seq = inst_core.faces.findAt(*core_inner_pts)
+        surf_core_inner = assembly.Surface(
+            side1Faces=core_inner_seq, name='Surf-Core-Inner')
+        model.SurfaceToSurfaceContactStd(
+            name='Contact-Inner-CZM',
+            createStepName='Initial',
+            main=surf_core_inner,
+            secondary=surf_inner_skin,
+            sliding=SMALL,
+            initialClearance=OMIT,
+            interactionProperty='IntProp-CZM-Healthy',
+            adjustMethod=NONE)
+        print("  Contact CZM 1: Core(inner) <-> InnerSkin, %d faces" % (
+            len(core_inner_pts)))
+    else:
+        print("  WARNING: No core inner faces for CZM contact")
+
+    # Core outer surface -> contact with OuterSkin
+    if core_outer_pts:
+        core_outer_seq = inst_core.faces.findAt(*core_outer_pts)
+        surf_core_outer = assembly.Surface(
+            side1Faces=core_outer_seq, name='Surf-Core-Outer')
+
+        # For debonding defects: split outer surface into healthy/damaged zones
+        if defect_params and defect_params.get('defect_type') in (
+                'debonding', 'impact', 'delamination'):
+            healthy_pts = []
+            defect_pts = []
+            for pt_tuple in core_outer_pts:
+                pt = pt_tuple[0]
+                if _point_in_defect_zone(pt[0], pt[1], pt[2], defect_params):
+                    defect_pts.append(pt_tuple)
+                else:
+                    healthy_pts.append(pt_tuple)
+
+            if defect_pts and healthy_pts:
+                # Healthy zone contact
+                healthy_seq = inst_core.faces.findAt(*healthy_pts)
+                surf_healthy = assembly.Surface(
+                    side1Faces=healthy_seq, name='Surf-Core-Outer-Healthy')
+                model.SurfaceToSurfaceContactStd(
+                    name='Contact-Outer-CZM-Healthy',
+                    createStepName='Initial',
+                    main=surf_healthy,
+                    secondary=surf_outer_skin,
+                    sliding=SMALL,
+                    initialClearance=OMIT,
+                    interactionProperty='IntProp-CZM-Healthy',
+                    adjustMethod=NONE)
+
+                # Defect zone: use damaged contact property
+                defect_type = defect_params.get('defect_type', 'debonding')
+                defect_prop = ('IntProp-CZM-Damaged' if defect_type == 'debonding'
+                               else 'IntProp-CZM-Partial')
+                defect_seq = inst_core.faces.findAt(*defect_pts)
+                surf_defect = assembly.Surface(
+                    side1Faces=defect_seq, name='Surf-Core-Outer-Defect')
+                model.SurfaceToSurfaceContactStd(
+                    name='Contact-Outer-CZM-Defect',
+                    createStepName='Initial',
+                    main=surf_defect,
+                    secondary=surf_outer_skin,
+                    sliding=SMALL,
+                    initialClearance=OMIT,
+                    interactionProperty=defect_prop,
+                    adjustMethod=NONE)
+                print("  Contact CZM 2: Core(outer) <-> OuterSkin")
+                print("    Healthy: %d faces, Defect: %d faces (%s)" % (
+                    len(healthy_pts), len(defect_pts), defect_prop))
+            elif defect_pts:
+                # All outer faces in defect zone (unusual)
+                defect_type = defect_params.get('defect_type', 'debonding')
+                defect_prop = ('IntProp-CZM-Damaged' if defect_type == 'debonding'
+                               else 'IntProp-CZM-Partial')
+                model.SurfaceToSurfaceContactStd(
+                    name='Contact-Outer-CZM',
+                    createStepName='Initial',
+                    main=surf_core_outer,
+                    secondary=surf_outer_skin,
+                    sliding=SMALL,
+                    initialClearance=OMIT,
+                    interactionProperty=defect_prop,
+                    adjustMethod=NONE)
+                print("  Contact CZM 2: Core(outer) <-> OuterSkin (all defect)")
+            else:
+                # All healthy
+                model.SurfaceToSurfaceContactStd(
+                    name='Contact-Outer-CZM',
+                    createStepName='Initial',
+                    main=surf_core_outer,
+                    secondary=surf_outer_skin,
+                    sliding=SMALL,
+                    initialClearance=OMIT,
+                    interactionProperty='IntProp-CZM-Healthy',
+                    adjustMethod=NONE)
+                print("  Contact CZM 2: Core(outer) <-> OuterSkin, %d faces" % (
+                    len(core_outer_pts)))
+        else:
+            # No defect or non-adhesive defect type
+            model.SurfaceToSurfaceContactStd(
+                name='Contact-Outer-CZM',
+                createStepName='Initial',
+                main=surf_core_outer,
+                secondary=surf_outer_skin,
+                sliding=SMALL,
+                initialClearance=OMIT,
+                interactionProperty='IntProp-CZM-Healthy',
+                adjustMethod=NONE)
+            print("  Contact CZM 2: Core(outer) <-> OuterSkin, %d faces" % (
+                len(core_outer_pts)))
+    else:
+        print("  WARNING: No core outer faces for CZM contact")
+
+
+def create_frame_stringer_ties(model, assembly, inst_inner, inst_outer,
+                                frame_instances, inst_stringer=None,
+                                stringer_instances=None):
+    """Create Tie constraints for frames -> InnerSkin, stringer(s) -> OuterSkin.
+
+    Args:
+        inst_stringer: single stringer instance (legacy compat)
+        stringer_instances: list of stringer instances (360-deg)
+    """
+    # Build stringer list
+    _stringers = []
+    if stringer_instances:
+        _stringers = list(stringer_instances)
+    elif inst_stringer is not None:
+        _stringers = [inst_stringer]
+
+    surf_inner_skin = assembly.Surface(
+        side1Faces=inst_inner.faces, name='Surf-InnerSkin-Tie')
+    surf_outer_skin = assembly.Surface(
+        side1Faces=inst_outer.faces, name='Surf-OuterSkin-Tie')
+
+    for i, inst_frame in enumerate(frame_instances):
+        if len(inst_frame.faces) == 0:
+            continue
+        surf_f = assembly.Surface(
+            side1Faces=inst_frame.faces, name='Surf-Frame-%d' % i)
+        model.Tie(name='Tie-Frame-%d' % i, main=surf_inner_skin,
+                  secondary=surf_f,
+                  positionToleranceMethod=COMPUTED, adjust=ON,
+                  tieRotations=ON, thickness=ON)
+    if frame_instances:
+        print("  Tie: %d ring frames <-> InnerSkin" % len(frame_instances))
+
+    for si_idx, _si in enumerate(_stringers):
+        if len(_si.faces) > 0:
+            try:
+                surf_str = assembly.Surface(
+                    side1Faces=_si.faces,
+                    name='Surf-Stringer-%d' % si_idx)
+                model.Tie(name='Tie-Stringer-%d' % si_idx,
+                          main=surf_outer_skin,
+                          secondary=surf_str,
+                          positionToleranceMethod=COMPUTED, adjust=ON,
+                          tieRotations=ON, thickness=ON)
+                print("  Tie: Stringer-%d <-> OuterSkin (%d faces)" % (
+                    si_idx, len(_si.faces)))
+            except Exception as e:
+                print("  Stringer-%d Tie warning: %s" % (
+                    si_idx, str(e)[:80]))
+
+
+def apply_boundary_conditions_3part(model, assembly, inst_inner, inst_core,
+                                     inst_outer, frame_instances):
+    """Fix bottom (y=0) for 3-part model."""
+    r_box = RADIUS + CORE_T + 500.0
+    set_kwargs = {}
+
+    edge_seq = None
+    for inst in [inst_inner, inst_outer]:
+        try:
+            edges = inst.edges.getByBoundingBox(
+                xMin=-r_box, xMax=r_box,
+                yMin=-0.1, yMax=0.1,
+                zMin=-r_box, zMax=r_box)
+            if len(edges) > 0:
+                edge_seq = edges if edge_seq is None else edge_seq + edges
+        except Exception as e:
+            print("  BC edge warning (%s): %s" % (inst.name, str(e)[:60]))
+    if edge_seq is not None and len(edge_seq) > 0:
+        set_kwargs['edges'] = edge_seq
+
+    face_seq_bot = None
+    for inst in [inst_core]:
+        bot_pts = []
+        for f in inst.faces:
+            try:
+                pt = f.pointOn[0]
+                if abs(pt[1]) < 1.0:
+                    bot_pts.append((pt,))
+            except:
+                pass
+        if bot_pts:
+            fseq = inst.faces.findAt(*bot_pts)
+            if len(fseq) > 0:
+                face_seq_bot = (fseq if face_seq_bot is None
+                                else face_seq_bot + fseq)
+    if face_seq_bot is not None and len(face_seq_bot) > 0:
+        set_kwargs['faces'] = face_seq_bot
+
+    if set_kwargs:
+        bot_set = assembly.Set(name='BC_Bottom', **set_kwargs)
+        model.DisplacementBC(name='Fix_Bottom', createStepName='Initial',
+                             region=bot_set, u1=0, u2=0, u3=0)
+        print("BC: Fixed at y=0 (%s)" % ', '.join(
+            '%s=%d' % (k, len(v)) for k, v in set_kwargs.items()))
+    else:
+        print("Warning: No BC geometry found at y=0")
+
+
+def apply_symmetry_bcs_3part(model, assembly, inst_inner, inst_core,
+                              inst_outer, frame_instances):
+    """Symmetry BCs on sector cut faces for 3-part model."""
+    all_insts = [inst_inner, inst_core, inst_outer] + list(frame_instances)
+    r_box = RADIUS + CORE_T + 500.0
+    tol = 1.0
+
+    # theta=0 face: Z=0 plane, constrain U3=0
+    sym0_edges = None
+    sym0_faces = None
+    for inst in all_insts:
+        try:
+            edges = inst.edges.getByBoundingBox(
+                xMin=-r_box, xMax=r_box,
+                yMin=-100.0, yMax=TOTAL_HEIGHT + 100.0,
+                zMin=-tol, zMax=tol)
+            if len(edges) > 0:
+                sym0_edges = (edges if sym0_edges is None
+                              else sym0_edges + edges)
+        except:
+            pass
+        try:
+            for f in inst.faces:
+                pt = f.pointOn[0]
+                if abs(pt[2]) < tol:
+                    fseq = inst.faces.findAt((pt,))
+                    if len(fseq) > 0:
+                        sym0_faces = (fseq if sym0_faces is None
+                                      else sym0_faces + fseq)
+        except:
+            pass
+
+    sym0_kwargs = {}
+    if sym0_edges is not None and len(sym0_edges) > 0:
+        sym0_kwargs['edges'] = sym0_edges
+    if sym0_faces is not None and len(sym0_faces) > 0:
+        sym0_kwargs['faces'] = sym0_faces
+
+    if sym0_kwargs:
+        sym0_set = assembly.Set(name='BC_Sym_theta0', **sym0_kwargs)
+        model.DisplacementBC(name='Symmetry_theta0', createStepName='Initial',
+                             region=sym0_set, u3=0)
+        print("BC: Symmetry theta=0 (Z=0 plane, U3=0): %s" % ', '.join(
+            '%s=%d' % (k, len(v)) for k, v in sym0_kwargs.items()))
+
+    # theta=SECTOR_ANGLE face: local U3=0
+    theta_rad = math.radians(SECTOR_ANGLE)
+    nx = -math.sin(theta_rad)
+    nz = math.cos(theta_rad)
+
+    datum_csys = assembly.DatumCsysByThreePoints(
+        name='CSYS_SymTheta',
+        coordSysType=CARTESIAN,
+        origin=(0.0, 0.0, 0.0),
+        point1=(math.cos(theta_rad), 0.0, math.sin(theta_rad)),
+        point2=(0.0, 1.0, 0.0))
+
+    sym1_edges = None
+    sym1_faces = None
+    for inst in all_insts:
+        try:
+            for e in inst.edges:
+                pt = e.pointOn[0]
+                d = abs(pt[0] * nx + pt[2] * nz)
+                if d < tol and pt[1] > -10.0:
+                    eseq = inst.edges.findAt((pt,))
+                    if len(eseq) > 0:
+                        sym1_edges = (eseq if sym1_edges is None
+                                      else sym1_edges + eseq)
+        except:
+            pass
+        try:
+            for f in inst.faces:
+                pt = f.pointOn[0]
+                d = abs(pt[0] * nx + pt[2] * nz)
+                if d < tol:
+                    fseq = inst.faces.findAt((pt,))
+                    if len(fseq) > 0:
+                        sym1_faces = (fseq if sym1_faces is None
+                                      else sym1_faces + fseq)
+        except:
+            pass
+
+    sym1_kwargs = {}
+    if sym1_edges is not None and len(sym1_edges) > 0:
+        sym1_kwargs['edges'] = sym1_edges
+    if sym1_faces is not None and len(sym1_faces) > 0:
+        sym1_kwargs['faces'] = sym1_faces
+
+    if sym1_kwargs:
+        sym1_set = assembly.Set(name='BC_Sym_thetaMax', **sym1_kwargs)
+        model.DisplacementBC(
+            name='Symmetry_thetaMax', createStepName='Initial',
+            region=sym1_set, u3=0,
+            localCsys=assembly.datums[datum_csys.id])
+        print("BC: Symmetry theta=%.0f deg (local U3=0): %s" % (
+            SECTOR_ANGLE, ', '.join(
+                '%s=%d' % (k, len(v)) for k, v in sym1_kwargs.items())))
+
+
+def apply_thermal_load_3part(model, assembly, inst_inner, inst_core,
+                              inst_outer, frame_instances,
+                              inst_stringer=None, stringer_instances=None):
+    """Thermal load for 3-part model: cure cooldown + operational heating.
+
+    Args:
+        inst_stringer: single stringer instance (legacy, backward compat)
+        stringer_instances: list of stringer instances (360-deg model)
+    """
+    # Build combined stringer list
+    _stringers = []
+    if stringer_instances:
+        _stringers = list(stringer_instances)
+    elif inst_stringer is not None:
+        _stringers = [inst_stringer]
+
+    try:
+        reg_inner = inst_inner.sets['Set-All']
+        reg_outer = inst_outer.sets['Set-All']
+        reg_core = inst_core.sets['Set-All']
+
+        # IC: T_cure = 175C (all parts)
+        for name, reg in [('Inner', reg_inner), ('Outer', reg_outer),
+                          ('Core', reg_core)]:
+            model.Temperature(name='Temp_IC_%s' % name,
+                              createStepName='Initial',
+                              region=reg, distributionType=UNIFORM,
+                              magnitudes=(TEMP_CURE,))
+        for i, inst_frame in enumerate(frame_instances):
+            if 'Set-All' in inst_frame.sets:
+                reg_f = inst_frame.sets['Set-All']
+                model.Temperature(name='Temp_IC_Frame_%d' % i,
+                                  createStepName='Initial',
+                                  region=reg_f, distributionType=UNIFORM,
+                                  magnitudes=(TEMP_CURE,))
+        for si_idx, _si in enumerate(_stringers):
+            if 'Set-All' in _si.sets:
+                reg_s = _si.sets['Set-All']
+                model.Temperature(name='Temp_IC_Stringer_%d' % si_idx,
+                                  createStepName='Initial',
+                                  region=reg_s, distributionType=UNIFORM,
+                                  magnitudes=(TEMP_CURE,))
+        print("Thermal IC: T_cure = %.0fC (all parts)" % TEMP_CURE)
+
+        # Step-Cure: Cool to 20C
+        for name, reg in [('Inner', reg_inner), ('Outer', reg_outer),
+                          ('Core', reg_core)]:
+            model.Temperature(name='Temp_Cure_%s' % name,
+                              createStepName='Step-Cure',
+                              region=reg, distributionType=UNIFORM,
+                              magnitudes=(TEMP_ROOM,))
+        for i, inst_frame in enumerate(frame_instances):
+            if 'Set-All' in inst_frame.sets:
+                reg_f = inst_frame.sets['Set-All']
+                model.Temperature(name='Temp_Cure_Frame_%d' % i,
+                                  createStepName='Step-Cure',
+                                  region=reg_f, distributionType=UNIFORM,
+                                  magnitudes=(TEMP_ROOM,))
+        for si_idx, _si in enumerate(_stringers):
+            if 'Set-All' in _si.sets:
+                reg_s = _si.sets['Set-All']
+                model.Temperature(name='Temp_Cure_Stringer_%d' % si_idx,
+                                  createStepName='Step-Cure',
+                                  region=reg_s, distributionType=UNIFORM,
+                                  magnitudes=(TEMP_ROOM,))
+        print("Step-Cure: T = %.0fC -> %.0fC (DT = %.0fC, residual stress)" % (
+            TEMP_CURE, TEMP_ROOM, TEMP_ROOM - TEMP_CURE))
+
+        # Step-Thermal: Operational heating
+        model.Temperature(name='Temp_Thermal_Inner',
+                          createStepName='Step-Thermal',
+                          region=reg_inner, distributionType=UNIFORM,
+                          magnitudes=(TEMP_FINAL_INNER,))
+        model.Temperature(name='Temp_Thermal_Core',
+                          createStepName='Step-Thermal',
+                          region=reg_core, distributionType=UNIFORM,
+                          magnitudes=(TEMP_FINAL_CORE,))
+        _apply_z_dependent_temp_outer(model, inst_outer, 'Step-Thermal')
+
+        for i, inst_frame in enumerate(frame_instances):
+            if 'Set-All' in inst_frame.sets:
+                reg_f = inst_frame.sets['Set-All']
+                model.Temperature(name='Temp_Thermal_Frame_%d' % i,
+                                  createStepName='Step-Thermal',
+                                  region=reg_f, distributionType=UNIFORM,
+                                  magnitudes=(TEMP_FINAL_INNER,))
+
+        stringer_temp = outer_skin_temp_at_z(
+            (STRINGER_Z_START + STRINGER_Z_END) / 2.0)
+        for si_idx, _si in enumerate(_stringers):
+            if 'Set-All' in _si.sets:
+                reg_s = _si.sets['Set-All']
+                model.Temperature(name='Temp_Thermal_Stringer_%d' % si_idx,
+                                  createStepName='Step-Thermal',
+                                  region=reg_s, distributionType=UNIFORM,
+                                  magnitudes=(stringer_temp,))
+        if _stringers:
+            print("  Stringer temp: %.0fC (%d stringers)" % (
+                stringer_temp, len(_stringers)))
+
+        print("Step-Thermal: outer=z-dependent(100-221C), inner=%.0fC, "
+              "core=%.0fC" % (TEMP_FINAL_INNER, TEMP_FINAL_CORE))
+    except Exception as e:
+        print("Warning: 3-part thermal load: %s" % str(e)[:120])
+
+
+def generate_mesh_3part(assembly, inst_inner, inst_core, inst_outer,
+                         frame_instances, openings, defect_params,
+                         global_seed, opening_seed, defect_seed, frame_seed):
+    """Mesh 3-part model: core + skins + frames. No adhesive meshing needed."""
+    all_insts_3 = (inst_inner, inst_core, inst_outer)
+
+    # 1. Global seed
+    assembly.seedPartInstance(regions=all_insts_3, size=global_seed,
+                              deviationFactor=0.1)
+
+    # 2. Frame seed
+    for inst in frame_instances:
+        assembly.seedPartInstance(regions=(inst,), size=frame_seed,
+                                  deviationFactor=0.1)
+
+    # 3. Opening local refinement (skins only, not core)
+    for opening in openings:
+        z_c = opening['z_center']
+        r_half = opening['diameter'] / 2.0
+        margin = max(100.0, r_half * 0.3)
+        z1 = max(1.0, z_c - r_half - margin)
+        z2 = min(TOTAL_HEIGHT - 1.0, z_c + r_half + margin)
+        r_box = RADIUS + CORE_T + 200
+        for inst in [inst_inner, inst_outer]:
+            try:
+                edges = inst.edges.getByBoundingBox(
+                    xMin=-r_box, xMax=r_box,
+                    yMin=z1, yMax=z2,
+                    zMin=-r_box, zMax=r_box)
+                if len(edges) > 0:
+                    assembly.seedEdgeBySize(edges=edges, size=opening_seed,
+                                            constraint=FINER)
+            except Exception as e:
+                print("  Mesh refinement warning (%s): %s" % (
+                    opening['name'], str(e)[:60]))
+        print("  Local mesh: %s zone z=[%.0f, %.0f] seed=%.0f mm" % (
+            opening['name'], z1, z2, opening_seed))
+
+    # 4. Defect local refinement (skins only)
+    if defect_params:
+        z_c = defect_params['z_center']
+        r_def = defect_params['radius']
+        margin = 150.0
+        z1 = max(1.0, z_c - r_def - margin)
+        z2 = min(TOTAL_HEIGHT - 1.0, z_c + r_def + margin)
+        r_box = RADIUS + CORE_T + 200
+        for inst in [inst_inner, inst_outer]:
+            try:
+                edges = inst.edges.getByBoundingBox(
+                    xMin=-r_box, xMax=r_box,
+                    yMin=z1, yMax=z2,
+                    zMin=-r_box, zMax=r_box)
+                if len(edges) > 0:
+                    assembly.seedEdgeBySize(edges=edges, size=defect_seed,
+                                            constraint=FINER)
+            except Exception:
+                pass
+
+    # 5. Mesh core (SWEEP C3D8R, same as existing)
+    print("Meshing core (seed=%.0f mm, %d cells)..." % (
+        global_seed, len(inst_core.cells)))
+    try:
+        assembly.setMeshControls(regions=inst_core.cells,
+                                 elemShape=HEX, technique=SWEEP)
+        assembly.setElementType(
+            regions=(inst_core.cells,),
+            elemTypes=(
+                ElemType(elemCode=C3D8R, elemLibrary=STANDARD),
+                ElemType(elemCode=C3D6, elemLibrary=STANDARD),))
+        assembly.generateMesh(regions=(inst_core,))
+        print("  Core mesh: SWEEP C3D8R OK (%d nodes, %d elements)" % (
+            len(inst_core.nodes), len(inst_core.elements)))
+    except Exception as e:
+        print("  Core mesh SWEEP failed: %s" % str(e)[:80])
+        print("  Trying FREE TET...")
+        assembly.setMeshControls(regions=inst_core.cells,
+                                 elemShape=TET, technique=FREE)
+        assembly.setElementType(
+            regions=(inst_core.cells,),
+            elemTypes=(
+                ElemType(elemCode=C3D10, elemLibrary=STANDARD),))
+        assembly.generateMesh(regions=(inst_core,))
+        print("  Core mesh: FREE C3D10 (%d nodes, %d elements)" % (
+            len(inst_core.nodes), len(inst_core.elements)))
+
+    # 6. Mesh skins (S4R)
+    for inst in [inst_inner, inst_outer]:
+        assembly.generateMesh(regions=(inst,))
+    print("  Skins mesh: Inner %d/%d, Outer %d/%d nodes/elems" % (
+        len(inst_inner.nodes), len(inst_inner.elements),
+        len(inst_outer.nodes), len(inst_outer.elements)))
+
+    # 7. Mesh frames
+    for inst in frame_instances:
+        try:
+            assembly.generateMesh(regions=(inst,))
+        except:
+            pass
+
+    total_nodes = (len(inst_inner.nodes) + len(inst_core.nodes) +
+                   len(inst_outer.nodes))
+    total_elems = (len(inst_inner.elements) + len(inst_core.elements) +
+                   len(inst_outer.elements))
+    for inst in frame_instances:
+        total_nodes += len(inst.nodes)
+        total_elems += len(inst.elements)
+    print("Mesh total: %d nodes, %d elements (global=%.0f mm)" % (
+        total_nodes, total_elems, global_seed))
+
+
+def apply_post_mesh_bcs_3part(model, assembly, inst_inner, inst_core,
+                               inst_outer, frame_instances, openings):
+    """Post-mesh BCs for 3-part model: nose tip + ogive cap + void openings."""
+    # 1. Nose tip: pin shell/core nodes near tip (y > TOTAL_HEIGHT - 100, r < 150)
+    nose_y_min = TOTAL_HEIGHT - 200.0
+    nose_nodes = []
+    for inst in [inst_inner, inst_outer]:
+        for node in inst.nodes:
+            c = node.coordinates
+            r = math.sqrt(c[0]**2 + c[2]**2)
+            if c[1] > nose_y_min and r < 150.0:
+                nose_nodes.append(inst.nodes[node.label - 1:node.label])
+    if nose_nodes:
+        combined = nose_nodes[0]
+        for ns in nose_nodes[1:]:
+            combined = combined + ns
+        nose_set = assembly.Set(name='BC_NoseTip', nodes=combined)
+        model.DisplacementBC(name='Fix_NoseTip', createStepName='Initial',
+                             region=nose_set, u1=0, u2=0, u3=0)
+        print("BC: Nose tip pinned (y>%.0f, r<150mm): %d nodes" % (
+            nose_y_min, len(nose_nodes)))
+
+    # 1b. Ogive truncation cap: solid nodes near r_min
+    cap_r_max = ADH_R_MIN + 5.0
+    cap_nodes = []
+    for inst in [inst_core]:
+        for node in inst.nodes:
+            c = node.coordinates
+            r = math.sqrt(c[0]**2 + c[2]**2)
+            if r < cap_r_max and c[1] > H_BARREL:
+                cap_nodes.append(inst.nodes[node.label - 1:node.label])
+    if cap_nodes:
+        combined_cap = cap_nodes[0]
+        for ns in cap_nodes[1:]:
+            combined_cap = combined_cap + ns
+        cap_set = assembly.Set(name='BC_OgiveCap', nodes=combined_cap)
+        model.DisplacementBC(name='Fix_OgiveCap', createStepName='Initial',
+                             region=cap_set, u1=0, u2=0, u3=0)
+        print("BC: Ogive cap pinned (r<%.0f, y>%.0f): %d nodes" % (
+            cap_r_max, H_BARREL, len(cap_nodes)))
+
+    # 2. VOID opening nodes
+    void_node_seqs = []
+    for inst in [inst_inner, inst_core, inst_outer]:
+        try:
+            void_set = inst.sets['Set-Opening']
+            void_node_seqs.append(void_set.nodes)
+        except KeyError:
+            pass
+    try:
+        void_set = inst_outer.sets['Set-Opening-Outer']
+        void_node_seqs.append(void_set.nodes)
+    except KeyError:
+        pass
+    if void_node_seqs:
+        combined = void_node_seqs[0]
+        for ns in void_node_seqs[1:]:
+            combined = combined + ns
+        void_bc_set = assembly.Set(name='BC_VoidOpening', nodes=combined)
+        model.DisplacementBC(name='Fix_VoidOpening', createStepName='Initial',
+                             region=void_bc_set, u1=0, u2=0, u3=0)
+        n_total = sum([len(ns) for ns in void_node_seqs])
+        print("BC: VOID opening nodes pinned: %d nodes" % n_total)
 
 
 # ==============================================================================
@@ -1154,7 +2032,7 @@ def _post_mesh_defect_sections(p_inner, p_core, p_outer,
                 len(defect_elems)))
 
     # --- Outer adhesive: debonding ---
-    if defect_type in ('debonding', 'impact'):
+    if defect_type in ('debonding', 'impact') and p_adh_outer is not None:
         adh_section = ('Section-Adhesive-Damaged' if defect_type == 'debonding'
                        else 'Section-Adhesive-PartialDamage')
         nodes_dict = {}
@@ -1176,7 +2054,7 @@ def _post_mesh_defect_sections(p_inner, p_core, p_outer,
                 len(defect_elems), adh_section))
 
     # --- Inner adhesive: inner_debond ---
-    if defect_type == 'inner_debond':
+    if defect_type == 'inner_debond' and p_adh_inner is not None:
         nodes_dict = {}
         for n in p_adh_inner.nodes:
             nodes_dict[n.label] = n.coordinates
@@ -2640,8 +3518,9 @@ def create_and_run_job(model, job_name, no_run=False, project_root=None,
     mdb.jobs[job_name].writeInput(consistencyChecking=OFF)
     inp_path = os.path.abspath(job_name + '.inp')
 
-    # Fix COH3D8: add explicit STACK DIRECTION and flip inverted elements
-    _fix_coh3d8_orientation(inp_path)
+    # Fix COH3D8: only needed for legacy 5-part model (not surface CZM)
+    if not USE_SURFACE_CZM:
+        _fix_coh3d8_orientation(inp_path)
 
     if no_run:
         print("INP written. Skipping execution (--no_run)")
@@ -2732,7 +3611,8 @@ def generate_ground_truth_model(job_name, defect_params=None,
                                 global_seed=None, defect_seed=None,
                                 frame_seed=None,
                                 adhesive_thickness=None, adhesive_params=None,
-                                no_run=False, project_root=None):
+                                no_run=False, project_root=None,
+                                variability_seed=None):
     """
     Ground Truth FEM model: CZM 1/12 sector with enhanced physics.
 
@@ -2743,6 +3623,7 @@ def generate_ground_truth_model(job_name, defect_params=None,
       - Ogive stringer (1 longitudinal rib)
       - Z-dependent outer skin temperature (100-221C)
       - 4-step analysis: Cure -> Thermal -> Mechanical
+      - Manufacturing variability (optional, via variability_seed)
 
     Args:
         job_name: Abaqus job name
@@ -2755,6 +3636,7 @@ def generate_ground_truth_model(job_name, defect_params=None,
         adhesive_params: dict overriding DEFAULT_CZM_PARAMS
         no_run: if True, only write INP
         project_root: project root for patch script
+        variability_seed: int seed for manufacturing scatter (None = no scatter)
     """
     g_seed = global_seed if global_seed is not None else GLOBAL_SEED
     d_seed = defect_seed if defect_seed is not None else DEFECT_SEED
@@ -2765,21 +3647,54 @@ def generate_ground_truth_model(job_name, defect_params=None,
     if adhesive_params:
         czm.update(adhesive_params)
 
+    # --- Manufacturing variability ---
+    mv_cfrp_props = None
+    mv_core_props = None
+    mv_ply_angles_8 = None
+    mv_face_t = None
+    if variability_seed is not None:
+        from manufacturing_variability import ManufacturingVariability
+        mv = ManufacturingVariability(seed=variability_seed)
+        mv_cfrp_props = mv.perturb_cfrp(
+            E1=E1, E2=E2, NU12=NU12, G12=G12, G13=G13, G23=G23,
+            CTE_11=CFRP_CTE_11, CTE_22=CFRP_CTE_22, density=CFRP_DENSITY)
+        mv_core_props = mv.perturb_core(
+            E1=E_CORE_1, E2=E_CORE_2, E3=E_CORE_3,
+            NU12=NU_CORE_12, NU13=NU_CORE_13, NU23=NU_CORE_23,
+            G12=G_CORE_12, G13=G_CORE_13, G23=G_CORE_23,
+            CTE=CORE_CTE, density=CORE_DENSITY)
+        czm = mv.perturb_czm(**czm)
+        mv_ply_angles_8 = mv.perturb_ply_angles(
+            [45.0, 0.0, -45.0, 90.0, 90.0, -45.0, 0.0, 45.0])
+        mv_face_t = mv.perturb_thickness(FACE_T, cov=0.05)
+        print(mv.summary(mv_cfrp_props, mv_core_props, czm,
+                         mv_ply_angles_8, mv_face_t,
+                         CORE_T))
+
     defect_type = (defect_params.get('defect_type', 'debonding')
                    if defect_params else None)
 
-    openings = list(OPENINGS_PHASE1)
+    if SECTOR_ANGLE >= 360.0:
+        openings = list(OPENINGS_360)
+    else:
+        openings = list(OPENINGS_PHASE1)
 
     print("=" * 70)
     print("GROUND TRUTH FEM — Sector 1/%d (%.0f deg)" % (
         int(round(360.0 / SECTOR_ANGLE)), SECTOR_ANGLE))
     print("  Target realism: ~90%%")
     print("  Features: Cp(z) + Doublers + Residual Stress + Stringer")
+    if variability_seed is not None:
+        print("  Manufacturing variability: seed=%d" % variability_seed)
     print("  Steps: Initial -> Cure -> Thermal -> Mechanical")
     print("  Mesh: global=%.0f, defect=%.0f, frame=%.0f mm" % (
         g_seed, d_seed, f_seed))
-    print("  Adhesive: thickness=%.2f mm, Kn=%.0e, Ks=%.0e" % (
-        adh_t, czm['Kn'], czm['Ks']))
+    if USE_SURFACE_CZM:
+        print("  CZM: surface-based contact (3-part model)")
+    else:
+        print("  Adhesive: thickness=%.2f mm (5-part legacy)" % adh_t)
+    print("  CZM params: Kn=%.0e, Ks=%.0e, tn=%.0f, ts=%.0f" % (
+        czm['Kn'], czm['Ks'], czm['tn'], czm['ts']))
     print("  Memory: %s" % SOLVER_MEMORY)
     if defect_params:
         print("  Defect: %s | theta=%.1f z=%.0f r=%.0f" % (
@@ -2797,145 +3712,258 @@ def generate_ground_truth_model(job_name, defect_params=None,
         len(frame_z_positions),
         ', '.join(['%.0f' % z for z in frame_z_positions])))
 
-    # 1. Materials & Sections (includes doubler + stringer sections)
-    create_materials(model)
-    create_sections(model)
-    if defect_params:
-        create_defect_materials(model, defect_params)
-        create_defect_sections(model, defect_params)
-    create_adhesive_materials(model, czm, adh_t)
-    create_adhesive_sections(model, adh_t)
+    # ================================================================
+    # SURFACE-BASED CZM (3-part model)
+    # ================================================================
+    if USE_SURFACE_CZM:
+        # 1. Materials + Contact properties
+        create_materials(model, cfrp_props=mv_cfrp_props,
+                         core_props=mv_core_props)
+        create_sections(model, ply_angles_8=mv_ply_angles_8,
+                        face_t=mv_face_t)
+        if defect_params:
+            create_defect_materials(model, defect_params)
+            create_defect_sections(model, defect_params)
+        create_contact_properties(model, czm)
 
-    # 2. Base geometry (5 parts)
-    p_inner, p_adh_inner, p_core, p_adh_outer, p_outer = \
-        create_base_parts_with_adhesive(model, adh_t)
+        # 2. Base geometry (3 parts)
+        p_inner, p_core, p_outer = create_base_parts_3part(model)
 
-    # 3a. Partition openings (InnerSkin, Core, OuterSkin only)
-    if openings:
-        partition_all_openings_with_adhesive(
-            p_inner, p_adh_inner, p_core, p_adh_outer, p_outer, openings)
+        # 3. Partition openings (InnerSkin, Core, OuterSkin)
+        if openings:
+            for opening in openings:
+                partition_opening(p_inner, opening, 'shell')
+                partition_opening(p_core, opening, 'solid')
+                partition_opening(p_outer, opening, 'shell')
+            print("Partitioning openings (%d) across 3 parts" % len(openings))
 
-    # 3b. Partition defect zone — DISABLED to avoid zero-volume elements.
-    #    Defect section assignment uses face/cell centroid selection instead.
-    #    if defect_params:
-    #        parts_to_partition = [('shell', p_inner), ('shell', p_outer)]
-    #        partition_defect_zone(parts_to_partition, defect_params)
+        # 4. Section assignment (skins/core + doublers)
+        assign_sections_3tier(p_inner, p_core, p_outer, openings, defect_params)
+        assign_doubler_zones(p_inner, p_outer)
 
-    # 4. Section assignment: 3-tier (skins/core) + adhesive
-    assign_sections_3tier(p_inner, p_core, p_outer, openings, defect_params)
-    assign_adhesive_sections(p_adh_inner, p_adh_outer, defect_params,
-                              openings, adh_t)
+        # 5-6. Ring frames + Stringer
+        frame_parts = create_ring_frame_parts(model, frame_z_positions)
+        p_stringer, stringer_rotate = create_stringer_part(model)
 
-    # 4b. Doubler override (16-ply reinforcement at frame junctions)
-    assign_doubler_zones(p_inner, p_outer)
+        # 7. Assembly (3 parts + frames + stringers)
+        stringer_thetas = STRINGER_THETAS_360 if SECTOR_ANGLE >= 360.0 else None
+        (a, inst_inner, inst_core, inst_outer,
+         frame_insts, stringer_insts) = create_assembly_3part(
+            model, p_inner, p_core, p_outer, frame_parts,
+            stringer_part=p_stringer, stringer_rotate=stringer_rotate,
+            stringer_thetas=stringer_thetas)
 
-    # 5. Ring frames
-    frame_parts = create_ring_frame_parts(model, frame_z_positions)
+        # 8. Surface-based CZM contact + Frame/Stringer ties
+        create_surface_czm_interactions(
+            model, a, inst_inner, inst_core, inst_outer,
+            defect_params=defect_params)
+        create_frame_stringer_ties(
+            model, a, inst_inner, inst_outer, frame_insts,
+            stringer_instances=stringer_insts)
 
-    # 6. Ogive stringer
-    p_stringer, stringer_rotate = create_stringer_part(model)
+        # 9. Boundary conditions
+        apply_boundary_conditions_3part(
+            model, a, inst_inner, inst_core, inst_outer, frame_insts)
+        if SECTOR_ANGLE < 360.0:
+            apply_symmetry_bcs_3part(
+                model, a, inst_inner, inst_core, inst_outer, frame_insts)
 
-    # 7. Assembly (5 parts + frames + stringer)
-    (a, inst_inner, inst_adh_inner, inst_core,
-     inst_adh_outer, inst_outer, frame_insts, inst_stringer) = \
-        create_assembly_with_adhesive(
-            model, p_inner, p_adh_inner, p_core, p_adh_outer,
-            p_outer, frame_parts,
-            stringer_part=p_stringer, stringer_rotate=stringer_rotate)
+        # 10. Steps
+        model.StaticStep(name='Step-Cure', previous='Initial',
+                         description='Cure cooldown: 175C -> 20C (residual stress)')
+        model.StaticStep(name='Step-Thermal', previous='Step-Cure',
+                         description='Operational heating (z-dependent)')
+        model.StaticStep(name='Step-Mechanical', previous='Step-Thermal',
+                         initialInc=0.1, maxInc=0.5, minInc=1e-8, maxNumInc=100,
+                         stabilizationMagnitude=2e-4,
+                         stabilizationMethod=DISSIPATED_ENERGY_FRACTION,
+                         continueDampingFactors=False,
+                         adaptiveDampingRatio=0.05,
+                         description='Cp(z) + diff pressure + 3G gravity')
+        fout_vars = ('S', 'U', 'RF', 'TEMP', 'NT', 'LE', 'SDEG', 'STATUS',
+                     'CSDMG')
+        model.fieldOutputRequests['F-Output-1'].setValues(variables=fout_vars)
+        model.FieldOutputRequest(name='F-Output-Thermal',
+                                 createStepName='Step-Thermal',
+                                 variables=fout_vars)
+        model.FieldOutputRequest(name='F-Output-Mechanical',
+                                 createStepName='Step-Mechanical',
+                                 variables=fout_vars)
 
-    # 8. Tie constraints (4 adhesive + frame + stringer)
-    create_cohesive_connections(
-        model, a, inst_inner, inst_adh_inner, inst_core,
-        inst_adh_outer, inst_outer, frame_insts, adh_t,
-        inst_stringer=inst_stringer)
+        # 10b. Modal analysis step (after mechanical preload)
+        model.FrequencyStep(
+            name='Step-Modal', previous='Step-Mechanical',
+            numEigen=30,
+            description='Modal analysis: first 30 natural frequencies')
+        model.FieldOutputRequest(
+            name='F-Output-Modal',
+            createStepName='Step-Modal',
+            variables=('U', 'S', 'RF'))
 
-    # 9. Boundary conditions (bottom fix)
-    apply_boundary_conditions_with_adhesive(
-        model, a, inst_inner, inst_adh_inner, inst_core,
-        inst_adh_outer, inst_outer, frame_insts)
+        # 11. Mesh (core + skins + frames, no adhesive)
+        generate_mesh_3part(a, inst_inner, inst_core, inst_outer,
+                            frame_insts, openings, defect_params,
+                            g_seed, OPENING_SEED, d_seed, f_seed)
+        for _si in stringer_insts:
+            try:
+                a.seedPartInstance(regions=(_si,), size=f_seed,
+                                   deviationFactor=0.1)
+                a.generateMesh(regions=(_si,))
+                print("Stringer mesh: %d nodes, %d elements" % (
+                    len(_si.nodes), len(_si.elements)))
+            except Exception as e:
+                print("Stringer mesh warning: %s" % str(e)[:80])
 
-    # 9b. Symmetry BCs on sector cut faces
-    apply_symmetry_bcs(
-        model, a, inst_inner, inst_adh_inner, inst_core,
-        inst_adh_outer, inst_outer, frame_insts)
+        # 11b. Post-mesh defect section override (skins only, CZM handles adhesive)
+        if defect_params:
+            _post_mesh_defect_sections(
+                p_inner, p_core, p_outer, None, None,
+                defect_params, openings)
 
-    # 10. Steps: 4-step analysis (cure + thermal + mechanical)
-    model.StaticStep(name='Step-Cure', previous='Initial',
-                     description='Cure cooldown: 175C -> 20C (residual stress)')
-    model.StaticStep(name='Step-Thermal', previous='Step-Cure',
-                     description='Operational heating (z-dependent)')
-    model.StaticStep(name='Step-Mechanical', previous='Step-Thermal',
-                     initialInc=0.1, maxInc=0.5, minInc=1e-8, maxNumInc=100,
-                     stabilizationMagnitude=2e-4,
-                     stabilizationMethod=DISSIPATED_ENERGY_FRACTION,
-                     continueDampingFactors=False,
-                     adaptiveDampingRatio=0.05,
-                     description='Cp(z) + diff pressure + 3G gravity')
-    model.fieldOutputRequests['F-Output-1'].setValues(
-        variables=('S', 'U', 'RF', 'TEMP', 'NT', 'LE', 'SDEG', 'STATUS'))
-    model.FieldOutputRequest(name='F-Output-Thermal',
-                             createStepName='Step-Thermal',
-                             variables=('S', 'U', 'RF', 'TEMP', 'NT', 'LE',
-                                        'SDEG', 'STATUS'))
-    model.FieldOutputRequest(name='F-Output-Mechanical',
-                             createStepName='Step-Mechanical',
-                             variables=('S', 'U', 'RF', 'TEMP', 'NT', 'LE',
-                                        'SDEG', 'STATUS'))
+        # 12. Post-mesh BCs
+        apply_post_mesh_bcs_3part(
+            model, a, inst_inner, inst_core, inst_outer,
+            frame_insts, openings)
 
-    # 11. Mesh (adhesive first -> core -> skins/frames + stringer)
-    generate_mesh_with_adhesive(
-        a, inst_inner, inst_adh_inner, inst_core,
-        inst_adh_outer, inst_outer, frame_insts,
-        openings, defect_params,
-        g_seed, OPENING_SEED, d_seed, f_seed, adh_t)
-    # Mesh stringer
-    if inst_stringer is not None:
-        try:
-            a.seedPartInstance(regions=(inst_stringer,), size=f_seed,
-                               deviationFactor=0.1)
-            a.generateMesh(regions=(inst_stringer,))
-            print("Stringer mesh: %d nodes, %d elements" % (
-                len(inst_stringer.nodes), len(inst_stringer.elements)))
-        except Exception as e:
-            print("Stringer mesh warning: %s" % str(e)[:80])
+        # 13. Thermal load
+        apply_thermal_load_3part(
+            model, a, inst_inner, inst_core, inst_outer, frame_insts,
+            stringer_instances=stringer_insts)
 
-    # 11b. Post-mesh defect section override (element-centroid-based)
-    #      No geometric partition needed — assign sections to mesh element sets.
-    if defect_params:
-        _post_mesh_defect_sections(
-            p_inner, p_core, p_outer, p_adh_inner, p_adh_outer,
-            defect_params, openings)
+        # 14. Mechanical loads
+        apply_mechanical_loads(model, a, inst_inner, inst_core, inst_outer,
+                               step_name='Step-Mechanical')
 
-    # 12. Post-mesh BCs
-    apply_post_mesh_bcs_with_adhesive(
-        model, a, inst_inner, inst_adh_inner, inst_core,
-        inst_adh_outer, inst_outer)
+    # ================================================================
+    # LEGACY 5-PART MODEL (COH3D8->C3D8R, no real CZM)
+    # ================================================================
+    else:
+        # 1. Materials
+        create_materials(model, cfrp_props=mv_cfrp_props,
+                         core_props=mv_core_props)
+        create_sections(model, ply_angles_8=mv_ply_angles_8,
+                        face_t=mv_face_t)
+        if defect_params:
+            create_defect_materials(model, defect_params)
+            create_defect_sections(model, defect_params)
+        create_adhesive_materials(model, czm, adh_t)
+        create_adhesive_sections(model, adh_t)
 
-    # 13. Thermal load: cure cooldown + operational (Ground Truth)
-    apply_thermal_load_ground_truth(
-        model, a, inst_inner, inst_adh_inner, inst_core,
-        inst_adh_outer, inst_outer, frame_insts,
-        inst_stringer=inst_stringer)
+        # 2. Geometry (5 parts)
+        p_inner, p_adh_inner, p_core, p_adh_outer, p_outer = \
+            create_base_parts_with_adhesive(model, adh_t)
 
-    # 14. Mechanical loads: Cp(z) + diff pressure + gravity
-    apply_mechanical_loads(model, a, inst_inner, inst_core, inst_outer,
-                           step_name='Step-Mechanical')
+        # 3. Partitions
+        if openings:
+            partition_all_openings_with_adhesive(
+                p_inner, p_adh_inner, p_core, p_adh_outer, p_outer, openings)
 
-    # 15. Cp(z) pressure summary
+        # 4. Sections
+        assign_sections_3tier(p_inner, p_core, p_outer, openings, defect_params)
+        assign_adhesive_sections(p_adh_inner, p_adh_outer, defect_params,
+                                  openings, adh_t)
+        assign_doubler_zones(p_inner, p_outer)
+
+        # 5-6. Frames + Stringer
+        frame_parts = create_ring_frame_parts(model, frame_z_positions)
+        p_stringer, stringer_rotate = create_stringer_part(model)
+
+        # 7. Assembly (5 parts)
+        (a, inst_inner, inst_adh_inner, inst_core,
+         inst_adh_outer, inst_outer, frame_insts, inst_stringer) = \
+            create_assembly_with_adhesive(
+                model, p_inner, p_adh_inner, p_core, p_adh_outer,
+                p_outer, frame_parts,
+                stringer_part=p_stringer, stringer_rotate=stringer_rotate)
+
+        # 8. Ties
+        create_cohesive_connections(
+            model, a, inst_inner, inst_adh_inner, inst_core,
+            inst_adh_outer, inst_outer, frame_insts, adh_t,
+            inst_stringer=inst_stringer)
+
+        # 9. BCs
+        apply_boundary_conditions_with_adhesive(
+            model, a, inst_inner, inst_adh_inner, inst_core,
+            inst_adh_outer, inst_outer, frame_insts)
+        apply_symmetry_bcs(
+            model, a, inst_inner, inst_adh_inner, inst_core,
+            inst_adh_outer, inst_outer, frame_insts)
+
+        # 10. Steps
+        model.StaticStep(name='Step-Cure', previous='Initial',
+                         description='Cure cooldown: 175C -> 20C (residual stress)')
+        model.StaticStep(name='Step-Thermal', previous='Step-Cure',
+                         description='Operational heating (z-dependent)')
+        model.StaticStep(name='Step-Mechanical', previous='Step-Thermal',
+                         initialInc=0.1, maxInc=0.5, minInc=1e-8, maxNumInc=100,
+                         stabilizationMagnitude=2e-4,
+                         stabilizationMethod=DISSIPATED_ENERGY_FRACTION,
+                         continueDampingFactors=False,
+                         adaptiveDampingRatio=0.05,
+                         description='Cp(z) + diff pressure + 3G gravity')
+        model.fieldOutputRequests['F-Output-1'].setValues(
+            variables=('S', 'U', 'RF', 'TEMP', 'NT', 'LE', 'SDEG', 'STATUS'))
+        model.FieldOutputRequest(name='F-Output-Thermal',
+                                 createStepName='Step-Thermal',
+                                 variables=('S', 'U', 'RF', 'TEMP', 'NT', 'LE',
+                                            'SDEG', 'STATUS'))
+        model.FieldOutputRequest(name='F-Output-Mechanical',
+                                 createStepName='Step-Mechanical',
+                                 variables=('S', 'U', 'RF', 'TEMP', 'NT', 'LE',
+                                            'SDEG', 'STATUS'))
+
+        # 11. Mesh
+        generate_mesh_with_adhesive(
+            a, inst_inner, inst_adh_inner, inst_core,
+            inst_adh_outer, inst_outer, frame_insts,
+            openings, defect_params,
+            g_seed, OPENING_SEED, d_seed, f_seed, adh_t)
+        if inst_stringer is not None:
+            try:
+                a.seedPartInstance(regions=(inst_stringer,), size=f_seed,
+                                   deviationFactor=0.1)
+                a.generateMesh(regions=(inst_stringer,))
+                print("Stringer mesh: %d nodes, %d elements" % (
+                    len(inst_stringer.nodes), len(inst_stringer.elements)))
+            except Exception as e:
+                print("Stringer mesh warning: %s" % str(e)[:80])
+
+        if defect_params:
+            _post_mesh_defect_sections(
+                p_inner, p_core, p_outer, p_adh_inner, p_adh_outer,
+                defect_params, openings)
+
+        apply_post_mesh_bcs_with_adhesive(
+            model, a, inst_inner, inst_adh_inner, inst_core,
+            inst_adh_outer, inst_outer)
+
+        apply_thermal_load_ground_truth(
+            model, a, inst_inner, inst_adh_inner, inst_core,
+            inst_adh_outer, inst_outer, frame_insts,
+            inst_stringer=inst_stringer)
+
+        apply_mechanical_loads(model, a, inst_inner, inst_core, inst_outer,
+                               step_name='Step-Mechanical')
+
+    # Common: Cp(z) pressure summary
     print("Cp(z) pressure distribution (%d zones):" % len(AERO_PRESSURE_ZONES))
     for i, (z_lo, z_hi, p_mpa) in enumerate(AERO_PRESSURE_ZONES):
         z_mid = (z_lo + z_hi) / 2.0
         print("  Zone %d: z=[%.0f, %.0f] Cp=%.3f P=%.4f MPa" % (
             i, z_lo, z_hi, cp_at_z(z_mid), p_mpa))
 
-    # 16. Job
+    # 16. Job (no COH3D8->C3D8R patching needed for surface CZM)
     create_and_run_job(model, job_name, no_run, project_root,
                        defect_params=defect_params)
 
     print("=" * 70)
-    print("DONE: %s (Ground Truth, %.0f deg, CZM=%.2fmm, %s)" % (
-        job_name, SECTOR_ANGLE, adh_t, defect_type or 'healthy'))
-    print("  Realism: ~90%% (Cp(z) + doublers + residual + stringer)")
+    czm_mode = "surface CZM" if USE_SURFACE_CZM else "legacy %.2fmm" % adh_t
+    print("DONE: %s (Ground Truth, %.0f deg, %s, %s)" % (
+        job_name, SECTOR_ANGLE, czm_mode, defect_type or 'healthy'))
+    print("  Realism: ~%d%% (Cp(z) + doublers + residual + stringer%s)" % (
+        90 if USE_SURFACE_CZM else 75,
+        " + surface CZM" if USE_SURFACE_CZM else ""))
     print("=" * 70)
 
 
@@ -2966,12 +3994,35 @@ if __name__ == '__main__':
                         help='Cohesive layer thickness (mm), default 0.2')
     parser.add_argument('--adhesive_params', type=str, default=None,
                         help='JSON string or file with CZM material params')
+    parser.add_argument('--variability_seed', type=int, default=None,
+                        help='Seed for manufacturing variability (None=no scatter)')
+    parser.add_argument('--full_360', action='store_true',
+                        help='Generate full 360-degree model (shortcut for --sector 360)')
+    parser.add_argument('--sector', type=float, default=None,
+                        help='Sector angle in degrees (30=1/12, 45=1/8, 60=1/6, 360=full)')
     parser.add_argument('--no_run', action='store_true',
                         help='Write INP only, do not run solver')
     parser.add_argument('--project_root', type=str, default=None,
                         help='Project root for patch script')
 
     args, _ = parser.parse_known_args()
+
+    # --sector or --full_360 overrides SECTOR_ANGLE globally
+    _sector = args.sector
+    if args.full_360:
+        _sector = 360.0
+    if _sector is not None:
+        global SECTOR_ANGLE, SOLVER_MEMORY
+        SECTOR_ANGLE = _sector
+        if _sector >= 360.0:
+            SOLVER_MEMORY = '32 gb'
+            print("Mode: Full 360-degree model")
+        elif _sector >= 180.0:
+            SOLVER_MEMORY = '16 gb'
+            print("Mode: %.0f-degree sector (1/%.0f)" % (_sector, 360.0 / _sector))
+        else:
+            SOLVER_MEMORY = '8 gb'
+            print("Mode: %.0f-degree sector (1/%.0f)" % (_sector, 360.0 / _sector))
 
     job_name = args.job_name if args.job_name is not None else args.job
 
@@ -3027,4 +4078,5 @@ if __name__ == '__main__':
         adhesive_params=adh_params,
         no_run=getattr(args, 'no_run', False),
         project_root=project_root,
+        variability_seed=args.variability_seed,
     )

@@ -20,6 +20,7 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(
 sys.path.insert(0, os.path.join(PROJECT_ROOT, 'src'))
 
 from prad.anomaly_score import load_model_and_score
+from prad.graphmae import PIGraphMAE
 from prad import STRESS_DIMS, PHYSICS_DIMS
 
 
@@ -182,6 +183,85 @@ def plot_residual_tsne(residuals, labels, output_dir, prefix='prad',
     print("  t-SNE plot saved")
 
 
+def grid_search_scoring(checkpoint_path, data_dir, device='cpu'):
+    """Grid search over scoring hyperparameters.
+
+    Searches alpha (cosine vs L1 blend), smooth_rounds, and smooth_alpha
+    to find the best combination for F1 and PR-AUC.
+    """
+    from prad.train_mae import load_data
+    from prad.anomaly_score import compute_anomaly_scores
+
+    ckpt = torch.load(checkpoint_path, map_location=device,
+                      weights_only=False)
+    args = ckpt['args']
+    model = PIGraphMAE(
+        encoder_arch=args['encoder_arch'],
+        in_channels=args.get('in_channels', 34),
+        hidden_channels=args['hidden'],
+        num_layers=args['num_layers'],
+        dropout=args['dropout'],
+        mask_ratio=args['mask_ratio'],
+        lambda_physics=args['lambda_physics'],
+        decoder_type=args.get('decoder_type', 'mlp'),
+    ).to(device)
+    model.load_state_dict(ckpt['model_state_dict'])
+
+    _, val_data = load_data(data_dir, device)
+
+    # Grid
+    alphas = [0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+    smooth_configs = [(0, 1.0), (1, 0.7), (1, 0.5), (2, 0.7)]
+
+    print("\n  Grid Search: alpha x smoothing")
+    print("  " + "-" * 72)
+    print("  %-6s %-10s %-10s | %-8s %-8s %-8s" % (
+        'alpha', 'sm_rounds', 'sm_alpha', 'ROC-AUC', 'PR-AUC', 'F1'))
+    print("  " + "-" * 72)
+
+    best_f1 = 0
+    best_config = {}
+
+    for alpha in alphas:
+        for sm_rounds, sm_alpha in smooth_configs:
+            all_scores, all_labels = [], []
+            for data in val_data:
+                scores, _ = compute_anomaly_scores(
+                    model, data, alpha=alpha,
+                    smooth_rounds=sm_rounds, smooth_alpha=sm_alpha)
+                all_scores.append(scores.cpu())
+                all_labels.append(data.y.cpu())
+
+            scores_np = torch.cat(all_scores).numpy()
+            labels_np = torch.cat(all_labels).numpy()
+            metrics = compute_metrics(scores_np, labels_np)
+
+            marker = ''
+            if metrics['best_f1'] > best_f1:
+                best_f1 = metrics['best_f1']
+                best_config = {
+                    'alpha': alpha, 'smooth_rounds': sm_rounds,
+                    'smooth_alpha': sm_alpha, 'metrics': metrics,
+                }
+                marker = ' *'
+
+            print("  %-6.1f %-10d %-10.1f | %-8.4f %-8.4f %-8.4f%s" % (
+                alpha, sm_rounds, sm_alpha,
+                metrics['roc_auc'], metrics['pr_auc'],
+                metrics['best_f1'], marker))
+
+    print("  " + "-" * 72)
+    print("\n  Best config: alpha=%.1f, smooth_rounds=%d, smooth_alpha=%.1f" % (
+        best_config['alpha'], best_config['smooth_rounds'],
+        best_config['smooth_alpha']))
+    m = best_config['metrics']
+    print("  ROC-AUC=%.4f  PR-AUC=%.4f  F1=%.4f  P=%.4f  R=%.4f" % (
+        m['roc_auc'], m['pr_auc'], m['best_f1'],
+        m['precision'], m['recall']))
+
+    return best_config
+
+
 def main():
     parser = argparse.ArgumentParser(description='Evaluate PRAD')
     parser.add_argument('--checkpoint',
@@ -189,6 +269,12 @@ def main():
     parser.add_argument('--data_dir',
                         default='data/processed_s12_mixed_400')
     parser.add_argument('--output_dir', default='figures/prad')
+    parser.add_argument('--alpha', type=float, default=0.7,
+                        help='Cosine vs L1 blend (1.0=cosine only)')
+    parser.add_argument('--smooth_rounds', type=int, default=1)
+    parser.add_argument('--smooth_alpha', type=float, default=0.7)
+    parser.add_argument('--grid_search', action='store_true',
+                        help='Grid search scoring hyperparameters')
     parser.add_argument('--stress_weight', type=float, default=2.0)
     parser.add_argument('--device', default='cpu')
     args = parser.parse_args()
@@ -201,10 +287,19 @@ def main():
     print("  data_dir:   %s" % args.data_dir)
     print()
 
+    if args.grid_search:
+        best = grid_search_scoring(args.checkpoint, args.data_dir,
+                                   device=device)
+        args.alpha = best['alpha']
+        args.smooth_rounds = best['smooth_rounds']
+        args.smooth_alpha = best['smooth_alpha']
+        print()
+
     # Score validation data
     val_scores, val_labels, val_residuals = load_model_and_score(
         args.checkpoint, args.data_dir, device=device,
-        stress_weight=args.stress_weight)
+        alpha=args.alpha, smooth_rounds=args.smooth_rounds,
+        smooth_alpha=args.smooth_alpha)
 
     # Concatenate all graphs
     scores_np = torch.cat(val_scores).numpy()
@@ -215,6 +310,8 @@ def main():
     print("  Defect nodes: %d (%.2f%%)" % (
         (labels_np > 0).sum(),
         100.0 * (labels_np > 0).sum() / len(labels_np)))
+    print("  Scoring: alpha=%.1f, smooth_rounds=%d, smooth_alpha=%.1f" % (
+        args.alpha, args.smooth_rounds, args.smooth_alpha))
     print()
 
     # Compute metrics
