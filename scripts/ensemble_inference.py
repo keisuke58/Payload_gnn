@@ -31,8 +31,16 @@ sys.path.insert(0, os.path.join(PROJECT_ROOT, 'src'))
 
 from models import build_model
 
-# 5-fold model directories
+# 5-fold model directories — DW=5+Residual (recall-optimized)
 FOLD_DIRS = [
+    os.path.join(PROJECT_ROOT, 'runs', 'gat_20260303_185224_fold0'),
+    os.path.join(PROJECT_ROOT, 'runs', 'gat_20260303_185615_fold1'),
+    os.path.join(PROJECT_ROOT, 'runs', 'gat_20260303_190406_fold2'),
+    os.path.join(PROJECT_ROOT, 'runs', 'gat_20260303_190839_fold3'),
+    os.path.join(PROJECT_ROOT, 'runs', 'gat_20260303_191500_fold4'),
+]
+# Baseline model directories (for comparison)
+BASELINE_FOLD_DIRS = [
     os.path.join(PROJECT_ROOT, 'runs', 'gat_20260303_160640_fold0'),
     os.path.join(PROJECT_ROOT, 'runs', 'gat_20260303_161051_fold1'),
     os.path.join(PROJECT_ROOT, 'runs', 'gat_20260303_161330_fold2'),
@@ -59,6 +67,7 @@ def load_fold_model(fold_dir):
         num_layers=args_dict.get('layers', 4),
         dropout=0.0,  # inference: no dropout
         num_classes=num_classes,
+        use_residual=args_dict.get('residual', False),
     )
     model.load_state_dict(ckpt['model_state_dict'])
     model.eval()

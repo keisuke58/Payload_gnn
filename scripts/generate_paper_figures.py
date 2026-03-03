@@ -58,11 +58,11 @@ METRIC_COLORS = {
 # Run directories (update if paths change)
 # ==========================================================================
 FOLD_DIRS = [
-    os.path.join(PROJECT_ROOT, 'runs', 'gat_20260303_160640_fold0'),
-    os.path.join(PROJECT_ROOT, 'runs', 'gat_20260303_161051_fold1'),
-    os.path.join(PROJECT_ROOT, 'runs', 'gat_20260303_161330_fold2'),
-    os.path.join(PROJECT_ROOT, 'runs', 'gat_20260303_161936_fold3'),
-    os.path.join(PROJECT_ROOT, 'runs', 'gat_20260303_162502_fold4'),
+    os.path.join(PROJECT_ROOT, 'runs', 'gat_20260303_185224_fold0'),
+    os.path.join(PROJECT_ROOT, 'runs', 'gat_20260303_185615_fold1'),
+    os.path.join(PROJECT_ROOT, 'runs', 'gat_20260303_190406_fold2'),
+    os.path.join(PROJECT_ROOT, 'runs', 'gat_20260303_190839_fold3'),
+    os.path.join(PROJECT_ROOT, 'runs', 'gat_20260303_191500_fold4'),
 ]
 
 GAMMA_RUNS = {
@@ -351,8 +351,9 @@ def fig4_confusion_matrix(out_dir):
         'gat', in_channels, edge_attr_dim,
         hidden_channels=args_dict.get('hidden', 128),
         num_layers=args_dict.get('layers', 4),
-        dropout=args_dict.get('dropout', 0.1),
+        dropout=0.0,
         num_classes=num_classes,
+        use_residual=args_dict.get('residual', False),
     )
     model.load_state_dict(ckpt['model_state_dict'])
     model.eval()
@@ -444,8 +445,9 @@ def _load_model_and_predict(val_data, best_dir, node_mean, node_std):
         'gat', in_channels, edge_attr_dim,
         hidden_channels=args_dict.get('hidden', 128),
         num_layers=args_dict.get('layers', 4),
-        dropout=args_dict.get('dropout', 0.1),
+        dropout=0.0,
         num_classes=num_classes,
+        use_residual=args_dict.get('residual', False),
     )
     model.load_state_dict(ckpt['model_state_dict'])
     model.eval()
