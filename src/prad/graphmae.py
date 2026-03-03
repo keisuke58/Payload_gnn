@@ -57,7 +57,8 @@ class PIGraphMAE(nn.Module):
 
     def __init__(self, encoder_arch='sage', in_channels=IN_CHANNELS,
                  hidden_channels=128, num_layers=4, dropout=0.1,
-                 mask_ratio=0.5, decoder_layers=2, lambda_physics=0.1):
+                 mask_ratio=0.5, decoder_layers=2, lambda_physics=0.1,
+                 decoder_type='mlp'):
         super().__init__()
         self.in_channels = in_channels
         self.hidden_channels = hidden_channels
@@ -79,15 +80,31 @@ class PIGraphMAE(nn.Module):
         self.enc_mask_token = MaskToken(in_channels)
         self.dec_mask_token = MaskToken(hidden_channels)
 
-        # Decoder: lightweight MLP
-        dec_layers = []
-        for i in range(decoder_layers):
-            d_in = hidden_channels if i == 0 else hidden_channels
-            d_out = in_channels if i == decoder_layers - 1 else hidden_channels
-            dec_layers.append(nn.Linear(d_in, d_out))
-            if i < decoder_layers - 1:
-                dec_layers.append(nn.PReLU())
-        self.decoder = nn.Sequential(*dec_layers)
+        # Decoder
+        if decoder_type == 'bottleneck':
+            # Bottleneck MLP: forces compressed representation,
+            # preventing trivial pass-through.
+            bottleneck = hidden_channels // 2
+            self.decoder = nn.Sequential(
+                nn.Linear(hidden_channels, bottleneck),
+                nn.LayerNorm(bottleneck),
+                nn.PReLU(),
+                nn.Linear(bottleneck, hidden_channels),
+                nn.LayerNorm(hidden_channels),
+                nn.PReLU(),
+                nn.Linear(hidden_channels, in_channels),
+            )
+        else:
+            # Default MLP decoder (compatible with v3 checkpoints)
+            dec_layers = []
+            for i in range(decoder_layers):
+                d_in = hidden_channels
+                d_out = in_channels if i == decoder_layers - 1 \
+                    else hidden_channels
+                dec_layers.append(nn.Linear(d_in, d_out))
+                if i < decoder_layers - 1:
+                    dec_layers.append(nn.PReLU())
+            self.decoder = nn.Sequential(*dec_layers)
 
     def mask_nodes(self, x, mask_ratio=None):
         """Randomly select nodes to mask.
