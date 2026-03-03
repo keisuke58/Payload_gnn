@@ -2,7 +2,7 @@
 
 # Physics-Residual Anomaly Detection (PRAD)
 
-> **Status**: Stage 1 完了 — **ROC-AUC 0.992 / F1 0.775** 達成
+> **Status**: Stage 1+2 完了 — **ROC-AUC 0.992 / F1 0.775** (Stage 1)、**蒸留 R²=0.998** (Stage 2)
 > **Date**: 2026-03-04
 > **前提**: バイナリ GNN F1 > 0.8 達成済み
 > **方針**: 既存コード (`models.py`, `train.py` 等) に一切干渉しない。全て新規ファイルで実装。
@@ -224,9 +224,12 @@ src/
     ├── graphmae.py        # Stage 1: PI-GraphMAE モデル定義
     ├── train_mae.py       # Stage 1: 自己教師あり事前学習
     ├── distill_fno2gnn.py # Stage 2: FNO→GNN 知識蒸留
+    ├── distill_multitask.py # Stage 2: MAE再構成+応力予測の同時学習
+    ├── finetune_distilled.py # 蒸留エンコーダの fine-tune + 比較評価
     ├── anomaly_score.py   # Stage 3: 残差ベース異常スコア
     ├── physics_loss.py    # 物理制約損失 (∇·σ ≈ 0)
-    └── eval_prad.py       # 評価 (ROC, 残差マップ可視化)
+    ├── diagnose.py        # 残差診断 (次元別分析)
+    └── eval_prad.py       # 評価 (ROC, PR, t-SNE 可視化)
 ```
 
 ### 4.2 既存コードへの依存（読み込みのみ）
@@ -248,10 +251,11 @@ Week 1: Stage 1 (PI-GraphMAE) ✅ 完了
   └─ train_mae.py: 健全データで事前学習
       → 達成: cos_sim=0.9987, ROC-AUC=0.992, F1=0.775
 
-Week 2: Stage 2 (FNO Distillation) — FNO checkpoint 待ち
-  ├─ distill_fno2gnn.py: grid→graph 補間 + 蒸留 (実装済み)
-  └─ 学習済み FNO の重みをロード
-      → 目標: GNN の応力予測 R² > 0.90
+Week 2: Stage 2 (FNO Distillation) ✅ 完了
+  ├─ distill_fno2gnn.py: grid→graph 補間 + 蒸留
+  ├─ FNO teacher (val_rel_l2=0.022) → GNN student
+  └─ 達成: R²=0.9984 (目標 0.90 を大幅達成)
+  ★ 蒸留エンコーダの異常検出統合は改善なし（§6.5 参照）
 
 Week 3: マルチクラス拡張 + 論文用図表
   ├─ 残差パターンの t-SNE / クラスタリング
@@ -281,7 +285,7 @@ Week 3: マルチクラス拡張 + 論文用図表
 | 復元精度 | cos_sim > 0.95 | **0.9987** | ✅ |
 | ROC-AUC | > 0.95 | **0.992** | ✅ |
 | F1 | — | **0.775** | ✅ |
-| FNO 蒸留 R² | > 0.90 | — | 未実施 |
+| FNO 蒸留 R² | > 0.90 | **0.9984** | ✅ |
 
 ### 5.3 論文上のインパクト
 
@@ -353,6 +357,45 @@ bottleneck/mr70:  ROC=0.971  PR=0.731  F1=0.755
 2. **Cosine distance >> L1**: 学習目的関数とスコアリング関数を一致させることが重要
 3. **グラフスムージングの効果が甚大**: PR-AUC が 0.38→0.77 に倍増。欠陥は空間的に集中するため、近傍スコア平均で信号増幅 + ノイズ抑制
 4. **シンプルなデコーダが最良**: ボトルネックや高マスク率は逆効果
+
+### 6.5 Stage 2: FNO → GNN 蒸留
+
+**FNO Teacher**: 392 epochs 学習済み、val_rel_l2=0.022
+- 入力: (4, 64, 64) — z_norm, theta_norm, defect_mask, temp_norm
+- 出力: (1, 64, 64) — smises (正規化: mean=21.26, std=23.24)
+
+**蒸留**:
+```
+入力: FNO teacher (frozen) + MAE encoder (初期重み)
+grid→graph 補間: FNO 64×64 grid → 15,206 不規則メッシュノード
+  - 円筒座標変換: (x,y,z) → (θ, y_axial) → bilinear interpolation
+  - 座標範囲: θ=[0°, 30°], y=[0, 10449mm]
+
+結果: 100 epochs, 103秒
+  Epoch 1:   loss=432.6  R²=0.752
+  Epoch 40:  loss=5.14   R²=0.995
+  Epoch 100: loss=2.10   R²=0.998  ← best
+```
+
+**蒸留エンコーダの異常検出への統合実験**:
+
+| アプローチ | ROC-AUC | PR-AUC | F1 | 備考 |
+|-----------|---------|--------|------|------|
+| **Stage 1 only (baseline)** | **0.992** | **0.769** | **0.775** | **最良** |
+| 蒸留エンコーダ直接差替 | 0.573 | 0.007 | 0.017 | エンコーダ表現が崩壊 |
+| 蒸留 + decoder fine-tune (30ep) | 0.722 | 0.011 | 0.026 | 回復不十分 |
+| 蒸留 + full fine-tune (10ep) | 0.964 | 0.193 | 0.352 | 回復途中 |
+| マルチタスク (λ=0.1) | 0.958 | 0.196 | 0.275 | λ が大きすぎ |
+| マルチタスク (λ=0.001, 200ep) | 0.977 | 0.718 | 0.698 | ベースラインに近いが未超過 |
+
+**結論**: 蒸留エンコーダは応力予測に特化するため、34次元全体の再構成能力が崩壊。
+マルチタスク学習（MAE再構成 + 応力予測の同時最適化）でも Stage 1 を超えられなかった。
+
+**科学的示唆**:
+1. **自己教師あり再構成は異常検出に自己完結的** — 再構成損失自体が「健全物理の学習」に最適化されている
+2. **応力予測は直交的な知識** — 応力場予測(R²=0.998) と異常検出(F1=0.775) は異なる能力
+3. **FNO 蒸留の価値**: 応力場予測タスク、転移学習、別ドメインへの適用では有効（R²=0.998）
+4. **論文記述**: Stage 2 は「物理知識転移の成功例」+ 「異常検出には Stage 1 の再構成目的関数が最適」として報告
 
 ---
 
