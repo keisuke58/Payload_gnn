@@ -46,7 +46,7 @@ OGIVE_XC = RADIUS - OGIVE_RHO
 FACE_T = 1.0          # mm (CFRP skin)
 CORE_T = 38.0         # mm (Al honeycomb core, total allocation)
 ADHESIVE_T = 0.2      # mm (default cohesive layer thickness)
-ADH_R_MIN = 300.0     # mm — adhesive ogive cutoff radius (avoids degenerate elements near axis)
+ADH_R_MIN = 400.0     # mm — adhesive ogive cutoff radius (avoids degenerate elements near axis)
 
 # ==============================================================================
 # MATERIAL PROPERTIES
@@ -2618,7 +2618,13 @@ def create_and_run_job(model, job_name, no_run=False, project_root=None):
                     break
     if patch_script and os.path.exists(patch_script):
         import subprocess
-        r = subprocess.call([sys.executable, patch_script, inp_path],
+        # Use system python3, NOT sys.executable (ABQcaeK inside CAE — needs QAE license)
+        py_exe = 'python3'
+        for p in ['/usr/bin/python3', '/usr/local/bin/python3']:
+            if os.path.exists(p):
+                py_exe = p
+                break
+        r = subprocess.call([py_exe, patch_script, inp_path],
                             cwd=os.path.dirname(inp_path))
         if r == 0:
             print("INP patched for thermal load")
