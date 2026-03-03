@@ -5,18 +5,19 @@
 
 ---
 
-## クイックナビゲーション
+## Quick Navigation
 
 | カテゴリ | ページ |
 |----------|--------|
-| **概要** | [H3ロケット総覧](H3-Rocket-Overview), [フェアリング仕様](JAXA-Fairing-Specs) |
-| **技術** | [アーキテクチャ](Architecture), [**モデル別前処理**](Preprocessing-by-Model), [ML戦略](ML-Strategy), [超最先端ML](Cutting-Edge-ML), [熱解析](Thermal-Analysis), [**リアルFEM**](Realistic-Fairing-FEM), [**FEMリアリズム計画**](FEM-Realism-Roadmap), [**Ground Truth FEM**](Ground-Truth-FEM), [**GT vs Baseline**](GT-vs-Baseline-Comparison), [**CZMソルバー試行錯誤**](CZM-Solver-Trials), [**2段階スクリーニング**](Two-Stage-Screening), [**Augmentation+物理損失**](Augmentation-and-Physics-Loss), [**XAI**](XAI-Roadmap) |
-| **データ** | [データセット形式](Dataset-Format), [**ノード特徴量**](Node-Features), [欠陥生成](Defect-Generation-and-Labeling), [**拡張欠陥タイプ**](Extended-Defect-Types), [欠陥タイプ検証](Defect-Types-Validation), [**欠陥物理量検証**](Defect-Physics-Validation), [**発生確率・データセット割合**](Defect-Occurrence-Probability-and-Dataset-Ratio), [生成状況](Dataset-Generation-Status), [完璧度スコア](Dataset-Perfect-Score), [マルチクラス](Multi-Class-Roadmap), [外部データセット調査](Dataset-Survey), [**メッシュ収束チェック**](Mesh-Convergence), [**リアルFEM検証**](Dataset-Validation-Realistic), [**バッチINP生成状況**](Batch-INP-Status) |
-| **用語** | [英単語集](Vocabulary) |
-| **事故分析** | [F8事故](F8-Accident-Analysis), [SHM文脈](SHM-Context) |
-| **研究** | [2年目標](2-Year-Goals), [ロードマップ](Roadmap), [ベンチマーク目標](Benchmark-Targets), [理想vs実装](Ideal-vs-Implementation), [文献レビュー](Literature-Review), [研究レポート](Research-Report), [投稿先](Publication-Venues), [想定Q&A](Anticipated-QA) |
-| **タスク** | [GitHub Issues](https://github.com/keisuke58/Payload_gnn/issues) |
-| **Wiki push** | `./scripts/wiki_push.sh` — 変更を origin へ push |
+| **背景・概要** | [H3ロケット総覧](H3-Rocket-Overview) · [フェアリング仕様](JAXA-Fairing-Specs) · [F8事故](F8-Accident-Analysis) · [SHM文脈](SHM-Context) |
+| **FEM モデリング** | [リアルFEM](Realistic-Fairing-FEM) · [FEMリアリズム計画](FEM-Realism-Roadmap) · [Ground Truth FEM](Ground-Truth-FEM) · [GT vs Baseline](GT-vs-Baseline-Comparison) · [CZMソルバー試行](CZM-Solver-Trials) · [熱解析](Thermal-Analysis) · [FEM可視化](FEM-Visualization) · [メッシュ収束](Mesh-Convergence) · [C3D10バッチ](C3D10-Batch-Generation) |
+| **データセット** | [ノード特徴量 (34次元)](Node-Features) · [データセット形式](Dataset-Format) · [S12 CZMデータセット](S12-CZM-Dataset) · [生成状況](Dataset-Generation-Status) · [バッチINP](Batch-INP-Status) · [完璧度スコア](Dataset-Perfect-Score) · [積層構成](Layup-Structure) |
+| **欠陥設計** | [欠陥生成・ラベリング](Defect-Generation-and-Labeling) · [拡張欠陥タイプ](Extended-Defect-Types) · [欠陥タイプ検証](Defect-Types-Validation) · [欠陥物理量検証](Defect-Physics-Validation) · [発生確率・割合](Defect-Occurrence-Probability-and-Dataset-Ratio) · [メッシュ欠陥](MESH_DEFECTS) |
+| **GNN 学習・結果** | [アーキテクチャ](Architecture) · [ML戦略](ML-Strategy) · [二値分類](Binary-Classification) · [解析結果](Analysis-Results) · [**論文用図表 (27枚)**](Paper-Figures) |
+| **解釈性・高度手法** | [XAIロードマップ](XAI-Roadmap) · [2段階スクリーニング](Two-Stage-Screening) · [Augmentation+物理損失](Augmentation-and-Physics-Loss) · [マルチクラス](Multi-Class-Roadmap) |
+| **先端技術** | [最先端ML](Cutting-Edge-ML) · [量子コンピューティング](Quantum-Integration) |
+| **研究計画** | [2年目標](2-Year-Goals) · [ロードマップ](Roadmap) · [ベンチマーク目標](Benchmark-Targets) · [文献レビュー](Literature-Review) · [投稿先](Publication-Venues) · [研究レポート](Research-Report) · [理想vs実装](Ideal-vs-Implementation) · [想定Q&A](Anticipated-QA) |
+| **リファレンス** | [英単語集](Vocabulary) · [外部データセット調査](Dataset-Survey) · [データセット比較](Dataset-Comparison) · [GitHub Issues](https://github.com/keisuke58/Payload_gnn/issues) |
 
 ---
 
