@@ -425,29 +425,19 @@ def fig4_confusion_matrix(out_dir):
 
 
 # ==========================================================================
-# Fig 5: Defect Probability Map (3D)
+# Fig 5: Defect Inference Results (real-scale fairing)
 # ==========================================================================
-def fig5_defect_probability_map(out_dir):
-    """3D predicted vs ground truth defect map."""
+def _load_model_and_predict(val_data, best_dir, node_mean, node_std):
+    """Load model and run inference on all val samples."""
     import torch
-
-    # Find best fold and a good val sample (one with defects)
-    f1_scores = [get_best_f1(fd) for fd in FOLD_DIRS]
-    best_fold = int(np.argmax(f1_scores))
-    best_dir = FOLD_DIRS[best_fold]
+    from sklearn.metrics import f1_score, precision_score, recall_score
 
     ckpt = load_checkpoint(best_dir)
-    if ckpt is None:
-        print("No checkpoint found.")
-        return None
-
     args_dict = ckpt.get('args', {})
     in_channels = ckpt['in_channels']
     edge_attr_dim = ckpt['edge_attr_dim']
     head_key = [k for k in ckpt['model_state_dict'] if 'head' in k and 'weight' in k]
     num_classes = ckpt['model_state_dict'][head_key[-1]].shape[0] if head_key else 2
-
-    val_data = torch.load(os.path.join(DATA_DIR, 'val.pt'), weights_only=False)
 
     from models import build_model
     model = build_model(
@@ -460,72 +450,132 @@ def fig5_defect_probability_map(out_dir):
     model.load_state_dict(ckpt['model_state_dict'])
     model.eval()
 
-    norm_path = os.path.join(DATA_DIR, 'norm_stats.pt')
-    if os.path.exists(norm_path):
-        ns = torch.load(norm_path, weights_only=False)
-        node_mean, node_std = ns['mean'], ns['std']
-    else:
-        node_mean = node_std = None
-
-    # Find sample with most defect nodes
-    defect_counts = [(i, int((d.y > 0).sum())) for i, d in enumerate(val_data)]
-    defect_counts.sort(key=lambda x: x[1], reverse=True)
-    sample_idx = defect_counts[0][0]
-    graph = val_data[sample_idx]
-    print("Using val sample %d (%d defect nodes)" % (sample_idx, defect_counts[0][1]))
-
+    results = []
     with torch.no_grad():
-        x = graph.x
-        if node_mean is not None:
-            x = (x - node_mean) / node_std.clamp(min=1e-8)
-        logits = model(x, graph.edge_index, graph.edge_attr, None)
-        if num_classes == 2:
+        for i, graph in enumerate(val_data):
+            x = graph.x
+            if node_mean is not None:
+                x = (x - node_mean) / node_std.clamp(min=1e-8)
+            logits = model(x, graph.edge_index, graph.edge_attr, None)
             probs = torch.softmax(logits, dim=1)[:, 1].numpy()
-        else:
-            probs = 1.0 - torch.softmax(logits, dim=1)[:, 0].numpy()
+            preds = (probs > 0.5).astype(int)
+            targets = graph.y.numpy()
+            pos = graph.x[:, :3].numpy()  # real mm coords
 
-    # Un-normalized positions (first 3 features of original data)
-    pos = graph.x[:, :3].numpy()
-    if node_mean is not None:
-        pos_mean = node_mean[:3].numpy()
-        pos_std = node_std[:3].numpy()
-        pos = pos * pos_std + pos_mean
+            n_defect = int((targets > 0).sum())
+            if n_defect > 0:
+                f1 = f1_score(targets > 0, preds, zero_division=0)
+                prec = precision_score(targets > 0, preds, zero_division=0)
+                rec = recall_score(targets > 0, preds, zero_division=0)
+            else:
+                f1 = prec = rec = 0.0
 
-    true_labels = graph.y.numpy()
+            results.append({
+                'idx': i, 'pos': pos, 'probs': probs,
+                'targets': targets, 'preds': preds,
+                'n_defect': n_defect, 'f1': f1,
+                'precision': prec, 'recall': rec,
+            })
+    return results
 
-    # Convert to cylindrical display (x→R*cos, z→R*sin, y→axial)
-    x_pos, y_pos, z_pos = pos[:, 0], pos[:, 1], pos[:, 2]
 
-    fig = plt.figure(figsize=(16, 6))
+def _plot_fairing_panel(ax, pos, values, cmap, vmin, vmax, title, cbar_label):
+    """Plot a single fairing panel in real-scale (vertical, Y=axial up)."""
+    x, y_axial, z = pos[:, 0], pos[:, 1], pos[:, 2]
+    # Arc coordinate: circumferential position
+    theta = np.arctan2(z, x)
+    arc = 2600.0 * theta  # arc length [mm]
 
-    # (a) Predicted probability
-    ax1 = fig.add_subplot(121, projection='3d')
-    sc1 = ax1.scatter(x_pos, z_pos, y_pos,
-                      c=probs, cmap='hot_r', s=0.8, alpha=0.8,
-                      vmin=0, vmax=max(0.5, np.percentile(probs, 99.9)))
-    ax1.set_xlabel('X [mm]', fontsize=9)
-    ax1.set_ylabel('Z [mm]', fontsize=9)
-    ax1.set_zlabel('Y [mm]', fontsize=9)
-    ax1.set_title('(a) Predicted P(defect)', fontsize=12)
-    ax1.view_init(elev=20, azim=-60)
-    fig.colorbar(sc1, ax=ax1, shrink=0.55, pad=0.1, label='P(defect)')
+    sc = ax.scatter(arc, y_axial, c=values, cmap=cmap, s=0.3,
+                    alpha=0.8, vmin=vmin, vmax=vmax, edgecolors='none',
+                    rasterized=True)
+    ax.set_xlabel('Arc Length [mm]', fontsize=9)
+    ax.set_ylabel('Axial Position [mm]', fontsize=9)
+    ax.set_title(title, fontsize=10, fontweight='bold')
+    ax.set_aspect('equal')
+    ax.tick_params(labelsize=8)
+    return sc
 
-    # (b) Ground truth
-    ax2 = fig.add_subplot(122, projection='3d')
-    gt_colors = np.where(true_labels > 0, 1.0, 0.0)
-    sc2 = ax2.scatter(x_pos, z_pos, y_pos,
-                      c=gt_colors, cmap='hot_r', s=0.8, alpha=0.8,
-                      vmin=0, vmax=1)
-    ax2.set_xlabel('X [mm]', fontsize=9)
-    ax2.set_ylabel('Z [mm]', fontsize=9)
-    ax2.set_zlabel('Y [mm]', fontsize=9)
-    ax2.set_title('(b) Ground Truth', fontsize=12)
-    ax2.view_init(elev=20, azim=-60)
-    fig.colorbar(sc2, ax=ax2, shrink=0.55, pad=0.1, label='Defect')
 
-    fig.suptitle('GAT Defect Localization — S12 Thermal (val sample %d, %d defect nodes)' % (
-        sample_idx, int(gt_colors.sum())),
-                 fontsize=13, fontweight='bold')
+def fig5_defect_probability_map(out_dir):
+    """Multi-sample inference results on real-scale fairing."""
+    import torch
+
+    f1_scores = [get_best_f1(fd) for fd in FOLD_DIRS]
+    best_fold = int(np.argmax(f1_scores))
+    best_dir = FOLD_DIRS[best_fold]
+    print("Using best fold %d (F1=%.4f)" % (best_fold, f1_scores[best_fold]))
+
+    val_data = torch.load(os.path.join(DATA_DIR, 'val.pt'), weights_only=False)
+
+    norm_path = os.path.join(DATA_DIR, 'norm_stats.pt')
+    ns = torch.load(norm_path, weights_only=False)
+    node_mean, node_std = ns['mean'], ns['std']
+
+    # Run inference on all val samples
+    results = _load_model_and_predict(val_data, best_dir, node_mean, node_std)
+
+    # Pick 3 representative samples: large/medium/small defect
+    defective = [r for r in results if r['n_defect'] > 20]
+    defective.sort(key=lambda r: r['n_defect'], reverse=True)
+
+    # Large, Medium, Small
+    picks = []
+    if len(defective) >= 3:
+        picks = [defective[0], defective[len(defective) // 2], defective[-1]]
+    else:
+        picks = defective[:3]
+
+    n_samples = len(picks)
+    fig, axes = plt.subplots(n_samples, 2, figsize=(8, 4.5 * n_samples))
+    if n_samples == 1:
+        axes = axes.reshape(1, 2)
+
+    for row, r in enumerate(picks):
+        pos = r['pos']
+        probs = r['probs']
+        targets = r['targets']
+
+        # (left) Predicted P(defect)
+        vmax_pred = max(0.3, np.percentile(probs, 99.5))
+        sc1 = _plot_fairing_panel(
+            axes[row, 0], pos, probs, 'hot_r', 0, vmax_pred,
+            'Predicted P(defect)', 'P(defect)')
+        cb1 = fig.colorbar(sc1, ax=axes[row, 0], shrink=0.8, pad=0.02)
+        cb1.set_label('P(defect)', fontsize=8)
+        cb1.ax.tick_params(labelsize=7)
+
+        # (right) Ground Truth
+        gt = np.where(targets > 0, 1.0, 0.0)
+        sc2 = _plot_fairing_panel(
+            axes[row, 1], pos, gt, 'hot_r', 0, 1,
+            'Ground Truth', 'Defect')
+        cb2 = fig.colorbar(sc2, ax=axes[row, 1], shrink=0.8, pad=0.02)
+        cb2.set_label('Defect', fontsize=8)
+        cb2.ax.tick_params(labelsize=7)
+
+        # Metrics annotation
+        metrics_text = ('val[%d]  %d defect nodes\n'
+                        'F1=%.3f  Prec=%.3f  Rec=%.3f') % (
+            r['idx'], r['n_defect'], r['f1'], r['precision'], r['recall'])
+        axes[row, 0].text(0.02, 0.97, metrics_text, transform=axes[row, 0].transAxes,
+                          fontsize=8, va='top', ha='left',
+                          bbox=dict(boxstyle='round,pad=0.3', facecolor='white',
+                                    alpha=0.85, edgecolor='#9CA3AF'))
+
+        # Highlight defect region with circle
+        defect_mask = targets > 0
+        if defect_mask.any():
+            theta = np.arctan2(pos[defect_mask, 2], pos[defect_mask, 0])
+            arc_def = 2600.0 * theta
+            y_def = pos[defect_mask, 1]
+            for ax in [axes[row, 0], axes[row, 1]]:
+                ax.plot(arc_def.mean(), y_def.mean(), 'o', color='none',
+                        markeredgecolor='#22C55E', markeredgewidth=1.5,
+                        markersize=20)
+
+    fig.suptitle('GAT Defect Localization — S12 Thermal 1/12 Sector (Real Scale)',
+                 fontsize=13, fontweight='bold', y=1.01)
     plt.tight_layout()
 
     out_path = os.path.join(out_dir, 'fig5_defect_probability_map.png')

@@ -138,11 +138,21 @@ doe_sector12_ext100.json (D101-D200)
 - Defect Recall: 74.4% — 欠陥ノードの3/4を正しく検出
 - F1=0.876 (Best Fold 2)
 
-### Defect Probability Map
+### Defect Probability Map (Real-Scale Inference)
 
 ![Defect Probability Map](images/training/fig5_defect_probability_map.png)
 
-予測確率マップ (a) と Ground Truth (b) の比較。欠陥領域が高確率で正しく局在化されている。
+1/12セクターを実寸スケール（Arc Length × Axial Position [mm]）で描画。大・中・小の欠陥サンプル3例を Predicted P(defect) と Ground Truth で比較。
+
+| サンプル | 欠陥ノード数 | F1 | Precision | Recall |
+|---------|------------|-----|-----------|--------|
+| val[0] (Large) | 346 | 0.946 | 0.953 | 0.939 |
+| val[19] (Medium) | 89 | 0.888 | 0.847 | 0.933 |
+| val[31] (Small) | 21 | 0.743 | 0.929 | 0.619 |
+
+- 大欠陥（346ノード）: F1=0.95、ほぼ完全に検出
+- 中欠陥（89ノード）: F1=0.89、Recall高く見落とし少ない
+- 小欠陥（21ノード）: Precision=0.93 で誤検出は少ないが、Recall=0.62 で一部見落とし
 
 ### ROC Curve
 
