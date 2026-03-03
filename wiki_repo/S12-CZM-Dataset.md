@@ -1,17 +1,18 @@
 # S12 CZM 1/12セクター データセット
 
-**Status**: 200/200 Complete (Thermal)
+**Status**: 1000サンプル生成中 (穴なし) + 穴入りバージョン準備完了
 **Date**: 2026-03-03
 
 ## Overview
 
-CZM (Cohesive Zone Model) ベースの 1/12セクター (30°) モデルから生成した欠陥検出データセット。INPテンプレート方式で200サンプルを一括生成し、PyGグラフデータに変換済み。
+CZM (Cohesive Zone Model) ベースの 1/12セクター (30°) モデルから生成した欠陥検出データセット。INPテンプレート方式でサンプルを一括生成し、PyGグラフデータに変換。
+
+**穴なし版** (1000サンプル目標) と **穴入り版** (HVAC_Door + Vent_1) の2バージョンを並行生成中。
 
 ## 生成パイプライン
 
 ```
-doe_sector12_100.json (D001-D100)
-doe_sector12_ext100.json (D101-D200)
+doe_sector12_*.json
   → run_sector12_batch.py
     → patch_inp_defects.py (欠陥パッチ)
     → Abaqus solver (CZM S12 Thermal)
@@ -29,6 +30,9 @@ doe_sector12_ext100.json (D101-D200)
 | `data/processed_s12_czm_thermal_200_binary/` | PyGデータ (2クラス: healthy/defect) |
 | `doe_sector12_100.json` | DOE パラメータ (D001-D100, seed=42) |
 | `doe_sector12_ext100.json` | DOE パラメータ (D101-D200, seed=2026) |
+| `doe_sector12_ext200.json` | DOE パラメータ (D201-D400, seed=2027, inner_debond 30%) |
+| `doe_sector12_ext600.json` | DOE パラメータ (D401-D1000, seed=2028, inner_debond 30%) |
+| `doe_sector12_openings_1000.json` | 穴入りDOE (O0001-O1000, seed=3000, opening除外付き) |
 
 ## メッシュ仕様
 
@@ -242,6 +246,46 @@ Frames:    20°C (均一)
 | frontale01 | D101-D134 (34) | 34/34 完了 | 5.1h (544s/sample) |
 | frontale04 | D135-D167 (33) | 33/33 完了 | 5.1h (558s/sample) |
 | marinos03 | D168-D200 (33) | 33/33 完了 | 5.1h (561s/sample) |
+
+## データ拡張: 穴なし1000サンプル (進行中)
+
+inner_debond 検出率改善のためデータを200→1000サンプルに拡張。
+
+| バッチ | DOE | サンプル | inner_debond比率 | 状態 |
+|--------|-----|---------|-----------------|------|
+| D001-D200 | sector12_100 + ext100 | 200 | 10% (20件) | 完了 |
+| D201-D400 | ext200 (seed=2027) | 200 | 30% (60件) | 実行中 |
+| D401-D1000 | ext600 (seed=2028) | 600 | 30% (180件) | DOE生成済み |
+| **合計** | | **1000** | **~26% (260件)** | |
+
+4サーバー分散実行: frontale01/02/04, marinos03 (各50サンプル × 4並列)
+
+## 穴入りバージョン (準備完了)
+
+1/12セクターに開口部 (HVAC_Door + Vent_1) を追加したモデル。穴周辺の応力集中を含む学習データで、欠陥と穴の区別能力を獲得する。
+
+### 開口部仕様
+
+| 開口部 | θ中心 | z位置 | 直径 | セクター内位置 |
+|--------|------|-------|------|--------------|
+| HVAC_Door | 20° | 2500mm | 400mm | 完全に内側 |
+| Vent_1 | 15° | 300mm | 100mm | 完全に内側 |
+| ~~AccessDoor~~ | ~~30°~~ | ~~1500mm~~ | ~~1300mm~~ | セクター境界上→除外 |
+
+### テンプレート
+
+| 項目 | 穴なし | 穴入り |
+|------|--------|--------|
+| INP | `Job-CZM-S12-Thermal.inp` | `Job-CZM-S12-Openings.inp` |
+| 総ノード数 | 360K | 215K (穴部分のVoidで減少) |
+| INP行数 | 603K | 433K (熱パッチ込み) |
+| 生成コマンド | `--openings none` | `--openings s12` |
+
+### DOE
+
+`doe_sector12_openings_1000.json`: 1000サンプル (O0001-O1000)
+- inner_debond 30%, 開口部との重複自動除外
+- seed=3000, θ=[2°,28°], z=[800,4200]mm
 
 ---
 
