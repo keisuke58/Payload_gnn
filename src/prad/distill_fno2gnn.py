@@ -211,6 +211,7 @@ def main():
         dropout=mae_args['dropout'],
         mask_ratio=mae_args['mask_ratio'],
         lambda_physics=mae_args['lambda_physics'],
+        decoder_type=mae_args.get('decoder_type', 'mlp'),
     ).to(device)
     mae.load_state_dict(ckpt['model_state_dict'])
     print("  MAE loaded: %s" % args.mae_checkpoint)
