@@ -46,7 +46,7 @@ OGIVE_XC = RADIUS - OGIVE_RHO
 FACE_T = 1.0          # mm (CFRP skin)
 CORE_T = 38.0         # mm (Al honeycomb core, total allocation)
 ADHESIVE_T = 0.2      # mm (default cohesive layer thickness)
-ADH_R_MIN = 400.0     # mm — adhesive ogive cutoff radius (avoids degenerate elements near axis)
+ADH_R_MIN = 300.0     # mm — adhesive ogive cutoff radius (avoids degenerate elements near axis)
 
 # ==============================================================================
 # MATERIAL PROPERTIES
@@ -913,32 +913,25 @@ def partition_all_openings_with_adhesive(p_inner, p_adh_inner, p_core,
 # ==============================================================================
 
 def partition_defect_zone(parts_to_partition, defect_params):
-    """Partitions parts at the defect zone for section reassignment."""
+    """Partitions parts at the defect zone for section reassignment.
+
+    Uses Z-plane cuts only (no angular cuts) to avoid degenerate elements
+    when datum planes intersect curved adhesive/core geometry.
+    Circumferential defect resolution relies on face/cell centroid selection
+    in assign_sections_3tier.
+    """
     z_c = defect_params['z_center']
     theta_deg = defect_params['theta_deg']
     r_def = defect_params['radius']
 
-    r_local = get_radius_at_z(z_c) + CORE_T
-    if r_local < 1.0:
-        r_local = RADIUS
-    theta_rad = math.radians(theta_deg)
-    d_theta = min(r_def / r_local, math.radians(30.0))
-    t1 = theta_rad - d_theta
-    t2 = theta_rad + d_theta
-
     for geom_type, part in parts_to_partition:
+        # Only Z-plane cuts (perpendicular to axial direction)
         dp_z1 = part.DatumPlaneByPrincipalPlane(principalPlane=XZPLANE,
                                                  offset=z_c - r_def)
         dp_z2 = part.DatumPlaneByPrincipalPlane(principalPlane=XZPLANE,
                                                  offset=z_c + r_def)
-        dp_t1 = part.DatumPlaneByThreePoints(
-            point1=(0, 0, 0), point2=(0, 100, 0),
-            point3=(math.cos(t1), 0, math.sin(t1)))
-        dp_t2 = part.DatumPlaneByThreePoints(
-            point1=(0, 0, 0), point2=(0, 100, 0),
-            point3=(math.cos(t2), 0, math.sin(t2)))
 
-        for dp_id in [dp_z1.id, dp_z2.id, dp_t1.id, dp_t2.id]:
+        for dp_id in [dp_z1.id, dp_z2.id]:
             try:
                 if geom_type == 'shell':
                     faces = part.faces
@@ -954,7 +947,7 @@ def partition_defect_zone(parts_to_partition, defect_params):
                 print("  Part partition warning (%s): %s" % (
                     geom_type, str(e)[:80]))
 
-    print("Defect zone partitioned: z=%.0f theta=%.1f r=%.0f" % (
+    print("Defect zone partitioned (Z-only): z=%.0f theta=%.1f r=%.0f" % (
         z_c, theta_deg, r_def))
 
 
@@ -1030,77 +1023,11 @@ def assign_sections_3tier(p_inner, p_core, p_outer, openings, defect_params):
         print("  OuterSkin: %d void faces (openings)" % len(opening_faces_outer))
 
     # ---- Tier 3: Defect override ----
-    if not defect_params:
-        return
-
-    defect_type = defect_params.get('defect_type', 'debonding')
-
-    outer_skin_defects = ('debonding', 'impact', 'delamination',
-                          'thermal_progression', 'acoustic_fatigue')
-    if defect_type in outer_skin_defects:
-        section_map = {
-            'debonding': 'Section-CFRP-Debonded',
-            'impact': 'Section-CFRP-Impact',
-            'delamination': 'Section-CFRP-Delaminated',
-            'thermal_progression': 'Section-CFRP-ThermalDamaged',
-            'acoustic_fatigue': 'Section-CFRP-AcousticFatigued',
-        }
-        section_name = section_map[defect_type]
-        defect_faces = [f for f in p_outer.faces
-                        if is_face_in_defect_zone(f, defect_params)
-                        and not _is_point_in_any_opening(
-                            f.pointOn[0][0], f.pointOn[0][1],
-                            f.pointOn[0][2], openings or [], CORE_T)]
-        if defect_faces:
-            pts = tuple((f.pointOn[0],) for f in defect_faces)
-            face_seq = p_outer.faces.findAt(*pts)
-            region_d = p_outer.Set(faces=face_seq, name='Set-DefectZone-Skin')
-            p_outer.SectionAssignment(region=region_d, sectionName=section_name)
-            p_outer.MaterialOrientation(region=region_d, orientationType=GLOBAL,
-                                        axis=AXIS_3,
-                                        additionalRotationType=ROTATION_NONE,
-                                        localCsys=None)
-            print("  Tier 3: %s -> %d outer skin faces -> %s" % (
-                defect_type, len(defect_faces), section_name))
-        else:
-            print("  Warning: no outer skin faces found in defect zone")
-
-    if defect_type == 'inner_debond':
-        defect_faces_inner = [f for f in p_inner.faces
-                              if is_face_in_defect_zone(f, defect_params)
-                              and not _is_point_in_any_opening(
-                                  f.pointOn[0][0], f.pointOn[0][1],
-                                  f.pointOn[0][2], openings or [])]
-        if defect_faces_inner:
-            pts = tuple((f.pointOn[0],) for f in defect_faces_inner)
-            face_seq = p_inner.faces.findAt(*pts)
-            region_d = p_inner.Set(faces=face_seq,
-                                   name='Set-DefectZone-InnerSkin')
-            p_inner.SectionAssignment(region=region_d,
-                                      sectionName='Section-CFRP-InnerDebonded')
-            p_inner.MaterialOrientation(region=region_d, orientationType=GLOBAL,
-                                        axis=AXIS_3,
-                                        additionalRotationType=ROTATION_NONE,
-                                        localCsys=None)
-            print("  Tier 3: inner_debond -> %d inner skin faces" % (
-                len(defect_faces_inner)))
-        else:
-            print("  Warning: no inner skin faces found in defect zone")
-
-    if defect_type in ('fod', 'impact'):
-        section_name = ('Section-Core-FOD' if defect_type == 'fod'
-                        else 'Section-Core-Crushed')
-        defect_cells = [c for c in p_core.cells
-                        if is_cell_in_defect_zone(c, defect_params, openings)]
-        if defect_cells:
-            pts = tuple((c.pointOn[0],) for c in defect_cells)
-            cell_seq = p_core.cells.findAt(*pts)
-            region_d = p_core.Set(cells=cell_seq, name='Set-DefectZone-Core')
-            p_core.SectionAssignment(region=region_d, sectionName=section_name)
-            print("  Tier 3: %s -> %d core cells -> %s" % (
-                defect_type, len(defect_cells), section_name))
-        else:
-            print("  Warning: no core cells found in defect zone")
+    # DISABLED: geometric face/cell based defect assignment requires partitions
+    # which cause zero-volume elements. Defect sections are now assigned
+    # post-mesh via _post_mesh_defect_sections() using element centroids.
+    if defect_params:
+        print("  Tier 3: DEFERRED to post-mesh (element-centroid based)")
 
 
 # ==============================================================================
@@ -1127,63 +1054,181 @@ def assign_adhesive_sections(p_adh_inner, p_adh_outer, defect_params,
     # Opening nodes are pinned in post-mesh BCs.
 
     # ---- Tier 3: Defect override ----
-    if not defect_params:
-        return
+    # DISABLED: geometry-based cell selection requires partitions which cause
+    # zero-volume elements. Defect sections are now assigned post-mesh via
+    # _post_mesh_defect_sections() using element centroids.
+    if defect_params:
+        print("  Adhesive Tier 3: DEFERRED to post-mesh")
+    # For non-defect types, adhesive stays healthy (no override needed).
+
+
+# ==============================================================================
+# POST-MESH DEFECT SECTION OVERRIDE (element-centroid based)
+# ==============================================================================
+
+def _element_centroid(elem, nodes_dict):
+    """Compute centroid of a mesh element from its node coordinates."""
+    conn = elem.connectivity
+    xs = [nodes_dict[n][0] for n in conn]
+    ys = [nodes_dict[n][1] for n in conn]
+    zs = [nodes_dict[n][2] for n in conn]
+    return (sum(xs) / len(xs), sum(ys) / len(ys), sum(zs) / len(zs))
+
+
+def _post_mesh_defect_sections(p_inner, p_core, p_outer,
+                                p_adh_inner, p_adh_outer,
+                                defect_params, openings):
+    """Override section assignment for mesh elements in the defect zone.
+
+    Called AFTER meshing. Uses element centroids instead of geometric
+    partitions to avoid zero-volume element issues.
+    """
+    from abaqusConstants import AXIS_3, GLOBAL, ROTATION_NONE
 
     defect_type = defect_params.get('defect_type', 'debonding')
 
-    # debonding -> outer adhesive fully damaged
-    if defect_type == 'debonding':
-        defect_cells = [c for c in p_adh_outer.cells
-                        if is_cell_in_defect_zone(c, defect_params, openings)]
-        if defect_cells:
-            pts = tuple((c.pointOn[0],) for c in defect_cells)
-            cell_seq = p_adh_outer.cells.findAt(*pts)
-            region_d = p_adh_outer.Set(cells=cell_seq,
-                                       name='Set-DefectZone-Adhesive')
-            p_adh_outer.SectionAssignment(
-                region=region_d, sectionName='Section-Adhesive-Damaged')
-            print("  Adhesive Tier 3: debonding -> %d outer adhesive cells "
-                  "-> Damaged" % len(defect_cells))
-        else:
-            print("  Warning: no outer adhesive cells in defect zone")
+    # --- Outer skin: debonding, impact, delamination, etc. ---
+    outer_skin_defects = ('debonding', 'impact', 'delamination',
+                          'thermal_progression', 'acoustic_fatigue')
+    if defect_type in outer_skin_defects:
+        section_map = {
+            'debonding': 'Section-CFRP-Debonded',
+            'impact': 'Section-CFRP-Impact',
+            'delamination': 'Section-CFRP-Delaminated',
+            'thermal_progression': 'Section-CFRP-ThermalDamaged',
+            'acoustic_fatigue': 'Section-CFRP-AcousticFatigued',
+        }
+        section_name = section_map[defect_type]
 
-    # inner_debond -> inner adhesive fully damaged
-    elif defect_type == 'inner_debond':
-        defect_cells = [c for c in p_adh_inner.cells
-                        if is_cell_in_defect_zone(c, defect_params, openings)]
-        if defect_cells:
-            pts = tuple((c.pointOn[0],) for c in defect_cells)
-            cell_seq = p_adh_inner.cells.findAt(*pts)
-            region_d = p_adh_inner.Set(cells=cell_seq,
-                                       name='Set-DefectZone-Adhesive')
-            p_adh_inner.SectionAssignment(
-                region=region_d, sectionName='Section-Adhesive-Damaged')
-            print("  Adhesive Tier 3: inner_debond -> %d inner adhesive cells "
-                  "-> Damaged" % len(defect_cells))
-        else:
-            print("  Warning: no inner adhesive cells in defect zone")
+        # Build node coordinate dict for centroid calculation
+        nodes_dict = {}
+        for n in p_outer.nodes:
+            nodes_dict[n.label] = n.coordinates
 
-    # impact -> outer adhesive partially damaged
-    elif defect_type == 'impact':
-        defect_cells = [c for c in p_adh_outer.cells
-                        if is_cell_in_defect_zone(c, defect_params, openings)]
-        if defect_cells:
-            pts = tuple((c.pointOn[0],) for c in defect_cells)
-            cell_seq = p_adh_outer.cells.findAt(*pts)
-            region_d = p_adh_outer.Set(cells=cell_seq,
-                                       name='Set-DefectZone-Adhesive')
-            p_adh_outer.SectionAssignment(
-                region=region_d, sectionName='Section-Adhesive-PartialDamage')
-            print("  Adhesive Tier 3: impact -> %d outer adhesive cells "
-                  "-> PartialDamage" % len(defect_cells))
-        else:
-            print("  Warning: no outer adhesive cells in defect zone")
+        defect_elems = []
+        for elem in p_outer.elements:
+            cx, cy, cz = _element_centroid(elem, nodes_dict)
+            if _point_in_defect_zone(cx, cy, cz, defect_params):
+                # Skip if in opening
+                if openings and _is_point_in_any_opening(
+                        cx, cy, cz, openings, CORE_T):
+                    continue
+                defect_elems.append(elem)
 
-    # fod, delamination, thermal_progression, acoustic_fatigue
-    # -> adhesive stays healthy (defect is in core or skin only)
-    else:
-        print("  Adhesive Tier 3: %s -> adhesive stays healthy" % defect_type)
+        if defect_elems:
+            from mesh import MeshElementArray
+            elem_arr = MeshElementArray(defect_elems)
+            region_d = p_outer.Set(elements=elem_arr,
+                                   name='Set-DefectZone-Skin-Mesh')
+            p_outer.SectionAssignment(region=region_d,
+                                      sectionName=section_name)
+            p_outer.MaterialOrientation(
+                region=region_d, orientationType=GLOBAL,
+                axis=AXIS_3, additionalRotationType=ROTATION_NONE,
+                localCsys=None)
+            print("  Post-mesh defect: %d outer skin elements -> %s" % (
+                len(defect_elems), section_name))
+        else:
+            print("  Warning: no outer skin elements in defect zone")
+
+    # --- Inner skin: inner_debond ---
+    if defect_type == 'inner_debond':
+        nodes_dict = {}
+        for n in p_inner.nodes:
+            nodes_dict[n.label] = n.coordinates
+        defect_elems = []
+        for elem in p_inner.elements:
+            cx, cy, cz = _element_centroid(elem, nodes_dict)
+            if _point_in_defect_zone(cx, cy, cz, defect_params):
+                if openings and _is_point_in_any_opening(cx, cy, cz, openings):
+                    continue
+                defect_elems.append(elem)
+        if defect_elems:
+            from mesh import MeshElementArray
+            elem_arr = MeshElementArray(defect_elems)
+            region_d = p_inner.Set(elements=elem_arr,
+                                   name='Set-DefectZone-InnerSkin-Mesh')
+            p_inner.SectionAssignment(region=region_d,
+                                      sectionName='Section-CFRP-InnerDebonded')
+            print("  Post-mesh defect: %d inner skin elements -> InnerDebonded" % (
+                len(defect_elems)))
+
+    # --- Outer adhesive: debonding ---
+    if defect_type in ('debonding', 'impact'):
+        adh_section = ('Section-Adhesive-Damaged' if defect_type == 'debonding'
+                       else 'Section-Adhesive-PartialDamage')
+        nodes_dict = {}
+        for n in p_adh_outer.nodes:
+            nodes_dict[n.label] = n.coordinates
+        defect_elems = []
+        for elem in p_adh_outer.elements:
+            cx, cy, cz = _element_centroid(elem, nodes_dict)
+            if _point_in_defect_zone(cx, cy, cz, defect_params):
+                defect_elems.append(elem)
+        if defect_elems:
+            from mesh import MeshElementArray
+            elem_arr = MeshElementArray(defect_elems)
+            region_d = p_adh_outer.Set(elements=elem_arr,
+                                       name='Set-DefectZone-AdhOuter-Mesh')
+            p_adh_outer.SectionAssignment(region=region_d,
+                                          sectionName=adh_section)
+            print("  Post-mesh defect: %d adhesive elements -> %s" % (
+                len(defect_elems), adh_section))
+
+    # --- Inner adhesive: inner_debond ---
+    if defect_type == 'inner_debond':
+        nodes_dict = {}
+        for n in p_adh_inner.nodes:
+            nodes_dict[n.label] = n.coordinates
+        defect_elems = []
+        for elem in p_adh_inner.elements:
+            cx, cy, cz = _element_centroid(elem, nodes_dict)
+            if _point_in_defect_zone(cx, cy, cz, defect_params):
+                defect_elems.append(elem)
+        if defect_elems:
+            from mesh import MeshElementArray
+            elem_arr = MeshElementArray(defect_elems)
+            region_d = p_adh_inner.Set(elements=elem_arr,
+                                       name='Set-DefectZone-AdhInner-Mesh')
+            p_adh_inner.SectionAssignment(region=region_d,
+                                          sectionName='Section-Adhesive-Damaged')
+            print("  Post-mesh defect: %d inner adhesive elements -> Damaged" % (
+                len(defect_elems)))
+
+    # --- Core: FOD, impact ---
+    if defect_type in ('fod', 'impact'):
+        core_section = ('Section-Core-FOD' if defect_type == 'fod'
+                        else 'Section-Core-Crushed')
+        nodes_dict = {}
+        for n in p_core.nodes:
+            nodes_dict[n.label] = n.coordinates
+        defect_elems = []
+        for elem in p_core.elements:
+            cx, cy, cz = _element_centroid(elem, nodes_dict)
+            if is_cell_in_defect_zone_xyz(cx, cy, cz, defect_params, openings):
+                defect_elems.append(elem)
+        if defect_elems:
+            from mesh import MeshElementArray
+            elem_arr = MeshElementArray(defect_elems)
+            region_d = p_core.Set(elements=elem_arr,
+                                  name='Set-DefectZone-Core-Mesh')
+            p_core.SectionAssignment(region=region_d,
+                                     sectionName=core_section)
+            print("  Post-mesh defect: %d core elements -> %s" % (
+                len(defect_elems), core_section))
+
+    print("Post-mesh defect sections applied (type=%s)" % defect_type)
+
+
+def is_cell_in_defect_zone_xyz(x, y, z, defect_params, openings):
+    """Checks if (x,y,z) is within defect zone but not in openings."""
+    if not defect_params:
+        return False
+    if not _point_in_defect_zone(x, y, z, defect_params):
+        return False
+    if openings and _is_point_in_any_opening(x, y, z, openings):
+        return False
+    return True
 
 
 # ==============================================================================
@@ -1992,9 +2037,9 @@ def generate_mesh_with_adhesive(assembly,
         print("  Local mesh: %s zone z=[%.0f, %.0f] seed=%.0f mm" % (
             opening['name'], z1, z2, opening_seed))
 
-    # 4. Defect local refinement (skins + adhesive only, NOT core)
-    #    Same reason as step 3: fine seeds on thick solid core break C3D10.
-    skin_adh_insts = (inst_inner, inst_adh_inner, inst_adh_outer, inst_outer)
+    # 4. Defect local refinement (skins ONLY — adhesive layers are too thin
+    #    (0.2mm) for fine seeds without extreme aspect ratios)
+    skin_only_insts = (inst_inner, inst_outer)
     if defect_params:
         z_c = defect_params['z_center']
         r_def = defect_params['radius']
@@ -2002,7 +2047,7 @@ def generate_mesh_with_adhesive(assembly,
         z1 = max(1.0, z_c - r_def - margin)
         z2 = min(TOTAL_HEIGHT - 1.0, z_c + r_def + margin)
         r_box = RADIUS + CORE_T + 200
-        for inst in skin_adh_insts:
+        for inst in skin_only_insts:
             try:
                 edges = inst.edges.getByBoundingBox(
                     xMin=-r_box, xMax=r_box,
@@ -2024,7 +2069,7 @@ def generate_mesh_with_adhesive(assembly,
         for z_plane in [z_c - r_def, z_c + r_def]:
             z1b = max(1.0, z_plane - bm)
             z2b = min(TOTAL_HEIGHT - 1.0, z_plane + bm)
-            for inst in skin_adh_insts:
+            for inst in skin_only_insts:
                 try:
                     edges = inst.edges.getByBoundingBox(
                         xMin=-r_box, xMax=r_box,
@@ -2047,7 +2092,7 @@ def generate_mesh_with_adhesive(assembly,
         for t_plane in [theta_rad - d_theta, theta_rad + d_theta]:
             x_mid = r_local * math.cos(t_plane)
             z_mid = r_local * math.sin(t_plane)
-            for inst in skin_adh_insts:
+            for inst in skin_only_insts:
                 try:
                     edges = inst.edges.getByBoundingBox(
                         xMin=x_mid - bm, xMax=x_mid + bm,
@@ -2584,7 +2629,8 @@ def _fix_coh3d8_orientation(inp_path):
              "added" if mat_adhesive_solid_added else "NOT added"))
 
 
-def create_and_run_job(model, job_name, no_run=False, project_root=None):
+def create_and_run_job(model, job_name, no_run=False, project_root=None,
+                       defect_params=None):
     """Create Abaqus job, write INP, fix COH3D8 orientation, optionally run."""
     mdb.Job(name=job_name, model='Model-1', type=ANALYSIS, resultsFormat=ODB,
             numCpus=4, numDomains=4, multiprocessingMode=DEFAULT)
@@ -2628,6 +2674,42 @@ def create_and_run_job(model, job_name, no_run=False, project_root=None):
                             cwd=os.path.dirname(inp_path))
         if r == 0:
             print("INP patched for thermal load")
+
+    # Patch INP for defect section overrides (post-mesh, element-centroid-based)
+    if defect_params:
+        defect_patch = None
+        search_roots = [proj_root, os.path.dirname(inp_path),
+                        os.path.dirname(os.path.dirname(inp_path))]
+        for root in search_roots:
+            if root:
+                p = os.path.join(root, 'scripts', 'patch_inp_defect.py')
+                if os.path.exists(p):
+                    defect_patch = p
+                    break
+        if defect_patch:
+            import subprocess, json as _json, tempfile
+            # Write defect params to temp JSON for the patch script
+            tmp_json = os.path.join(os.path.dirname(inp_path) or '.',
+                                    '_defect_tmp.json')
+            with open(tmp_json, 'w') as _f:
+                _json.dump(defect_params, _f)
+            py_exe = 'python3'
+            for p in ['/usr/bin/python3', '/usr/local/bin/python3']:
+                if os.path.exists(p):
+                    py_exe = p
+                    break
+            r = subprocess.call([py_exe, defect_patch, inp_path, tmp_json],
+                                cwd=os.path.dirname(inp_path) or '.')
+            if r == 0:
+                print("INP patched for defect sections")
+            else:
+                print("WARNING: Defect INP patch failed (exit %d)" % r)
+            try:
+                os.remove(tmp_json)
+            except OSError:
+                pass
+        else:
+            print("WARNING: patch_inp_defect.py not found, skipping defect patch")
 
     print("Running job '%s'..." % job_name)
     import subprocess
@@ -2727,14 +2809,11 @@ def generate_ground_truth_model(job_name, defect_params=None,
     p_inner, p_adh_inner, p_core, p_adh_outer, p_outer = \
         create_base_parts_with_adhesive(model, adh_t)
 
-    # 3. Partition defect zone (skins + core only)
-    if defect_params:
-        parts_to_partition = [
-            ('shell', p_inner),
-            ('solid', p_core),
-            ('shell', p_outer),
-        ]
-        partition_defect_zone(parts_to_partition, defect_params)
+    # 3. Partition defect zone — DISABLED to avoid zero-volume elements.
+    #    Defect section assignment uses face/cell centroid selection instead.
+    #    if defect_params:
+    #        parts_to_partition = [('shell', p_inner), ('shell', p_outer)]
+    #        partition_defect_zone(parts_to_partition, defect_params)
 
     # 4. Section assignment: 3-tier (skins/core) + adhesive
     assign_sections_3tier(p_inner, p_core, p_outer, openings, defect_params)
@@ -2814,6 +2893,13 @@ def generate_ground_truth_model(job_name, defect_params=None,
         except Exception as e:
             print("Stringer mesh warning: %s" % str(e)[:80])
 
+    # 11b. Post-mesh defect section override (element-centroid-based)
+    #      No geometric partition needed — assign sections to mesh element sets.
+    if defect_params:
+        _post_mesh_defect_sections(
+            p_inner, p_core, p_outer, p_adh_inner, p_adh_outer,
+            defect_params, openings)
+
     # 12. Post-mesh BCs
     apply_post_mesh_bcs_with_adhesive(
         model, a, inst_inner, inst_adh_inner, inst_core,
@@ -2837,7 +2923,8 @@ def generate_ground_truth_model(job_name, defect_params=None,
             i, z_lo, z_hi, cp_at_z(z_mid), p_mpa))
 
     # 16. Job
-    create_and_run_job(model, job_name, no_run, project_root)
+    create_and_run_job(model, job_name, no_run, project_root,
+                       defect_params=defect_params)
 
     print("=" * 70)
     print("DONE: %s (Ground Truth, %.0f deg, CZM=%.2fmm, %s)" % (
