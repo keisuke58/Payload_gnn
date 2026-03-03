@@ -129,8 +129,9 @@ def main():
                         default='data/fno_grids_200')
     parser.add_argument('--epochs', type=int, default=100)
     parser.add_argument('--lr', type=float, default=5e-4)
-    parser.add_argument('--lambda_distill', type=float, default=0.01,
-                        help='Weight for stress distillation loss')
+    parser.add_argument('--lambda_distill', type=float, default=0.1,
+                        help='Weight for stress distillation loss '
+                             '(stress targets are normalized to unit variance)')
     parser.add_argument('--patience', type=int, default=20)
     parser.add_argument('--device', default='cuda' if torch.cuda.is_available()
                         else 'cpu')
@@ -204,26 +205,35 @@ def main():
 
     # Pre-interpolate all FNO grids to graph node positions
     fno_stress_cache = {}
-    for j in range(len(train_data)):
-        fno_idx = train_idx[j]
-        pos = train_data[j].pos.to(device)
+    all_targets = []
+    all_indices = list(range(len(train_data))) + list(range(len(val_data)))
+    all_idx_maps = list(train_idx) + list(val_idx)
+    all_data_refs = list(train_data) + list(val_data)
+
+    for k, (data_ref, fno_idx) in enumerate(
+            zip(all_data_refs, all_idx_maps)):
+        pos = data_ref.pos.to(device)
         target = interpolate_grid_to_nodes(
             fno_outputs[fno_idx], pos,
             theta_max=theta_max, y_max=y_max)
+        all_targets.append(target)
         fno_stress_cache[fno_idx] = target.cpu()
 
-    for j in range(len(val_data)):
-        fno_idx = val_idx[j]
-        pos = val_data[j].pos.to(device)
-        target = interpolate_grid_to_nodes(
-            fno_outputs[fno_idx], pos,
-            theta_max=theta_max, y_max=y_max)
-        fno_stress_cache[fno_idx] = target.cpu()
+    # Normalize stress targets to zero mean, unit std
+    # This makes stress loss scale comparable to MAE cosine loss (~0.01)
+    all_cat = torch.cat(all_targets)
+    stress_mean = all_cat.mean().item()
+    stress_std = all_cat.std().item() + 1e-8
+    for fno_idx in fno_stress_cache:
+        fno_stress_cache[fno_idx] = (
+            fno_stress_cache[fno_idx] - stress_mean) / stress_std
+    print("  Stress normalization: mean=%.2f, std=%.2f" % (
+        stress_mean, stress_std))
 
     # Free FNO from GPU
-    del fno, fno_outputs, fno_inputs
+    del fno, fno_outputs, fno_inputs, all_targets, all_cat
     torch.cuda.empty_cache() if torch.cuda.is_available() else None
-    print("  Done (%.1fs). Cached %d stress targets." % (
+    print("  Done (%.1fs). Cached %d normalized stress targets." % (
         time.time() - t0, len(fno_stress_cache)))
 
     # ---- Baseline evaluation (Stage 1 only) ----
