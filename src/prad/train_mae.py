@@ -135,6 +135,9 @@ def main():
                         help='Train only on healthy graphs (no defect nodes). '
                              'Note: loss is always computed on healthy nodes '
                              'only (via model). This flag filters whole graphs.')
+    parser.add_argument('--decoder_type', default='mlp',
+                        choices=['mlp', 'bottleneck'],
+                        help='Decoder architecture: mlp (default) or bottleneck')
     args = parser.parse_args()
 
     device = torch.device(args.device)
@@ -146,7 +149,7 @@ def main():
     print("  hidden:         %d" % args.hidden)
     print("  mask_ratio:     %.2f" % args.mask_ratio)
     print("  lambda_physics: %.3f" % args.lambda_physics)
-    print("  healthy_only:   %s" % args.healthy_only)
+    print("  decoder_type:   %s" % args.decoder_type)
     print("  device:         %s" % device)
     print()
 
@@ -168,6 +171,7 @@ def main():
         dropout=args.dropout,
         mask_ratio=args.mask_ratio,
         lambda_physics=args.lambda_physics,
+        decoder_type=args.decoder_type,
     ).to(device)
 
     n_params = sum(p.numel() for p in model.parameters())
@@ -187,7 +191,11 @@ def main():
     # Training loop
     best_val_loss = float('inf')
     patience_counter = 0
-    ckpt_name = 'prad_mae_%s.pt' % args.encoder_arch
+    # Include decoder_type and mask_ratio in checkpoint name
+    mr_str = str(int(args.mask_ratio * 100))
+    dec_str = args.decoder_type if args.decoder_type != 'mlp' else ''
+    suffix = '_%s' % dec_str if dec_str else ''
+    ckpt_name = 'prad_mae_%s_mr%s%s.pt' % (args.encoder_arch, mr_str, suffix)
     ckpt_path = os.path.join(args.checkpoint_dir, ckpt_name)
 
     print("\nTraining...")
