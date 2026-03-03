@@ -28,8 +28,8 @@ from prad.graphmae import PIGraphMAE
 HIGH_SIGNAL_DIMS = [17, 23]  # s12, le12 (ratio 2.55x)
 
 
-def compute_anomaly_scores(model, data, alpha=0.7, smooth_rounds=1,
-                           smooth_alpha=0.7, stress_weight=2.0):
+def compute_anomaly_scores(model, data, alpha=0.9, smooth_rounds=2,
+                           smooth_alpha=0.5, stress_weight=2.0):
     """Ensemble anomaly scoring: cosine distance + targeted L1 + smoothing.
 
     Combines:
@@ -105,8 +105,8 @@ def _graph_smooth(scores, edge_index, rounds=1, alpha=0.7):
     return scores
 
 
-def score_dataset(model, data_list, alpha=0.7, smooth_rounds=1,
-                  smooth_alpha=0.7, stress_weight=2.0):
+def score_dataset(model, data_list, alpha=0.9, smooth_rounds=2,
+                  smooth_alpha=0.5, stress_weight=2.0):
     """Score all graphs in a dataset.
 
     Args:
@@ -138,7 +138,7 @@ def score_dataset(model, data_list, alpha=0.7, smooth_rounds=1,
 
 
 def load_model_and_score(checkpoint_path, data_dir, device='cpu',
-                         alpha=0.7, smooth_rounds=1, smooth_alpha=0.7,
+                         alpha=0.9, smooth_rounds=2, smooth_alpha=0.5,
                          stress_weight=2.0):
     """Load checkpoint and score validation data.
 
