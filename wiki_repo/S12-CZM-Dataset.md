@@ -106,6 +106,8 @@ doe_sector12_ext100.json (D101-D200)
 
 ### Gamma Grid Search
 
+![Focal Loss γ Sensitivity](images/training/fig2_gamma_sensitivity.png)
+
 | γ | Best Val F1 |
 |---|-----------|
 | **1.0** | **0.8299** |
@@ -115,6 +117,10 @@ doe_sector12_ext100.json (D101-D200)
 
 ### 5-Fold CV (γ=1.0, GAT, Focal Loss)
 
+![5-Fold CV Training Curves](images/training/fig1_cv_training_curves.png)
+
+![5-Fold CV Box Plot](images/training/fig3_cv_boxplot.png)
+
 | Fold | Best Val F1 |
 |------|-----------|
 | 1 | 0.8652 |
@@ -123,6 +129,24 @@ doe_sector12_ext100.json (D101-D200)
 | 4 | 0.8751 |
 | 5 | 0.8159 |
 | **Mean** | **0.8548 ± 0.0231** |
+
+### Confusion Matrix (Best Fold)
+
+![Confusion Matrix](images/training/fig4_confusion_matrix.png)
+
+- Healthy Precision: 99.9% — 偽陽性（誤報）が極めて少ない
+- Defect Recall: 74.4% — 欠陥ノードの3/4を正しく検出
+- F1=0.876 (Best Fold 2)
+
+### Defect Probability Map
+
+![Defect Probability Map](images/training/fig5_defect_probability_map.png)
+
+予測確率マップ (a) と Ground Truth (b) の比較。欠陥領域が高確率で正しく局在化されている。
+
+### ROC Curve
+
+![ROC Curve](images/training/fig6_roc_curve.png)
 
 ### 学習設定
 
