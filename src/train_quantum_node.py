@@ -292,6 +292,8 @@ def main():
     parser.add_argument("--patience", type=int, default=30)
     parser.add_argument("--healthy_ratio", type=int, default=3,
                         help="Healthy nodes per defect node (downsampling)")
+    parser.add_argument("--n_defect_per_graph", type=int, default=5,
+                        help="Max defect nodes sampled per graph (controls dataset size)")
     parser.add_argument("--log_every", type=int, default=10)
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
@@ -307,9 +309,13 @@ def main():
     val_data = torch.load(os.path.join(data_dir, "val.pt"), weights_only=False)
 
     # Extract balanced node-level datasets
-    X_train, y_train = extract_node_dataset(train_data, healthy_ratio=args.healthy_ratio,
+    X_train, y_train = extract_node_dataset(train_data,
+                                             n_defect_per_graph=args.n_defect_per_graph,
+                                             healthy_ratio=args.healthy_ratio,
                                              seed=args.seed)
-    X_val, y_val = extract_node_dataset(val_data, healthy_ratio=args.healthy_ratio,
+    X_val, y_val = extract_node_dataset(val_data,
+                                         n_defect_per_graph=args.n_defect_per_graph,
+                                         healthy_ratio=args.healthy_ratio,
                                          seed=args.seed + 1)
 
     # Select physics features
