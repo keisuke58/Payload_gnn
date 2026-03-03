@@ -1,0 +1,8 @@
+{
+  "threshold": 0.5,
+  "p_classical": 0.436,
+  "n_required_classical": 4612,
+  "qiskit": {
+    "error": "No module named 'qiskit'"
+  }
+}

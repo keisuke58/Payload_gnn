@@ -160,7 +160,7 @@ G_ACCEL = 9810.0
 # ==============================================================================
 # SECTOR GEOMETRY
 # ==============================================================================
-SECTOR_ANGLE = 30.0   # degrees (1/12 of full fairing)
+SECTOR_ANGLE = 45.0   # degrees (1/8 of full fairing)
 
 # ==============================================================================
 # DOUBLER REINFORCEMENT ZONES
@@ -204,7 +204,7 @@ SOLVER_MEMORY = '8 gb'
 OPENINGS_PHASE1 = [
     {
         'name': 'AccessDoor',
-        'theta_deg': 30.0,
+        'theta_deg': 22.5,
         'z_center': 1500.0,
         'diameter': 1300.0,
     },
@@ -213,7 +213,7 @@ OPENINGS_PHASE1 = [
 OPENINGS_PHASE2 = [
     {
         'name': 'AccessDoor',
-        'theta_deg': 30.0,
+        'theta_deg': 22.5,
         'z_center': 1500.0,
         'diameter': 1300.0,
     },
@@ -2768,10 +2768,11 @@ def generate_ground_truth_model(job_name, defect_params=None,
     defect_type = (defect_params.get('defect_type', 'debonding')
                    if defect_params else None)
 
-    openings = []
+    openings = list(OPENINGS_PHASE1)
 
     print("=" * 70)
-    print("GROUND TRUTH FEM — Sector 1/12 (%.0f deg)" % SECTOR_ANGLE)
+    print("GROUND TRUTH FEM — Sector 1/%d (%.0f deg)" % (
+        int(round(360.0 / SECTOR_ANGLE)), SECTOR_ANGLE))
     print("  Target realism: ~90%%")
     print("  Features: Cp(z) + Doublers + Residual Stress + Stringer")
     print("  Steps: Initial -> Cure -> Thermal -> Mechanical")
@@ -2809,7 +2810,12 @@ def generate_ground_truth_model(job_name, defect_params=None,
     p_inner, p_adh_inner, p_core, p_adh_outer, p_outer = \
         create_base_parts_with_adhesive(model, adh_t)
 
-    # 3. Partition defect zone — DISABLED to avoid zero-volume elements.
+    # 3a. Partition openings (InnerSkin, Core, OuterSkin only)
+    if openings:
+        partition_all_openings_with_adhesive(
+            p_inner, p_adh_inner, p_core, p_adh_outer, p_outer, openings)
+
+    # 3b. Partition defect zone — DISABLED to avoid zero-volume elements.
     #    Defect section assignment uses face/cell centroid selection instead.
     #    if defect_params:
     #        parts_to_partition = [('shell', p_inner), ('shell', p_outer)]
