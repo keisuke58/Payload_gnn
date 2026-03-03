@@ -22,12 +22,19 @@
 
 ```mermaid
 graph LR
-    Input[入力特徴量<br>(34次元)] --> Encoder[古典 Encoder<br>(MLP)]
-    Encoder --> |次元圧縮 & 正規化| Latent[量子入力データ<br>(4〜8次元)]
-    Latent --> |Encoding| FeatureMap[量子特徴マップ<br>(ZZFeatureMap)]
-    FeatureMap --> |Entanglement| Ansatz[変分量子回路<br>(RealAmplitudes)]
-    Ansatz --> |Measurement| Expectation[期待値測定<br>(Pauli-Z)]
-    Expectation --> |Probability| Output[欠陥確率<br>(0.0〜1.0)]
+    Input["入力特徴量
+    (34次元)"] --> Encoder["古典 Encoder
+    (MLP)"]
+    Encoder -->|"次元圧縮 &amp; 正規化"| Latent["量子入力データ
+    (4〜8次元)"]
+    Latent -->|Encoding| FeatureMap["量子特徴マップ
+    (ZZFeatureMap)"]
+    FeatureMap -->|Entanglement| Ansatz["変分量子回路
+    (RealAmplitudes)"]
+    Ansatz -->|Measurement| Expectation["期待値測定
+    (Pauli-Z)"]
+    Expectation -->|Probability| Output["欠陥確率
+    (0.0〜1.0)"]
 ```
 
 ### 各コンポーネントの役割
