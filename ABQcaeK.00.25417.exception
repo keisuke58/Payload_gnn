@@ -1,0 +1,50 @@
+<Description>
+      ABAQUS/ABQcaeK rank 0 encountered a SEGMENTATION VIOLATION referencing location 0x48
+
+</Description>
+
+
+<Context>
+   CAE
+</Context>
+
+
+<Memory>
+   <Current>            2 GB </Current>
+   <Resident>           0 GB </Resident>
+   <Physical>          63 GB </Physical>
+   <Limit>              0 GB </Limit>
+   <Accessible>        63 GB </Accessible>
+   <Available>          4 GB </Available>
+   <Allocator>            DL </Allocator>
+   <HugePages>        always </HugePages>
+</Memory>
+
+<Swap>
+       <Size>           7 GB </Size>
+       <Used>           0 GB </Used>
+       <Free>           7 GB </Free>
+</Swap>
+
+<Directories>
+  <current> /home/nishioka/Payload2026     </current> <free>  99200 GB </free>   <used>  51468 GB </used> 
+</Directories>
+
+<Installation>
+     <Version> 2024  </Version>
+       <Build> 2023_09_21-21.55.25 RELr426 190762 </Build>
+</Installation>
+
+<Callstack>
+   1) libX11.so.6                0x0004864f ! _XSend           ??:?
+   2) libX11.so.6                0x0004ba7d ! _XFlush          ??:?
+   3) libX11.so.6                0x0004bcdd ! _XGetRequest     ??:?
+   4) libX11.so.6                0x0003fa6f ! XQueryExtension  ??:?
+   5) libABQSMAFoxFoxAPI.so      0x000b2ceb ! FXApp::onCmdNotify ??:?
+   6) libABQSMAFoxFoxAPI.so      0x000b33b0 ! FXApp::init      ??:?
+   7) libABQSMAInkVwrKer.so      0x00208659 ! ker_main         ??:?
+   8) ABQcaeK                    0x0042ee72 ! ABQmain          ??:?
+   9) ABQcaeK                    0x0042e407 ! main             ??:?
+  10) libc.so.6                  0x0003feb0 ! __libc_start_call_main ??:?
+</Callstack>
+

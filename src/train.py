@@ -92,9 +92,18 @@ def find_boundary_nodes(edge_index, y):
     return src[boundary_mask].unique()
 
 
-def build_node_weights(data, boundary_weight=1.0):
-    """Build per-node weight tensor: 1.0 for normal, boundary_weight for boundary."""
+def build_node_weights(data, boundary_weight=1.0, defect_weight=1.0):
+    """Build per-node weight tensor.
+
+    Args:
+        data: graph data with .y and .edge_index
+        boundary_weight: weight for healthy nodes adjacent to defect nodes
+        defect_weight: weight for defect nodes themselves (>1 = penalize misses more)
+    """
     w = torch.ones(data.y.shape[0], dtype=torch.float, device=data.y.device)
+    if defect_weight > 1.0:
+        defect_mask = data.y > 0
+        w[defect_mask] = defect_weight
     if boundary_weight > 1.0:
         boundary_idx = find_boundary_nodes(data.edge_index, data.y)
         w[boundary_idx] = boundary_weight
@@ -180,11 +189,28 @@ def compute_metrics(logits, targets, num_classes=2):
 # =========================================================================
 # Training loop
 # =========================================================================
+def _compute_weighted_loss(criterion, out, y, node_weights):
+    """Compute per-node loss weighted by node_weights."""
+    if isinstance(criterion, FocalLoss):
+        ce = F.cross_entropy(out, y, reduction='none')
+        pt = torch.exp(-ce)
+        per_node_loss = (1 - pt) ** criterion.gamma * ce
+        if criterion.alpha is not None:
+            alpha_t = criterion.alpha[y]
+            per_node_loss = alpha_t * per_node_loss
+    else:
+        weight = criterion.weight if hasattr(criterion, 'weight') and criterion.weight is not None else None
+        per_node_loss = F.cross_entropy(out, y, weight=weight, reduction='none')
+    return (per_node_loss * node_weights).mean()
+
+
 def train_epoch(model, loader, optimizer, criterion, device, num_classes=2,
-                boundary_weight=1.0, drop_edge_rate=0.0, feature_noise_std=0.0):
+                boundary_weight=1.0, defect_weight=1.0,
+                drop_edge_rate=0.0, feature_noise_std=0.0):
     model.train()
     total_loss = 0.0
     all_logits, all_targets = [], []
+    use_node_weights = (boundary_weight > 1.0 or defect_weight > 1.0)
 
     for batch in loader:
         batch = batch.to(device)
@@ -193,22 +219,9 @@ def train_epoch(model, loader, optimizer, criterion, device, num_classes=2,
         x = add_feature_noise(batch.x, feature_noise_std) if feature_noise_std > 0 else batch.x
         ei, ea = drop_edge(batch.edge_index, batch.edge_attr, drop_edge_rate) if drop_edge_rate > 0 else (batch.edge_index, batch.edge_attr)
         out = model(x, ei, ea, batch.batch)
-        if boundary_weight > 1.0:
-            # Per-node weighted loss using the configured criterion
-            if isinstance(criterion, FocalLoss):
-                # FocalLoss: compute per-node focal loss
-                ce = F.cross_entropy(out, batch.y, reduction='none')
-                pt = torch.exp(-ce)
-                per_node_loss = (1 - pt) ** criterion.gamma * ce
-                if criterion.alpha is not None:
-                    alpha_t = criterion.alpha[batch.y]
-                    per_node_loss = alpha_t * per_node_loss
-            else:
-                # WeightedCE: use class weights in per-node CE
-                weight = criterion.weight if hasattr(criterion, 'weight') and criterion.weight is not None else None
-                per_node_loss = F.cross_entropy(out, batch.y, weight=weight, reduction='none')
-            node_w = build_node_weights(batch, boundary_weight)
-            loss = (per_node_loss * node_w).mean()
+        if use_node_weights:
+            node_w = build_node_weights(batch, boundary_weight, defect_weight)
+            loss = _compute_weighted_loss(criterion, out, batch.y, node_w)
         else:
             loss = criterion(out, batch.y)
         loss.backward()
@@ -228,12 +241,14 @@ def train_epoch(model, loader, optimizer, criterion, device, num_classes=2,
 
 def train_epoch_subgraph(model, train_data, sampler, optimizer, criterion,
                          device, num_classes=2, drop_edge_rate=0.0,
-                         feature_noise_std=0.0):
+                         feature_noise_std=0.0,
+                         boundary_weight=1.0, defect_weight=1.0):
     """Training epoch with defect-centric sub-graph sampling."""
     model.train()
     total_loss = 0.0
     total_nodes = 0
     all_logits, all_targets = [], []
+    use_node_weights = (boundary_weight > 1.0 or defect_weight > 1.0)
 
     for graph in train_data:
         subgraphs = sampler.sample(graph)
@@ -243,7 +258,11 @@ def train_epoch_subgraph(model, train_data, sampler, optimizer, criterion,
             x = add_feature_noise(sg.x, feature_noise_std) if feature_noise_std > 0 else sg.x
             ei, ea = drop_edge(sg.edge_index, sg.edge_attr, drop_edge_rate) if drop_edge_rate > 0 else (sg.edge_index, sg.edge_attr)
             out = model(x, ei, ea, None)
-            loss = criterion(out, sg.y)
+            if use_node_weights:
+                node_w = build_node_weights(sg, boundary_weight, defect_weight)
+                loss = _compute_weighted_loss(criterion, out, sg.y, node_w)
+            else:
+                loss = criterion(out, sg.y)
             loss.backward()
             optimizer.step()
 
@@ -429,7 +448,7 @@ def train(args, train_data, val_data, fold=None):
             print("Sampler: DefectCentricSampler (hops=%d, healthy_ratio=%d)" % (
                 args.subgraph_hops, args.healthy_ratio))
 
-    # Augmentation info
+    # Augmentation / weighting info
     if is_main:
         aug_parts = []
         if getattr(args, 'drop_edge', 0) > 0:
@@ -438,6 +457,13 @@ def train(args, train_data, val_data, fold=None):
             aug_parts.append("FeatureNoise=%.3f" % args.feature_noise)
         if aug_parts:
             print("Augmentation: %s" % ', '.join(aug_parts))
+        weight_parts = []
+        if getattr(args, 'boundary_weight', 1.0) > 1.0:
+            weight_parts.append("boundary=%.1f" % args.boundary_weight)
+        if getattr(args, 'defect_weight', 1.0) > 1.0:
+            weight_parts.append("defect=%.1f" % args.defect_weight)
+        if weight_parts:
+            print("Node weights: %s" % ', '.join(weight_parts))
 
     # Logging (main process only)
     fold_str = '_fold%d' % fold if fold is not None else ''
@@ -466,15 +492,18 @@ def train(args, train_data, val_data, fold=None):
             train_sampler.set_epoch(epoch)
         de_rate = getattr(args, 'drop_edge', 0.0)
         fn_std = getattr(args, 'feature_noise', 0.0)
+        bw = getattr(args, 'boundary_weight', 1.0)
+        dw = getattr(args, 'defect_weight', 1.0)
         if use_subgraph:
             train_m = train_epoch_subgraph(
                 model, train_data, sampler, optimizer, criterion,
                 device, num_classes=num_classes,
-                drop_edge_rate=de_rate, feature_noise_std=fn_std)
+                drop_edge_rate=de_rate, feature_noise_std=fn_std,
+                boundary_weight=bw, defect_weight=dw)
         else:
             train_m = train_epoch(model, train_loader, optimizer, criterion, device,
                                    num_classes=num_classes,
-                                   boundary_weight=getattr(args, 'boundary_weight', 1.0),
+                                   boundary_weight=bw, defect_weight=dw,
                                    drop_edge_rate=de_rate, feature_noise_std=fn_std)
         val_m = eval_epoch(model, val_loader, criterion, device, num_classes=num_classes)
         scheduler.step()
@@ -668,9 +697,11 @@ def main():
                         help='DropEdge rate: fraction of edges to drop per epoch (0=off)')
     parser.add_argument('--feature_noise', type=float, default=0.0,
                         help='Gaussian noise std added to node features per epoch (0=off)')
-    # Boundary-aware loss
+    # Node-level loss weighting
     parser.add_argument('--boundary_weight', type=float, default=1.0,
                         help='Weight multiplier for boundary nodes (healthy adjacent to defect)')
+    parser.add_argument('--defect_weight', type=float, default=1.0,
+                        help='Weight multiplier for defect nodes (>1 = penalize false negatives more)')
     # Transfer learning
     parser.add_argument('--pretrained', type=str, default=None,
                         help='Path to pretrained checkpoint (best_model.pt) for fine-tuning')
