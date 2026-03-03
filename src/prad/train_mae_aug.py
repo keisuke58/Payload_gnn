@@ -256,10 +256,13 @@ def main():
     best_val_loss = float('inf')
     best_f1 = 0.0
     patience_counter = 0
+    f1_patience_counter = 0
     suffix = '_aug' if args.augment else ''
     dec_str = '_%s' % args.decoder_type if args.decoder_type != 'mlp' else ''
     ckpt_name = 'prad_mae_%s%s%s.pt' % (args.encoder_arch, dec_str, suffix)
     ckpt_path = os.path.join(args.checkpoint_dir, ckpt_name)
+    # Separate F1-best checkpoint (primary selection criterion)
+    ckpt_f1_path = ckpt_path.replace('.pt', '_f1best.pt')
 
     print("\nTraining...")
     t_start = time.time()
@@ -302,8 +305,8 @@ def main():
                       epoch, args.epochs, train_loss, val_loss,
                       val_cos_sim, dt, elapsed, improved))
 
-        # Evaluate anomaly detection periodically
-        if epoch % 20 == 0:
+        # Evaluate anomaly detection every 10 epochs (more frequent)
+        if epoch % 10 == 0:
             m = evaluate_anomaly(
                 model, val_data, alpha=args.alpha,
                 smooth_rounds=args.smooth_rounds,
@@ -315,6 +318,26 @@ def main():
                 m['roc_auc'], m['pr_auc'], m['best_f1']))
             if m['best_f1'] > best_f1:
                 best_f1 = m['best_f1']
+                f1_patience_counter = 0
+                # Save F1-best checkpoint separately
+                torch.save({
+                    'epoch': epoch,
+                    'model_state_dict': model.state_dict(),
+                    'val_loss': val_loss,
+                    'val_cos_sim': val_cos_sim,
+                    'best_f1': best_f1,
+                    'args': vars(args),
+                }, ckpt_f1_path)
+                print("         → F1-best saved! (%.4f)" % best_f1)
+            else:
+                f1_patience_counter += 1
+
+        # Early stop: if F1 hasn't improved for 5 eval cycles (50 epochs)
+        if f1_patience_counter >= 5 and epoch >= 60:
+            print("\n  F1-based early stopping at epoch %d "
+                  "(no F1 improvement for %d eval cycles)" % (
+                      epoch, f1_patience_counter))
+            break
 
         if patience_counter >= args.patience:
             print("\n  Early stopping at epoch %d" % epoch)
@@ -322,9 +345,15 @@ def main():
 
     writer.close()
 
-    # Load best model
-    best_ckpt = torch.load(ckpt_path, map_location=device,
-                           weights_only=False)
+    # Load F1-best model (preferred) or val-loss-best
+    if os.path.exists(ckpt_f1_path):
+        best_ckpt = torch.load(ckpt_f1_path, map_location=device,
+                               weights_only=False)
+        print("\n  Using F1-best checkpoint (epoch %d, F1=%.4f)" % (
+            best_ckpt['epoch'], best_ckpt.get('best_f1', 0)))
+    else:
+        best_ckpt = torch.load(ckpt_path, map_location=device,
+                               weights_only=False)
     model.load_state_dict(best_ckpt['model_state_dict'])
 
     # Final evaluation
