@@ -300,6 +300,18 @@ def main():
                         help='Also evaluate on OOD test set')
     parser.add_argument('--num_vis', type=int, default=5,
                         help='Number of heatmap visualizations to generate')
+    parser.add_argument('--bayes_enable', action='store_true',
+                        help='Enable Bayesian aggregation with MC Dropout')
+    parser.add_argument('--bayes_T', type=int, default=20,
+                        help='Number of MC Dropout forward passes')
+    parser.add_argument('--bayes_prior_p', type=float, default=0.02,
+                        help='Beta prior mean for defect occurrence')
+    parser.add_argument('--bayes_strength', type=float, default=10.0,
+                        help='Pseudo-count strength for Beta prior')
+    parser.add_argument('--uncertainty', action='store_true',
+                        help='Run MC Dropout uncertainty quantification')
+    parser.add_argument('--mc_T', type=int, default=30,
+                        help='MC Dropout forward passes (default: 30)')
     args = parser.parse_args()
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -334,16 +346,128 @@ def main():
     model = build_model(
         run_args.arch, in_ch, edge_dim,
         hidden_channels=run_args.hidden, num_layers=run_args.layers,
-        dropout=0.0, num_classes=2,
+        dropout=getattr(run_args, 'dropout', 0.0), num_classes=2,
     ).to(device)
     model.load_state_dict(ckpt['model_state_dict'])
     print("Loaded %s model from epoch %d (val_f1=%.4f)" %
           (run_args.arch.upper(), ckpt['epoch'], ckpt['val_f1']))
 
-    # Evaluate on test set
+    # Evaluate on test set (standard)
     test_agg, test_samples = evaluate_dataset(model, test_data, device, label='test')
     with open(os.path.join(args.output_dir, 'test_results.json'), 'w') as f:
         json.dump(test_agg, f, indent=2, default=str)
+
+    # Bayesian aggregation (optional)
+    if args.bayes_enable:
+        def mc_dropout_probs(model, data, T):
+            model.train()
+            probs_list = []
+            for _ in range(T):
+                out = model(data.x, data.edge_index, data.edge_attr)
+                probs = F.softmax(out, dim=1)[:, 1].detach().cpu().numpy()
+                probs_list.append(probs)
+            return np.stack(probs_list, axis=0)
+
+        def beta_posterior_mean(k, T, prior_p, strength):
+            alpha0 = prior_p * strength
+            beta0 = (1.0 - prior_p) * strength
+            return (alpha0 + k) / (alpha0 + beta0 + T)
+
+        model.eval()
+        bayes_sample_results = []
+        for data in test_data:
+            data = data.to(device)
+            probs_mc = mc_dropout_probs(model, data, args.bayes_T)
+            k = (probs_mc > 0.5).sum(axis=0)
+            post_mean = beta_posterior_mean(k, args.bayes_T, args.bayes_prior_p, args.bayes_strength)
+            logits_bayes = torch.from_numpy(
+                np.stack([1.0 - post_mean, post_mean], axis=1)
+            ).to(device)
+            metrics = compute_full_metrics(logits_bayes, data.y, data.pos)
+            bayes_sample_results.append(metrics)
+
+        bayes_agg = {}
+        for key in bayes_sample_results[0]:
+            vals = [r[key] for r in bayes_sample_results if r[key] != float('inf')]
+            if vals:
+                bayes_agg[key + '_mean'] = float(np.mean(vals))
+                bayes_agg[key + '_std'] = float(np.std(vals))
+        logits_cat = []
+        targets_cat = []
+        for i, data in enumerate(test_data):
+            data = data.to(device)
+            probs_mc = mc_dropout_probs(model, data, args.bayes_T)
+            k = (probs_mc > 0.5).sum(axis=0)
+            post_mean = beta_posterior_mean(k, args.bayes_T, args.bayes_prior_p, args.bayes_strength)
+            preds = (post_mean > 0.5).astype(int)
+            logits_cat.append(torch.from_numpy(preds))
+            targets_cat.append(data.y.cpu())
+        preds_all = torch.cat(logits_cat, dim=0).numpy()
+        targets_all = torch.cat(targets_cat, dim=0).numpy()
+        cm = confusion_matrix(targets_all, preds_all, labels=[0, 1])
+        bayes_agg['confusion_matrix'] = cm.tolist()
+        bayes_agg['classification_report'] = classification_report(
+            targets_all, preds_all, target_names=['Healthy', 'Defect'], zero_division=0)
+        print("\n=== BAYES Results ===")
+        print("  F1:    %.4f +/- %.4f" % (bayes_agg.get('f1_mean', 0), bayes_agg.get('f1_std', 0)))
+        print("  AUC:   %.4f +/- %.4f" % (bayes_agg.get('auc_mean', 0), bayes_agg.get('auc_std', 0)))
+        print("  IoU:   %.4f +/- %.4f" % (bayes_agg.get('iou_mean', 0), bayes_agg.get('iou_std', 0)))
+        print("  LocErr: %.1f +/- %.1f mm" %
+              (bayes_agg.get('localization_error_mm_mean', 0),
+               bayes_agg.get('localization_error_mm_std', 0)))
+        print("  Confusion Matrix:\n", np.array(cm))
+        print(bayes_agg['classification_report'])
+        with open(os.path.join(args.output_dir, 'test_results_bayes.json'), 'w') as f:
+            json.dump(bayes_agg, f, indent=2, default=str)
+
+    # Uncertainty quantification via MC Dropout
+    if args.uncertainty:
+        from uncertainty import (
+            mc_dropout_predict, uncertainty_quality_metrics,
+            plot_uncertainty_map, plot_calibration_curve,
+        )
+        print("\n=== MC Dropout Uncertainty (T=%d) ===" % args.mc_T)
+
+        unc_dir = os.path.join(args.output_dir, 'uncertainty')
+        os.makedirs(unc_dir, exist_ok=True)
+
+        all_probs, all_std, all_targets_unc = [], [], []
+        for i, data in enumerate(test_data):
+            data = data.to(device)
+            mean_p, std_p, entropy = mc_dropout_predict(
+                model, data.x, data.edge_index, data.edge_attr,
+                T=args.mc_T)
+            all_probs.append(mean_p)
+            all_std.append(std_p)
+            all_targets_unc.append(data.y.cpu().numpy())
+
+            if i < 5:
+                pos = data.pos.cpu().numpy() if data.pos is not None else data.x[:, :3].cpu().numpy()
+                plot_uncertainty_map(
+                    pos, mean_p, std_p, data.y.cpu().numpy(),
+                    os.path.join(unc_dir, 'mc_uncertainty_%03d.png' % i))
+
+        probs_cat = np.concatenate(all_probs)
+        std_cat = np.concatenate(all_std)
+        targets_cat_unc = np.concatenate(all_targets_unc)
+
+        uq_metrics = uncertainty_quality_metrics(probs_cat, std_cat, targets_cat_unc)
+        print("  ECE: %.4f" % uq_metrics['ece'])
+        if 'uncertainty_auroc' in uq_metrics:
+            print("  Uncertainty AUROC: %.4f" % uq_metrics['uncertainty_auroc'])
+        if 'uncertainty_separation' in uq_metrics:
+            print("  Separation (incorrect-correct): %.4f" % uq_metrics['uncertainty_separation'])
+        for k, v in uq_metrics.items():
+            if k.startswith('accuracy_reject'):
+                print("  %s: %.4f" % (k, v))
+        print("  Mean uncertainty: %.4f" % std_cat.mean())
+
+        plot_calibration_curve(probs_cat, targets_cat_unc,
+                               os.path.join(unc_dir, 'calibration_mc.png'))
+
+        with open(os.path.join(unc_dir, 'uncertainty_metrics.json'), 'w') as f:
+            json.dump(uq_metrics, f, indent=2, default=float)
+        print("  Saved to: %s" % unc_dir)
 
     # OOD evaluation
     if args.eval_ood:

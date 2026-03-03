@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-ensemble_inference.py — 5-Fold アンサンブル + 閾値最適化 + グラフ後処理
+ensemble_inference.py — 5-Fold アンサンブル + 閾値最適化 + グラフ後処理 + 不確実性定量化
 
-3つの改善を統合:
+4つの改善を統合:
   1. 5-Fold アンサンブル: 5モデルの P(defect) を平均
   2. 閾値最適化: recall-aware な最適閾値をスイープで決定
   3. グラフベース後処理: k-hop 近傍のラベル伝搬で孤立誤検出除去・見逃し補完
+  4. 不確実性定量化: アンサンブル分散 + MC Dropout
 
 Usage:
     python scripts/ensemble_inference.py
     python scripts/ensemble_inference.py --target_recall 0.90
+    python scripts/ensemble_inference.py --uncertainty --mc_T 30
 """
 
 import argparse
@@ -30,6 +32,11 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(PROJECT_ROOT, 'src'))
 
 from models import build_model
+from uncertainty import (
+    mc_dropout_predict, ensemble_predict_with_uncertainty,
+    ensemble_mc_predict, uncertainty_quality_metrics,
+    plot_uncertainty_map, plot_calibration_curve,
+)
 
 # 5-fold model directories — DW=5+Residual (recall-optimized)
 FOLD_DIRS = [
@@ -197,11 +204,17 @@ def print_comparison(label, prec, rec, f1):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Ensemble + threshold + post-processing')
+    parser = argparse.ArgumentParser(description='Ensemble + threshold + post-processing + uncertainty')
     parser.add_argument('--target_recall', type=float, default=0.90,
                         help='Minimum target recall (default: 0.90)')
     parser.add_argument('--save_results', type=str, default=None,
                         help='Save detailed results JSON')
+    parser.add_argument('--uncertainty', action='store_true',
+                        help='Enable uncertainty quantification')
+    parser.add_argument('--mc_T', type=int, default=30,
+                        help='MC Dropout forward passes per model (default: 30)')
+    parser.add_argument('--output_dir', type=str, default=None,
+                        help='Output directory for uncertainty maps')
     args = parser.parse_args()
 
     print("=" * 70)
@@ -331,8 +344,7 @@ def main():
             print("  val[%2d]  %4d defect nodes  F1=%.3f  P=%.3f  R=%.3f" % (
                 r['idx'], n_defect, f1, prec, rec))
 
-    # Save results
-    save_path = args.save_results or os.path.join(PROJECT_ROOT, 'runs', 'ensemble_results.json')
+    # Build output dict before uncertainty (so uncertainty can append)
     output = {
         'baseline': {'precision': baseline_prec, 'recall': baseline_rec, 'f1': baseline_f1},
         'ensemble_t05': {'precision': ens_prec, 'recall': ens_rec, 'f1': ens_f1, 'auc': ens_auc},
@@ -344,6 +356,107 @@ def main():
         output['ensemble_recall_target'] = best_recall_f1
     if pp_recall_cands:
         output['ensemble_pp_recall_target'] = best_pp_recall
+
+    # ===== Step 5: Uncertainty quantification =====
+    if args.uncertainty:
+        out_dir = args.output_dir or os.path.join(PROJECT_ROOT, 'runs', 'uncertainty')
+        os.makedirs(out_dir, exist_ok=True)
+
+        print("\n" + "=" * 70)
+        print("Uncertainty Quantification")
+        print("=" * 70)
+
+        # --- Ensemble uncertainty (from 5-fold variance) ---
+        print("\n--- Ensemble Uncertainty (5-fold variance) ---")
+        all_ens_probs, all_ens_std, all_targets_unc = [], [], []
+        for gi, graph in enumerate(val_data):
+            x = graph.x.clone()
+            if node_mean is not None:
+                x = (x - node_mean) / node_std.clamp(min=1e-8)
+            mean_p, std_p, _ = ensemble_predict_with_uncertainty(
+                models, x, graph.edge_index, graph.edge_attr)
+            all_ens_probs.append(mean_p)
+            all_ens_std.append(std_p)
+            all_targets_unc.append(graph.y.numpy())
+
+            # Per-sample uncertainty map (first 5)
+            if gi < 5:
+                pos = graph.x[:, :3].numpy()
+                plot_uncertainty_map(
+                    pos, mean_p, std_p, graph.y.numpy(),
+                    os.path.join(out_dir, 'ensemble_uncertainty_%03d.png' % gi))
+
+        ens_probs_cat = np.concatenate(all_ens_probs)
+        ens_std_cat = np.concatenate(all_ens_std)
+        targets_unc_cat = np.concatenate(all_targets_unc)
+
+        ens_uq = uncertainty_quality_metrics(ens_probs_cat, ens_std_cat, targets_unc_cat)
+        print("  ECE: %.4f" % ens_uq['ece'])
+        if 'uncertainty_auroc' in ens_uq:
+            print("  Uncertainty AUROC (error detection): %.4f" % ens_uq['uncertainty_auroc'])
+        if 'uncertainty_separation' in ens_uq:
+            print("  Uncertainty separation (incorrect - correct): %.4f" % ens_uq['uncertainty_separation'])
+        for k, v in ens_uq.items():
+            if k.startswith('accuracy_reject'):
+                print("  %s: %.4f" % (k, v))
+
+        plot_calibration_curve(ens_probs_cat, targets_unc_cat,
+                               os.path.join(out_dir, 'calibration_ensemble.png'))
+
+        # --- MC Dropout + Ensemble (combined) ---
+        print("\n--- Combined: MC Dropout (T=%d) x Ensemble (K=%d) ---" % (
+            args.mc_T, len(models)))
+        all_mc_probs, all_mc_total, all_mc_epi = [], [], []
+        for gi, graph in enumerate(val_data):
+            x = graph.x.clone()
+            if node_mean is not None:
+                x = (x - node_mean) / node_std.clamp(min=1e-8)
+            mean_p, total_s, epi_s, _ = ensemble_mc_predict(
+                models, x, graph.edge_index, graph.edge_attr, T=args.mc_T)
+            all_mc_probs.append(mean_p)
+            all_mc_total.append(total_s)
+            all_mc_epi.append(epi_s)
+
+            if gi < 5:
+                pos = graph.x[:, :3].numpy()
+                plot_uncertainty_map(
+                    pos, mean_p, total_s, graph.y.numpy(),
+                    os.path.join(out_dir, 'mc_ensemble_uncertainty_%03d.png' % gi))
+
+        mc_probs_cat = np.concatenate(all_mc_probs)
+        mc_total_cat = np.concatenate(all_mc_total)
+        mc_epi_cat = np.concatenate(all_mc_epi)
+
+        mc_uq = uncertainty_quality_metrics(mc_probs_cat, mc_total_cat, targets_unc_cat)
+        print("  ECE: %.4f" % mc_uq['ece'])
+        if 'uncertainty_auroc' in mc_uq:
+            print("  Uncertainty AUROC (error detection): %.4f" % mc_uq['uncertainty_auroc'])
+        if 'uncertainty_separation' in mc_uq:
+            print("  Uncertainty separation: %.4f" % mc_uq['uncertainty_separation'])
+        for k, v in mc_uq.items():
+            if k.startswith('accuracy_reject'):
+                print("  %s: %.4f" % (k, v))
+
+        print("\n  Mean uncertainty (all):    %.4f" % mc_total_cat.mean())
+        print("  Mean epistemic (model):   %.4f" % mc_epi_cat.mean())
+
+        plot_calibration_curve(mc_probs_cat, targets_unc_cat,
+                               os.path.join(out_dir, 'calibration_mc_ensemble.png'))
+
+        # Add to output
+        output['uncertainty'] = {
+            'ensemble': ens_uq,
+            'mc_ensemble': mc_uq,
+            'mc_T': args.mc_T,
+            'n_models': len(models),
+            'mean_uncertainty_ensemble': float(ens_std_cat.mean()),
+            'mean_uncertainty_mc': float(mc_total_cat.mean()),
+            'mean_epistemic_mc': float(mc_epi_cat.mean()),
+        }
+        print("\nUncertainty maps saved to: %s" % out_dir)
+
+    # Save results
+    save_path = args.save_results or os.path.join(PROJECT_ROOT, 'runs', 'ensemble_results.json')
 
     with open(save_path, 'w') as f:
         json.dump(output, f, indent=2, default=float)
