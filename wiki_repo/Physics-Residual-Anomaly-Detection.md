@@ -2,7 +2,7 @@
 
 # Physics-Residual Anomaly Detection (PRAD)
 
-> **Status**: 設計フェーズ
+> **Status**: Stage 1 完了 — **ROC-AUC 0.992 / F1 0.775** 達成
 > **Date**: 2026-03-04
 > **前提**: バイナリ GNN F1 > 0.8 達成済み
 > **方針**: 既存コード (`models.py`, `train.py` 等) に一切干渉しない。全て新規ファイルで実装。
@@ -242,24 +242,18 @@ src/
 ### 4.3 実装順序
 
 ```
-Week 1: Stage 1 (PI-GraphMAE)
+Week 1: Stage 1 (PI-GraphMAE) ✅ 完了
   ├─ graphmae.py: masked autoencoder 実装
   ├─ physics_loss.py: 応力平衡制約
   └─ train_mae.py: 健全データで事前学習
-      → 目標: 復元誤差 < 0.05 (cosine similarity > 0.95)
+      → 達成: cos_sim=0.9987, ROC-AUC=0.992, F1=0.775
 
-Week 2: Stage 2 (FNO Distillation)
-  ├─ distill_fno2gnn.py: grid→graph 補間 + 蒸留
+Week 2: Stage 2 (FNO Distillation) — FNO checkpoint 待ち
+  ├─ distill_fno2gnn.py: grid→graph 補間 + 蒸留 (実装済み)
   └─ 学習済み FNO の重みをロード
       → 目標: GNN の応力予測 R² > 0.90
 
-Week 3: Stage 3 (Anomaly Scoring)
-  ├─ anomaly_score.py: 残差計算
-  ├─ eval_prad.py: ROC/AUC 評価 + 可視化
-  └─ 既存 GNN 分類器 (F1>0.8) との精度比較
-      → 目標: AUC > 0.95
-
-Week 4: マルチクラス拡張 + 論文用図表
+Week 3: マルチクラス拡張 + 論文用図表
   ├─ 残差パターンの t-SNE / クラスタリング
   ├─ 8 欠陥タイプでの検出精度評価
   └─ 論文 Figure 作成
@@ -280,7 +274,16 @@ Week 4: マルチクラス拡張 + 論文用図表
 | FNO 活用 | スクリーニングのみ | **物理知識の蒸留** |
 | 新規欠陥種 | 再学習必須 | **未知の欠陥も検出可能** (OOD detection) |
 
-### 5.2 論文上のインパクト
+### 5.2 達成状況
+
+| 項目 | 目標 | 実績 | Status |
+|------|------|------|--------|
+| 復元精度 | cos_sim > 0.95 | **0.9987** | ✅ |
+| ROC-AUC | > 0.95 | **0.992** | ✅ |
+| F1 | — | **0.775** | ✅ |
+| FNO 蒸留 R² | > 0.90 | — | 未実施 |
+
+### 5.3 論文上のインパクト
 
 1. **Physics-Informed Graph Masked Autoencoder** — 手法として完全に新規
 2. **FNO→GNN Knowledge Distillation** — neural operator と GNN の初の蒸留
@@ -301,7 +304,59 @@ Week 4: マルチクラス拡張 + 論文用図表
 
 ---
 
-## 6. 関連ページ
+## 6. 実験結果（2026-03-04）
+
+### 6.1 Stage 1 学習
+
+```
+Dataset:  processed_s12_czm_thermal_200_binary (200 samples)
+Nodes:    15,206/graph × 200 graphs = 3.04M total
+Defects:  0.61% of nodes (3,693 / 608,240 val nodes)
+Encoder:  SAGEConv 4-layer, hidden=128
+Decoder:  MLP 2-layer (128→128→34)
+Training: 200 epochs, lr=1e-3, mask_ratio=0.5, lambda_physics=0.1
+         val_loss=0.0011, cos_sim=0.9987
+```
+
+### 6.2 精度推移
+
+| 段階 | ROC-AUC | PR-AUC | F1 | Precision | Recall | 改善施策 |
+|------|---------|--------|----|-----------|--------|---------|
+| v1 初回 (L1 scoring) | 0.416 | 0.005 | 0.013 | 0.006 | 0.421 | — |
+| v2 Cosine scoring | 0.974 | 0.381 | 0.475 | 0.446 | 0.509 | L1→Cosine distance |
+| **v3 + Graph smoothing** | **0.992** | **0.769** | **0.775** | **0.830** | **0.727** | グラフ空間スムージング |
+
+### 6.3 スコアリング改善の詳細
+
+**診断結果** (`diagnose.py`):
+- Cosine distance: ROC-AUC=0.974 → L1 全次元 (0.437) より圧倒的
+- dim 17 (s12) / dim 23 (le12): defect/healthy 比率 2.55x — 最も感度の高い次元
+- 多くの次元は defect の方が残差が低い（anti-informative）
+
+**グリッドサーチ結果** (alpha × smooth 設定):
+```
+alpha=1.0 (cosine only) + smooth_rounds=1, smooth_alpha=0.5 が最良
+→ グラフスムージングで孤立 false positive を除去 → PR-AUC 2倍
+```
+
+**モデルバリエーション比較** (best scoring config):
+```
+mlp/mr50:         ROC=0.992  PR=0.769  F1=0.775  ← best
+bottleneck/mr50:  ROC=0.977  PR=0.595  F1=0.632
+mlp/mr70:         ROC=0.962  PR=0.246  F1=0.332
+bottleneck/mr70:  ROC=0.971  PR=0.731  F1=0.755
+```
+
+### 6.4 主要な技術的知見
+
+1. **Re-masking はMLPデコーダと非互換**: 初回実装で cos_sim=0.07 だった原因。MLP は各ノードを独立処理するため、re-masking でマスクノードの情報が完全消失
+2. **Cosine distance >> L1**: 学習目的関数とスコアリング関数を一致させることが重要
+3. **グラフスムージングの効果が甚大**: PR-AUC が 0.38→0.77 に倍増。欠陥は空間的に集中するため、近傍スコア平均で信号増幅 + ノイズ抑制
+4. **シンプルなデコーダが最良**: ボトルネックや高マスク率は逆効果
+
+---
+
+## 7. 関連ページ
 
 | ページ | 内容 |
 |--------|------|
