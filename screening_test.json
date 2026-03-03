@@ -1,0 +1,1212 @@
+{
+  "total_cases": 200,
+  "needs_fem": 128,
+  "can_skip": 72,
+  "reduction_pct": 36.0,
+  "threshold": 19.380711555480957,
+  "unc_cutoff": 4.871799325942993,
+  "k_margin": 1.5,
+  "mc_samples": 10,
+  "cases": [
+    {
+      "sample": "Job-S12-D001",
+      "score": 25.110477447509766,
+      "uncertainty": 3.9700300693511963,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D002",
+      "score": 19.62019920349121,
+      "uncertainty": 3.9676952362060547,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D003",
+      "score": 20.318038940429688,
+      "uncertainty": 4.563136100769043,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D004",
+      "score": 28.30324363708496,
+      "uncertainty": 7.1249566078186035,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D005",
+      "score": 14.096912384033203,
+      "uncertainty": 3.325181722640991,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D006",
+      "score": 7.739095687866211,
+      "uncertainty": 2.5523712635040283,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D007",
+      "score": 19.814905166625977,
+      "uncertainty": 3.2411723136901855,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D008",
+      "score": 10.595418930053711,
+      "uncertainty": 4.011547565460205,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D009",
+      "score": 23.38059425354004,
+      "uncertainty": 3.8111865520477295,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D010",
+      "score": 6.189170837402344,
+      "uncertainty": 3.0933806896209717,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D011",
+      "score": 11.715463638305664,
+      "uncertainty": 2.395075559616089,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D012",
+      "score": 26.003742218017578,
+      "uncertainty": 4.431849002838135,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D013",
+      "score": 22.953338623046875,
+      "uncertainty": 5.20029354095459,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D014",
+      "score": 12.332050323486328,
+      "uncertainty": 2.7437691688537598,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D015",
+      "score": 22.304967880249023,
+      "uncertainty": 4.5288004875183105,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D016",
+      "score": 31.833303451538086,
+      "uncertainty": 5.185939788818359,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D017",
+      "score": 8.164901733398438,
+      "uncertainty": 1.9315389394760132,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D018",
+      "score": 7.106208801269531,
+      "uncertainty": 2.3598763942718506,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D019",
+      "score": 23.088529586791992,
+      "uncertainty": 5.2535400390625,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D020",
+      "score": 3.9436473846435547,
+      "uncertainty": 2.0554616451263428,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D021",
+      "score": 19.105045318603516,
+      "uncertainty": 2.871833324432373,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D022",
+      "score": 21.273637771606445,
+      "uncertainty": 2.7813501358032227,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D023",
+      "score": 22.048358917236328,
+      "uncertainty": 3.643183469772339,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D024",
+      "score": 4.552045822143555,
+      "uncertainty": 2.247171401977539,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D025",
+      "score": 21.23988914489746,
+      "uncertainty": 3.745281934738159,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D026",
+      "score": 25.713184356689453,
+      "uncertainty": 6.1781768798828125,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D027",
+      "score": 23.95821762084961,
+      "uncertainty": 4.599424362182617,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D028",
+      "score": 9.59549331665039,
+      "uncertainty": 2.5961530208587646,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D029",
+      "score": 4.388818740844727,
+      "uncertainty": 2.3127601146698,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D030",
+      "score": 9.575334548950195,
+      "uncertainty": 4.925405025482178,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D031",
+      "score": 26.29315757751465,
+      "uncertainty": 5.751490592956543,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D032",
+      "score": 12.928535461425781,
+      "uncertainty": 4.164417743682861,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D033",
+      "score": 19.934459686279297,
+      "uncertainty": 6.1044921875,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D034",
+      "score": 25.433372497558594,
+      "uncertainty": 4.827991485595703,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D035",
+      "score": 6.303304672241211,
+      "uncertainty": 4.459441184997559,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D036",
+      "score": 6.411092758178711,
+      "uncertainty": 2.316211700439453,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D037",
+      "score": 10.396743774414062,
+      "uncertainty": 3.983140707015991,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D038",
+      "score": 13.618913650512695,
+      "uncertainty": 3.507927417755127,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D039",
+      "score": 25.52968406677246,
+      "uncertainty": 5.909061431884766,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D040",
+      "score": 5.301494598388672,
+      "uncertainty": 2.3800203800201416,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D041",
+      "score": 25.07025909423828,
+      "uncertainty": 6.216153621673584,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D042",
+      "score": 8.02164077758789,
+      "uncertainty": 3.613769054412842,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D043",
+      "score": 26.143741607666016,
+      "uncertainty": 5.684839725494385,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D044",
+      "score": 4.274145126342773,
+      "uncertainty": 2.910815477371216,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D045",
+      "score": 5.316471099853516,
+      "uncertainty": 2.3170948028564453,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D046",
+      "score": 24.0305233001709,
+      "uncertainty": 4.8151068687438965,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D047",
+      "score": 11.81460189819336,
+      "uncertainty": 3.4722979068756104,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D048",
+      "score": 18.283321380615234,
+      "uncertainty": 3.1153252124786377,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D049",
+      "score": 23.457386016845703,
+      "uncertainty": 3.875861644744873,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D050",
+      "score": 12.860401153564453,
+      "uncertainty": 2.6260550022125244,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D051",
+      "score": 4.515295028686523,
+      "uncertainty": 2.682812213897705,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D052",
+      "score": 20.4903621673584,
+      "uncertainty": 4.852343559265137,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D053",
+      "score": 19.323251724243164,
+      "uncertainty": 5.299874305725098,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D054",
+      "score": 23.2230281829834,
+      "uncertainty": 4.384243965148926,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D055",
+      "score": 15.855274200439453,
+      "uncertainty": 4.091859817504883,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D056",
+      "score": 12.884513854980469,
+      "uncertainty": 4.461432456970215,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D057",
+      "score": 25.022281646728516,
+      "uncertainty": 5.263175964355469,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D058",
+      "score": 6.039247512817383,
+      "uncertainty": 3.0177435874938965,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D059",
+      "score": 27.891952514648438,
+      "uncertainty": 6.514800548553467,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D060",
+      "score": 17.021263122558594,
+      "uncertainty": 3.049285411834717,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D061",
+      "score": 25.554710388183594,
+      "uncertainty": 5.988330364227295,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D062",
+      "score": 22.826494216918945,
+      "uncertainty": 6.444603443145752,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D063",
+      "score": 20.61485481262207,
+      "uncertainty": 4.135108947753906,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D064",
+      "score": 19.44098663330078,
+      "uncertainty": 3.437795877456665,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D065",
+      "score": 8.894292831420898,
+      "uncertainty": 2.397367000579834,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D066",
+      "score": 22.07337188720703,
+      "uncertainty": 5.0010762214660645,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D067",
+      "score": 22.964481353759766,
+      "uncertainty": 3.7287540435791016,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D068",
+      "score": 11.988819122314453,
+      "uncertainty": 5.787731647491455,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D069",
+      "score": 14.76081657409668,
+      "uncertainty": 3.1899185180664062,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D070",
+      "score": 18.274553298950195,
+      "uncertainty": 5.043192386627197,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D071",
+      "score": 19.604948043823242,
+      "uncertainty": 3.4156949520111084,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D072",
+      "score": 13.94837760925293,
+      "uncertainty": 2.8865628242492676,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D073",
+      "score": 7.881130218505859,
+      "uncertainty": 4.188857078552246,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D074",
+      "score": 23.08202362060547,
+      "uncertainty": 5.934051036834717,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D075",
+      "score": 20.92133331298828,
+      "uncertainty": 3.669923782348633,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D076",
+      "score": 8.022773742675781,
+      "uncertainty": 3.1040987968444824,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D077",
+      "score": 19.958229064941406,
+      "uncertainty": 4.787190914154053,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D078",
+      "score": 7.5475006103515625,
+      "uncertainty": 4.950958728790283,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D079",
+      "score": 5.862758636474609,
+      "uncertainty": 2.46844482421875,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D080",
+      "score": 18.68625259399414,
+      "uncertainty": 4.6299729347229,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D081",
+      "score": 5.553281784057617,
+      "uncertainty": 3.869567394256592,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D082",
+      "score": 21.41290283203125,
+      "uncertainty": 4.996324062347412,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D083",
+      "score": 25.432340621948242,
+      "uncertainty": 4.9208502769470215,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D084",
+      "score": 20.34874153137207,
+      "uncertainty": 5.1070122718811035,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D085",
+      "score": 11.496990203857422,
+      "uncertainty": 3.193866729736328,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D086",
+      "score": 24.694753646850586,
+      "uncertainty": 5.39294958114624,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D087",
+      "score": 22.8326416015625,
+      "uncertainty": 5.697393894195557,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D088",
+      "score": 24.27433967590332,
+      "uncertainty": 4.453764915466309,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D089",
+      "score": 11.47873306274414,
+      "uncertainty": 2.708010673522949,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D090",
+      "score": 4.154991149902344,
+      "uncertainty": 2.427542209625244,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D091",
+      "score": 16.483896255493164,
+      "uncertainty": 3.0595643520355225,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D092",
+      "score": 13.461591720581055,
+      "uncertainty": 3.818924903869629,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D093",
+      "score": 20.282529830932617,
+      "uncertainty": 3.4811508655548096,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D094",
+      "score": 25.166479110717773,
+      "uncertainty": 4.258063793182373,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D095",
+      "score": 10.269613265991211,
+      "uncertainty": 6.19135046005249,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D096",
+      "score": 21.053142547607422,
+      "uncertainty": 3.36919903755188,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D097",
+      "score": 25.890262603759766,
+      "uncertainty": 7.51245641708374,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D098",
+      "score": 20.63201904296875,
+      "uncertainty": 4.90619421005249,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D099",
+      "score": 17.802331924438477,
+      "uncertainty": 6.149221897125244,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D100",
+      "score": 15.939306259155273,
+      "uncertainty": 4.308934211730957,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D101",
+      "score": 26.98770523071289,
+      "uncertainty": 6.898889541625977,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D102",
+      "score": 19.149166107177734,
+      "uncertainty": 3.6056768894195557,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D103",
+      "score": 5.871637344360352,
+      "uncertainty": 2.169637680053711,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D104",
+      "score": 31.95559310913086,
+      "uncertainty": 6.177866458892822,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D105",
+      "score": 21.622663497924805,
+      "uncertainty": 3.7242748737335205,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D106",
+      "score": 18.170764923095703,
+      "uncertainty": 2.439589262008667,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D107",
+      "score": 19.06303596496582,
+      "uncertainty": 4.111955165863037,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D108",
+      "score": 25.032703399658203,
+      "uncertainty": 3.9240283966064453,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D109",
+      "score": 23.603464126586914,
+      "uncertainty": 5.975991725921631,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D110",
+      "score": 11.546588897705078,
+      "uncertainty": 3.4099578857421875,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D111",
+      "score": 13.030672073364258,
+      "uncertainty": 2.89750337600708,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D112",
+      "score": 5.2457122802734375,
+      "uncertainty": 2.773710012435913,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D113",
+      "score": 15.701797485351562,
+      "uncertainty": 3.9393062591552734,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D114",
+      "score": 13.588863372802734,
+      "uncertainty": 2.412648916244507,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D115",
+      "score": 23.976261138916016,
+      "uncertainty": 6.0023932456970215,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D116",
+      "score": 9.755928039550781,
+      "uncertainty": 3.9611339569091797,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D117",
+      "score": 5.0419464111328125,
+      "uncertainty": 2.9518942832946777,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D118",
+      "score": 5.719295501708984,
+      "uncertainty": 3.5461368560791016,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D119",
+      "score": 4.16401481628418,
+      "uncertainty": 2.2605690956115723,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D120",
+      "score": 25.593795776367188,
+      "uncertainty": 5.0414958000183105,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D121",
+      "score": 16.379972457885742,
+      "uncertainty": 3.435335636138916,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D122",
+      "score": 23.628150939941406,
+      "uncertainty": 3.701894521713257,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D123",
+      "score": 19.8319091796875,
+      "uncertainty": 3.7060093879699707,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D124",
+      "score": 3.0251426696777344,
+      "uncertainty": 2.0819151401519775,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D125",
+      "score": 8.93398666381836,
+      "uncertainty": 2.5722832679748535,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D126",
+      "score": 15.197223663330078,
+      "uncertainty": 4.209550380706787,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D127",
+      "score": 22.710786819458008,
+      "uncertainty": 4.2520246505737305,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D128",
+      "score": 9.019449234008789,
+      "uncertainty": 3.059492349624634,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D129",
+      "score": 13.284698486328125,
+      "uncertainty": 2.876492500305176,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D130",
+      "score": 9.847101211547852,
+      "uncertainty": 2.507068157196045,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D131",
+      "score": 26.14040184020996,
+      "uncertainty": 4.775241851806641,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D132",
+      "score": 26.45241928100586,
+      "uncertainty": 4.902837753295898,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D133",
+      "score": 20.85959815979004,
+      "uncertainty": 5.433636665344238,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D134",
+      "score": 26.987226486206055,
+      "uncertainty": 6.521848678588867,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D135",
+      "score": 4.56755256652832,
+      "uncertainty": 2.6215016841888428,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D136",
+      "score": 22.625164031982422,
+      "uncertainty": 4.497361660003662,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D137",
+      "score": 10.910961151123047,
+      "uncertainty": 2.8788700103759766,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D138",
+      "score": 27.75579261779785,
+      "uncertainty": 7.201645851135254,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D139",
+      "score": 18.893430709838867,
+      "uncertainty": 3.4239461421966553,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D140",
+      "score": 11.468975067138672,
+      "uncertainty": 4.383698463439941,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D141",
+      "score": 9.637367248535156,
+      "uncertainty": 3.1533262729644775,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D142",
+      "score": 23.070865631103516,
+      "uncertainty": 4.208909034729004,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D143",
+      "score": 16.77128028869629,
+      "uncertainty": 3.50473952293396,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D144",
+      "score": 23.128114700317383,
+      "uncertainty": 3.2809436321258545,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D145",
+      "score": 22.84648895263672,
+      "uncertainty": 4.767027854919434,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D146",
+      "score": 20.842849731445312,
+      "uncertainty": 3.4210336208343506,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D147",
+      "score": 9.264017105102539,
+      "uncertainty": 2.1060290336608887,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D148",
+      "score": 5.566629409790039,
+      "uncertainty": 4.1079254150390625,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D149",
+      "score": 22.43277359008789,
+      "uncertainty": 3.914839029312134,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D150",
+      "score": 14.6728515625,
+      "uncertainty": 5.0323381423950195,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D151",
+      "score": 25.76541519165039,
+      "uncertainty": 5.151962757110596,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D152",
+      "score": 20.55051612854004,
+      "uncertainty": 6.163294792175293,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D153",
+      "score": 14.374237060546875,
+      "uncertainty": 2.3583366870880127,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D154",
+      "score": 27.361108779907227,
+      "uncertainty": 4.683377742767334,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D155",
+      "score": 4.855443954467773,
+      "uncertainty": 1.9396750926971436,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D156",
+      "score": 18.753952026367188,
+      "uncertainty": 4.928427219390869,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D157",
+      "score": 21.672636032104492,
+      "uncertainty": 4.858497142791748,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D158",
+      "score": 8.270496368408203,
+      "uncertainty": 2.318491220474243,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D159",
+      "score": 21.38338279724121,
+      "uncertainty": 5.274270534515381,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D160",
+      "score": 4.310558319091797,
+      "uncertainty": 2.304896831512451,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D161",
+      "score": 27.411802291870117,
+      "uncertainty": 6.172364234924316,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D162",
+      "score": 27.36017608642578,
+      "uncertainty": 4.515209197998047,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D163",
+      "score": 23.108369827270508,
+      "uncertainty": 3.7284109592437744,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D164",
+      "score": 19.43817138671875,
+      "uncertainty": 3.8523573875427246,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D165",
+      "score": 9.462251663208008,
+      "uncertainty": 4.968211650848389,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D166",
+      "score": 22.97607421875,
+      "uncertainty": 4.375149250030518,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D167",
+      "score": 21.54277801513672,
+      "uncertainty": 3.4230387210845947,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D168",
+      "score": 13.704336166381836,
+      "uncertainty": 4.999069690704346,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D169",
+      "score": 17.763729095458984,
+      "uncertainty": 3.0927765369415283,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D170",
+      "score": 24.708452224731445,
+      "uncertainty": 6.121422290802002,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D171",
+      "score": 23.02978515625,
+      "uncertainty": 6.59112024307251,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D172",
+      "score": 17.678306579589844,
+      "uncertainty": 5.998709201812744,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D173",
+      "score": 24.66975975036621,
+      "uncertainty": 4.331999778747559,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D174",
+      "score": 20.856666564941406,
+      "uncertainty": 4.347787857055664,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D175",
+      "score": 7.544464111328125,
+      "uncertainty": 3.089642286300659,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D176",
+      "score": 22.81485939025879,
+      "uncertainty": 4.687230110168457,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D177",
+      "score": 5.133073806762695,
+      "uncertainty": 2.2623918056488037,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D178",
+      "score": 24.4291934967041,
+      "uncertainty": 5.428233623504639,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D179",
+      "score": 22.08816909790039,
+      "uncertainty": 7.325596332550049,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D180",
+      "score": 6.012199401855469,
+      "uncertainty": 2.4203877449035645,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D181",
+      "score": 19.61506462097168,
+      "uncertainty": 3.6226894855499268,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D182",
+      "score": 6.190898895263672,
+      "uncertainty": 2.8388235569000244,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D183",
+      "score": 21.901885986328125,
+      "uncertainty": 5.937267303466797,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D184",
+      "score": 13.07558822631836,
+      "uncertainty": 3.143528938293457,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D185",
+      "score": 24.94419288635254,
+      "uncertainty": 6.319642066955566,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D186",
+      "score": 20.81032943725586,
+      "uncertainty": 4.413333415985107,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D187",
+      "score": 4.672000885009766,
+      "uncertainty": 2.2298097610473633,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D188",
+      "score": 22.611682891845703,
+      "uncertainty": 3.8142828941345215,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D189",
+      "score": 9.007659912109375,
+      "uncertainty": 3.672832489013672,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D190",
+      "score": 20.16521644592285,
+      "uncertainty": 6.893382549285889,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D191",
+      "score": 4.156747817993164,
+      "uncertainty": 2.8284852504730225,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D192",
+      "score": 9.174570083618164,
+      "uncertainty": 4.783297061920166,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D193",
+      "score": 9.728450775146484,
+      "uncertainty": 3.1528913974761963,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D194",
+      "score": 22.04747200012207,
+      "uncertainty": 3.7486445903778076,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D195",
+      "score": 6.157121658325195,
+      "uncertainty": 3.7650928497314453,
+      "needs_fem": false
+    },
+    {
+      "sample": "Job-S12-D196",
+      "score": 25.93976402282715,
+      "uncertainty": 8.13480281829834,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D197",
+      "score": 22.159046173095703,
+      "uncertainty": 5.5636773109436035,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D198",
+      "score": 24.02472496032715,
+      "uncertainty": 6.229228496551514,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D199",
+      "score": 23.02338218688965,
+      "uncertainty": 5.352433204650879,
+      "needs_fem": true
+    },
+    {
+      "sample": "Job-S12-D200",
+      "score": 23.531402587890625,
+      "uncertainty": 6.364836692810059,
+      "needs_fem": true
+    }
+  ]
+}

@@ -185,12 +185,15 @@ def build_model(arch, in_channels, edge_attr_dim=0, **kwargs):
     Build a GNN model by name.
 
     Args:
-        arch: one of 'gcn', 'gat', 'gin', 'sage'
+        arch: one of 'gcn', 'gat', 'gin', 'sage', 'quantum', 'classical_graph'
         in_channels: number of node input features
         edge_attr_dim: number of edge attributes (used by GAT)
         **kwargs: forwarded to model constructor
                   (hidden_channels, num_layers, dropout, num_classes, use_residual)
     """
+    if arch in ('quantum', 'classical_graph'):
+        from models_quantum import build_quantum_model
+        return build_quantum_model(arch, in_channels, edge_attr_dim, **kwargs)
     if arch not in MODEL_REGISTRY:
         raise ValueError("Unknown architecture '%s'. Choose from: %s" %
                          (arch, list(MODEL_REGISTRY.keys())))
