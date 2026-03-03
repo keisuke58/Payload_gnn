@@ -1,0 +1,7542 @@
+{
+  "n_total": 600,
+  "n_healthy": 0,
+  "n_defective": 600,
+  "defect_types": [
+    "inner_debond",
+    "debonding",
+    "thermal_progression",
+    "acoustic_fatigue",
+    "fod",
+    "delamination",
+    "impact"
+  ],
+  "type_counts": {
+    "inner_debond": 180,
+    "debonding": 90,
+    "thermal_progression": 78,
+    "acoustic_fatigue": 72,
+    "fod": 60,
+    "delamination": 60,
+    "impact": 60
+  },
+  "opening_params": null,
+  "bounds": {
+    "theta_deg": [
+      2.0,
+      28.0
+    ],
+    "z_center": [
+      800.0,
+      4200.0
+    ],
+    "radius_tiers": [
+      {
+        "name": "Small",
+        "min": 50.0,
+        "max": 100.0,
+        "frac": 0.25
+      },
+      {
+        "name": "Medium",
+        "min": 100.0,
+        "max": 150.0,
+        "frac": 0.4
+      },
+      {
+        "name": "Large",
+        "min": 150.0,
+        "max": 250.0,
+        "frac": 0.3
+      },
+      {
+        "name": "Critical",
+        "min": 250.0,
+        "max": 400.0,
+        "frac": 0.05
+      }
+    ],
+    "type_params": {
+      "fod": {
+        "stiffness_factor": [
+          5.0,
+          20.0
+        ]
+      },
+      "impact": {
+        "damage_ratio": [
+          0.1,
+          0.5
+        ]
+      },
+      "delamination": {
+        "delam_depth": [
+          0.2,
+          0.8
+        ]
+      },
+      "acoustic_fatigue": {
+        "fatigue_severity": [
+          0.2,
+          0.5
+        ]
+      }
+    }
+  },
+  "seed": 2028,
+  "plan_reference": "docs/DEFECT_PLAN.md",
+  "samples": [
+    {
+      "id": 0,
+      "job_name": "Job-S12-D401",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 27.98,
+        "z_center": 2088.64,
+        "radius": 93.74
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Small"
+    },
+    {
+      "id": 1,
+      "job_name": "Job-S12-D402",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 4.44,
+        "z_center": 1196.75,
+        "radius": 67.0,
+        "damage_ratio": 0.24
+      },
+      "defect_type": "impact",
+      "size_tier": "Small"
+    },
+    {
+      "id": 2,
+      "job_name": "Job-S12-D403",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 18.82,
+        "z_center": 3115.4,
+        "radius": 79.35,
+        "stiffness_factor": 9.47
+      },
+      "defect_type": "fod",
+      "size_tier": "Small"
+    },
+    {
+      "id": 3,
+      "job_name": "Job-S12-D404",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 16.31,
+        "z_center": 1171.29,
+        "radius": 86.51
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Small"
+    },
+    {
+      "id": 4,
+      "job_name": "Job-S12-D405",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 13.73,
+        "z_center": 2301.25,
+        "radius": 79.95,
+        "damage_ratio": 0.19
+      },
+      "defect_type": "impact",
+      "size_tier": "Small"
+    },
+    {
+      "id": 5,
+      "job_name": "Job-S12-D406",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 11.97,
+        "z_center": 1285.79,
+        "radius": 63.89,
+        "fatigue_severity": 0.37
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Small"
+    },
+    {
+      "id": 6,
+      "job_name": "Job-S12-D407",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 20.2,
+        "z_center": 3765.96,
+        "radius": 95.13
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Small"
+    },
+    {
+      "id": 7,
+      "job_name": "Job-S12-D408",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 13.76,
+        "z_center": 1185.07,
+        "radius": 50.63
+      },
+      "defect_type": "debonding",
+      "size_tier": "Small"
+    },
+    {
+      "id": 8,
+      "job_name": "Job-S12-D409",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 9.79,
+        "z_center": 2266.67,
+        "radius": 74.16,
+        "damage_ratio": 0.49
+      },
+      "defect_type": "impact",
+      "size_tier": "Small"
+    },
+    {
+      "id": 9,
+      "job_name": "Job-S12-D410",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 8.88,
+        "z_center": 3344.61,
+        "radius": 53.65
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Small"
+    },
+    {
+      "id": 10,
+      "job_name": "Job-S12-D411",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 10.31,
+        "z_center": 1892.32,
+        "radius": 87.4,
+        "delam_depth": 0.27
+      },
+      "defect_type": "delamination",
+      "size_tier": "Small"
+    },
+    {
+      "id": 11,
+      "job_name": "Job-S12-D412",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 15.77,
+        "z_center": 2918.24,
+        "radius": 51.58
+      },
+      "defect_type": "debonding",
+      "size_tier": "Small"
+    },
+    {
+      "id": 12,
+      "job_name": "Job-S12-D413",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 23.48,
+        "z_center": 3757.6,
+        "radius": 99.92,
+        "stiffness_factor": 12.51
+      },
+      "defect_type": "fod",
+      "size_tier": "Small"
+    },
+    {
+      "id": 13,
+      "job_name": "Job-S12-D414",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 26.58,
+        "z_center": 2855.09,
+        "radius": 60.06
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Small"
+    },
+    {
+      "id": 14,
+      "job_name": "Job-S12-D415",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 25.38,
+        "z_center": 1346.3,
+        "radius": 94.62
+      },
+      "defect_type": "debonding",
+      "size_tier": "Small"
+    },
+    {
+      "id": 15,
+      "job_name": "Job-S12-D416",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 7.41,
+        "z_center": 3108.06,
+        "radius": 76.57,
+        "stiffness_factor": 19.6
+      },
+      "defect_type": "fod",
+      "size_tier": "Small"
+    },
+    {
+      "id": 16,
+      "job_name": "Job-S12-D417",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 20.32,
+        "z_center": 3809.13,
+        "radius": 77.38,
+        "stiffness_factor": 12.93
+      },
+      "defect_type": "fod",
+      "size_tier": "Small"
+    },
+    {
+      "id": 17,
+      "job_name": "Job-S12-D418",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 3.43,
+        "z_center": 1988.39,
+        "radius": 66.66
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Small"
+    },
+    {
+      "id": 18,
+      "job_name": "Job-S12-D419",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 25.58,
+        "z_center": 3440.65,
+        "radius": 73.99
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Small"
+    },
+    {
+      "id": 19,
+      "job_name": "Job-S12-D420",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 22.84,
+        "z_center": 2570.11,
+        "radius": 59.56
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Small"
+    },
+    {
+      "id": 20,
+      "job_name": "Job-S12-D421",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 23.32,
+        "z_center": 2294.65,
+        "radius": 97.09,
+        "stiffness_factor": 7.22
+      },
+      "defect_type": "fod",
+      "size_tier": "Small"
+    },
+    {
+      "id": 21,
+      "job_name": "Job-S12-D422",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 9.75,
+        "z_center": 3181.96,
+        "radius": 99.61,
+        "delam_depth": 0.29
+      },
+      "defect_type": "delamination",
+      "size_tier": "Small"
+    },
+    {
+      "id": 22,
+      "job_name": "Job-S12-D423",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 22.2,
+        "z_center": 1507.36,
+        "radius": 86.6,
+        "fatigue_severity": 0.28
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Small"
+    },
+    {
+      "id": 23,
+      "job_name": "Job-S12-D424",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 7.86,
+        "z_center": 2554.58,
+        "radius": 55.73
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Small"
+    },
+    {
+      "id": 24,
+      "job_name": "Job-S12-D425",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 23.97,
+        "z_center": 2602.97,
+        "radius": 67.32,
+        "damage_ratio": 0.37
+      },
+      "defect_type": "impact",
+      "size_tier": "Small"
+    },
+    {
+      "id": 25,
+      "job_name": "Job-S12-D426",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 2.42,
+        "z_center": 3794.49,
+        "radius": 83.9
+      },
+      "defect_type": "debonding",
+      "size_tier": "Small"
+    },
+    {
+      "id": 26,
+      "job_name": "Job-S12-D427",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 6.81,
+        "z_center": 1340.02,
+        "radius": 83.15
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Small"
+    },
+    {
+      "id": 27,
+      "job_name": "Job-S12-D428",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 5.51,
+        "z_center": 1919.05,
+        "radius": 82.92,
+        "damage_ratio": 0.2
+      },
+      "defect_type": "impact",
+      "size_tier": "Small"
+    },
+    {
+      "id": 28,
+      "job_name": "Job-S12-D429",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 14.7,
+        "z_center": 2932.21,
+        "radius": 59.82,
+        "delam_depth": 0.4
+      },
+      "defect_type": "delamination",
+      "size_tier": "Small"
+    },
+    {
+      "id": 29,
+      "job_name": "Job-S12-D430",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 9.04,
+        "z_center": 1458.37,
+        "radius": 85.97
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Small"
+    },
+    {
+      "id": 30,
+      "job_name": "Job-S12-D431",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 22.1,
+        "z_center": 3722.48,
+        "radius": 71.39,
+        "damage_ratio": 0.1
+      },
+      "defect_type": "impact",
+      "size_tier": "Small"
+    },
+    {
+      "id": 31,
+      "job_name": "Job-S12-D432",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 19.06,
+        "z_center": 2084.26,
+        "radius": 54.8
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Small"
+    },
+    {
+      "id": 32,
+      "job_name": "Job-S12-D433",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 12.91,
+        "z_center": 4188.99,
+        "radius": 91.12
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Small"
+    },
+    {
+      "id": 33,
+      "job_name": "Job-S12-D434",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 20.44,
+        "z_center": 3698.36,
+        "radius": 51.34,
+        "fatigue_severity": 0.25
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Small"
+    },
+    {
+      "id": 34,
+      "job_name": "Job-S12-D435",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 5.11,
+        "z_center": 2712.64,
+        "radius": 80.07
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Small"
+    },
+    {
+      "id": 35,
+      "job_name": "Job-S12-D436",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 24.32,
+        "z_center": 1609.79,
+        "radius": 87.94
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Small"
+    },
+    {
+      "id": 36,
+      "job_name": "Job-S12-D437",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 15.79,
+        "z_center": 1555.5,
+        "radius": 51.91,
+        "damage_ratio": 0.3
+      },
+      "defect_type": "impact",
+      "size_tier": "Small"
+    },
+    {
+      "id": 37,
+      "job_name": "Job-S12-D438",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 6.39,
+        "z_center": 3581.21,
+        "radius": 64.73,
+        "damage_ratio": 0.21
+      },
+      "defect_type": "impact",
+      "size_tier": "Small"
+    },
+    {
+      "id": 38,
+      "job_name": "Job-S12-D439",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 21.1,
+        "z_center": 3393.1,
+        "radius": 64.88,
+        "delam_depth": 0.4
+      },
+      "defect_type": "delamination",
+      "size_tier": "Small"
+    },
+    {
+      "id": 39,
+      "job_name": "Job-S12-D440",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 7.45,
+        "z_center": 1230.36,
+        "radius": 82.3,
+        "stiffness_factor": 13.12
+      },
+      "defect_type": "fod",
+      "size_tier": "Small"
+    },
+    {
+      "id": 40,
+      "job_name": "Job-S12-D441",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 5.45,
+        "z_center": 1317.36,
+        "radius": 90.3,
+        "delam_depth": 0.78
+      },
+      "defect_type": "delamination",
+      "size_tier": "Small"
+    },
+    {
+      "id": 41,
+      "job_name": "Job-S12-D442",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 26.96,
+        "z_center": 850.42,
+        "radius": 89.41
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Small"
+    },
+    {
+      "id": 42,
+      "job_name": "Job-S12-D443",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 15.52,
+        "z_center": 1136.73,
+        "radius": 66.11,
+        "delam_depth": 0.5
+      },
+      "defect_type": "delamination",
+      "size_tier": "Small"
+    },
+    {
+      "id": 43,
+      "job_name": "Job-S12-D444",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 11.36,
+        "z_center": 1053.53,
+        "radius": 67.9
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Small"
+    },
+    {
+      "id": 44,
+      "job_name": "Job-S12-D445",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 6.9,
+        "z_center": 2907.08,
+        "radius": 97.56,
+        "delam_depth": 0.61
+      },
+      "defect_type": "delamination",
+      "size_tier": "Small"
+    },
+    {
+      "id": 45,
+      "job_name": "Job-S12-D446",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 5.77,
+        "z_center": 3963.9,
+        "radius": 64.91
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Small"
+    },
+    {
+      "id": 46,
+      "job_name": "Job-S12-D447",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 3.03,
+        "z_center": 1070.03,
+        "radius": 96.9,
+        "stiffness_factor": 6.65
+      },
+      "defect_type": "fod",
+      "size_tier": "Small"
+    },
+    {
+      "id": 47,
+      "job_name": "Job-S12-D448",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 4.93,
+        "z_center": 2875.47,
+        "radius": 88.2
+      },
+      "defect_type": "debonding",
+      "size_tier": "Small"
+    },
+    {
+      "id": 48,
+      "job_name": "Job-S12-D449",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 5.49,
+        "z_center": 1810.41,
+        "radius": 73.66
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Small"
+    },
+    {
+      "id": 49,
+      "job_name": "Job-S12-D450",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 4.0,
+        "z_center": 1783.73,
+        "radius": 80.89
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Small"
+    },
+    {
+      "id": 50,
+      "job_name": "Job-S12-D451",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 5.62,
+        "z_center": 3222.08,
+        "radius": 52.85,
+        "stiffness_factor": 5.19
+      },
+      "defect_type": "fod",
+      "size_tier": "Small"
+    },
+    {
+      "id": 51,
+      "job_name": "Job-S12-D452",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 6.46,
+        "z_center": 3839.6,
+        "radius": 58.11,
+        "fatigue_severity": 0.4
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Small"
+    },
+    {
+      "id": 52,
+      "job_name": "Job-S12-D453",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 18.3,
+        "z_center": 2628.07,
+        "radius": 76.88
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Small"
+    },
+    {
+      "id": 53,
+      "job_name": "Job-S12-D454",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 12.44,
+        "z_center": 4013.88,
+        "radius": 94.26,
+        "fatigue_severity": 0.37
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Small"
+    },
+    {
+      "id": 54,
+      "job_name": "Job-S12-D455",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 11.27,
+        "z_center": 1338.09,
+        "radius": 96.62
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Small"
+    },
+    {
+      "id": 55,
+      "job_name": "Job-S12-D456",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 20.11,
+        "z_center": 3731.98,
+        "radius": 87.14,
+        "stiffness_factor": 17.33
+      },
+      "defect_type": "fod",
+      "size_tier": "Small"
+    },
+    {
+      "id": 56,
+      "job_name": "Job-S12-D457",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 15.14,
+        "z_center": 3615.85,
+        "radius": 89.91
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Small"
+    },
+    {
+      "id": 57,
+      "job_name": "Job-S12-D458",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 20.18,
+        "z_center": 2337.51,
+        "radius": 99.07
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Small"
+    },
+    {
+      "id": 58,
+      "job_name": "Job-S12-D459",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 16.65,
+        "z_center": 1745.28,
+        "radius": 63.17
+      },
+      "defect_type": "debonding",
+      "size_tier": "Small"
+    },
+    {
+      "id": 59,
+      "job_name": "Job-S12-D460",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 13.7,
+        "z_center": 2694.44,
+        "radius": 81.14
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Small"
+    },
+    {
+      "id": 60,
+      "job_name": "Job-S12-D461",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 23.18,
+        "z_center": 1397.72,
+        "radius": 88.68,
+        "damage_ratio": 0.13
+      },
+      "defect_type": "impact",
+      "size_tier": "Small"
+    },
+    {
+      "id": 61,
+      "job_name": "Job-S12-D462",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 2.89,
+        "z_center": 2314.82,
+        "radius": 83.99
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Small"
+    },
+    {
+      "id": 62,
+      "job_name": "Job-S12-D463",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 22.7,
+        "z_center": 3526.35,
+        "radius": 85.86
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Small"
+    },
+    {
+      "id": 63,
+      "job_name": "Job-S12-D464",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 8.73,
+        "z_center": 920.26,
+        "radius": 67.39,
+        "delam_depth": 0.49
+      },
+      "defect_type": "delamination",
+      "size_tier": "Small"
+    },
+    {
+      "id": 64,
+      "job_name": "Job-S12-D465",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 11.54,
+        "z_center": 2666.99,
+        "radius": 55.88
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Small"
+    },
+    {
+      "id": 65,
+      "job_name": "Job-S12-D466",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 22.74,
+        "z_center": 2620.86,
+        "radius": 80.23
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Small"
+    },
+    {
+      "id": 66,
+      "job_name": "Job-S12-D467",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 18.95,
+        "z_center": 1300.82,
+        "radius": 65.22,
+        "damage_ratio": 0.43
+      },
+      "defect_type": "impact",
+      "size_tier": "Small"
+    },
+    {
+      "id": 67,
+      "job_name": "Job-S12-D468",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 4.57,
+        "z_center": 2227.4,
+        "radius": 53.53
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Small"
+    },
+    {
+      "id": 68,
+      "job_name": "Job-S12-D469",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 12.58,
+        "z_center": 933.11,
+        "radius": 64.44,
+        "stiffness_factor": 18.86
+      },
+      "defect_type": "fod",
+      "size_tier": "Small"
+    },
+    {
+      "id": 69,
+      "job_name": "Job-S12-D470",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 26.21,
+        "z_center": 1583.93,
+        "radius": 68.59
+      },
+      "defect_type": "debonding",
+      "size_tier": "Small"
+    },
+    {
+      "id": 70,
+      "job_name": "Job-S12-D471",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 9.24,
+        "z_center": 3619.37,
+        "radius": 81.32
+      },
+      "defect_type": "debonding",
+      "size_tier": "Small"
+    },
+    {
+      "id": 71,
+      "job_name": "Job-S12-D472",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 5.25,
+        "z_center": 3317.04,
+        "radius": 90.11,
+        "stiffness_factor": 15.02
+      },
+      "defect_type": "fod",
+      "size_tier": "Small"
+    },
+    {
+      "id": 72,
+      "job_name": "Job-S12-D473",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 27.27,
+        "z_center": 3307.47,
+        "radius": 53.61,
+        "damage_ratio": 0.44
+      },
+      "defect_type": "impact",
+      "size_tier": "Small"
+    },
+    {
+      "id": 73,
+      "job_name": "Job-S12-D474",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 18.81,
+        "z_center": 2762.13,
+        "radius": 67.08,
+        "delam_depth": 0.75
+      },
+      "defect_type": "delamination",
+      "size_tier": "Small"
+    },
+    {
+      "id": 74,
+      "job_name": "Job-S12-D475",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 19.5,
+        "z_center": 1685.73,
+        "radius": 59.49
+      },
+      "defect_type": "debonding",
+      "size_tier": "Small"
+    },
+    {
+      "id": 75,
+      "job_name": "Job-S12-D476",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 3.88,
+        "z_center": 3662.96,
+        "radius": 58.97
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Small"
+    },
+    {
+      "id": 76,
+      "job_name": "Job-S12-D477",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 6.69,
+        "z_center": 3844.53,
+        "radius": 60.88
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Small"
+    },
+    {
+      "id": 77,
+      "job_name": "Job-S12-D478",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 27.67,
+        "z_center": 2740.5,
+        "radius": 80.34,
+        "fatigue_severity": 0.43
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Small"
+    },
+    {
+      "id": 78,
+      "job_name": "Job-S12-D479",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 2.69,
+        "z_center": 1673.43,
+        "radius": 93.48,
+        "fatigue_severity": 0.35
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Small"
+    },
+    {
+      "id": 79,
+      "job_name": "Job-S12-D480",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 22.88,
+        "z_center": 1887.29,
+        "radius": 58.23
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Small"
+    },
+    {
+      "id": 80,
+      "job_name": "Job-S12-D481",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 7.22,
+        "z_center": 3179.26,
+        "radius": 75.74
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Small"
+    },
+    {
+      "id": 81,
+      "job_name": "Job-S12-D482",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 9.88,
+        "z_center": 3493.39,
+        "radius": 51.93,
+        "damage_ratio": 0.22
+      },
+      "defect_type": "impact",
+      "size_tier": "Small"
+    },
+    {
+      "id": 82,
+      "job_name": "Job-S12-D483",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 20.71,
+        "z_center": 2440.67,
+        "radius": 73.18
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Small"
+    },
+    {
+      "id": 83,
+      "job_name": "Job-S12-D484",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 17.15,
+        "z_center": 3156.57,
+        "radius": 54.56,
+        "fatigue_severity": 0.48
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Small"
+    },
+    {
+      "id": 84,
+      "job_name": "Job-S12-D485",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 10.08,
+        "z_center": 2055.69,
+        "radius": 53.49
+      },
+      "defect_type": "debonding",
+      "size_tier": "Small"
+    },
+    {
+      "id": 85,
+      "job_name": "Job-S12-D486",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 23.83,
+        "z_center": 2701.88,
+        "radius": 50.8
+      },
+      "defect_type": "debonding",
+      "size_tier": "Small"
+    },
+    {
+      "id": 86,
+      "job_name": "Job-S12-D487",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 23.59,
+        "z_center": 1622.89,
+        "radius": 73.46
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Small"
+    },
+    {
+      "id": 87,
+      "job_name": "Job-S12-D488",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 21.27,
+        "z_center": 1514.79,
+        "radius": 79.44
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Small"
+    },
+    {
+      "id": 88,
+      "job_name": "Job-S12-D489",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 21.75,
+        "z_center": 1162.79,
+        "radius": 76.58,
+        "fatigue_severity": 0.39
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Small"
+    },
+    {
+      "id": 89,
+      "job_name": "Job-S12-D490",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 4.31,
+        "z_center": 2664.15,
+        "radius": 73.27
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Small"
+    },
+    {
+      "id": 90,
+      "job_name": "Job-S12-D491",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 17.38,
+        "z_center": 1431.88,
+        "radius": 52.14
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Small"
+    },
+    {
+      "id": 91,
+      "job_name": "Job-S12-D492",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 17.28,
+        "z_center": 3684.23,
+        "radius": 56.72
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Small"
+    },
+    {
+      "id": 92,
+      "job_name": "Job-S12-D493",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 13.63,
+        "z_center": 2889.41,
+        "radius": 83.58,
+        "damage_ratio": 0.24
+      },
+      "defect_type": "impact",
+      "size_tier": "Small"
+    },
+    {
+      "id": 93,
+      "job_name": "Job-S12-D494",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 7.09,
+        "z_center": 1819.07,
+        "radius": 82.22
+      },
+      "defect_type": "debonding",
+      "size_tier": "Small"
+    },
+    {
+      "id": 94,
+      "job_name": "Job-S12-D495",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 14.46,
+        "z_center": 1661.22,
+        "radius": 92.76,
+        "stiffness_factor": 17.13
+      },
+      "defect_type": "fod",
+      "size_tier": "Small"
+    },
+    {
+      "id": 95,
+      "job_name": "Job-S12-D496",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 25.96,
+        "z_center": 2537.65,
+        "radius": 55.47
+      },
+      "defect_type": "debonding",
+      "size_tier": "Small"
+    },
+    {
+      "id": 96,
+      "job_name": "Job-S12-D497",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 4.65,
+        "z_center": 1569.47,
+        "radius": 57.5
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Small"
+    },
+    {
+      "id": 97,
+      "job_name": "Job-S12-D498",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 5.85,
+        "z_center": 1834.59,
+        "radius": 86.61
+      },
+      "defect_type": "debonding",
+      "size_tier": "Small"
+    },
+    {
+      "id": 98,
+      "job_name": "Job-S12-D499",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 12.78,
+        "z_center": 3371.96,
+        "radius": 94.16
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Small"
+    },
+    {
+      "id": 99,
+      "job_name": "Job-S12-D500",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 17.09,
+        "z_center": 2286.84,
+        "radius": 95.65
+      },
+      "defect_type": "debonding",
+      "size_tier": "Small"
+    },
+    {
+      "id": 100,
+      "job_name": "Job-S12-D501",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 10.04,
+        "z_center": 3383.18,
+        "radius": 68.11
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Small"
+    },
+    {
+      "id": 101,
+      "job_name": "Job-S12-D502",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 26.48,
+        "z_center": 3759.77,
+        "radius": 95.91
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Small"
+    },
+    {
+      "id": 102,
+      "job_name": "Job-S12-D503",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 25.74,
+        "z_center": 2949.42,
+        "radius": 53.26,
+        "stiffness_factor": 10.58
+      },
+      "defect_type": "fod",
+      "size_tier": "Small"
+    },
+    {
+      "id": 103,
+      "job_name": "Job-S12-D504",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 22.31,
+        "z_center": 2204.96,
+        "radius": 81.81,
+        "damage_ratio": 0.42
+      },
+      "defect_type": "impact",
+      "size_tier": "Small"
+    },
+    {
+      "id": 104,
+      "job_name": "Job-S12-D505",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 19.17,
+        "z_center": 1479.4,
+        "radius": 90.89,
+        "damage_ratio": 0.4
+      },
+      "defect_type": "impact",
+      "size_tier": "Small"
+    },
+    {
+      "id": 105,
+      "job_name": "Job-S12-D506",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 21.66,
+        "z_center": 954.88,
+        "radius": 94.27,
+        "delam_depth": 0.28
+      },
+      "defect_type": "delamination",
+      "size_tier": "Small"
+    },
+    {
+      "id": 106,
+      "job_name": "Job-S12-D507",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 12.35,
+        "z_center": 3857.44,
+        "radius": 72.11,
+        "fatigue_severity": 0.37
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Small"
+    },
+    {
+      "id": 107,
+      "job_name": "Job-S12-D508",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 27.25,
+        "z_center": 2161.85,
+        "radius": 75.65
+      },
+      "defect_type": "debonding",
+      "size_tier": "Small"
+    },
+    {
+      "id": 108,
+      "job_name": "Job-S12-D509",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 27.6,
+        "z_center": 1216.91,
+        "radius": 95.84
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Small"
+    },
+    {
+      "id": 109,
+      "job_name": "Job-S12-D510",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 13.53,
+        "z_center": 2653.32,
+        "radius": 98.6,
+        "damage_ratio": 0.46
+      },
+      "defect_type": "impact",
+      "size_tier": "Small"
+    },
+    {
+      "id": 110,
+      "job_name": "Job-S12-D511",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 17.08,
+        "z_center": 1689.94,
+        "radius": 98.82
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Small"
+    },
+    {
+      "id": 111,
+      "job_name": "Job-S12-D512",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 25.45,
+        "z_center": 3938.34,
+        "radius": 66.52
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Small"
+    },
+    {
+      "id": 112,
+      "job_name": "Job-S12-D513",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 13.25,
+        "z_center": 2356.22,
+        "radius": 69.62,
+        "fatigue_severity": 0.39
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Small"
+    },
+    {
+      "id": 113,
+      "job_name": "Job-S12-D514",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 19.97,
+        "z_center": 2045.11,
+        "radius": 90.07
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Small"
+    },
+    {
+      "id": 114,
+      "job_name": "Job-S12-D515",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 15.93,
+        "z_center": 4106.76,
+        "radius": 64.69,
+        "stiffness_factor": 17.03
+      },
+      "defect_type": "fod",
+      "size_tier": "Small"
+    },
+    {
+      "id": 115,
+      "job_name": "Job-S12-D516",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 9.52,
+        "z_center": 3727.95,
+        "radius": 64.2
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Small"
+    },
+    {
+      "id": 116,
+      "job_name": "Job-S12-D517",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 17.01,
+        "z_center": 1152.65,
+        "radius": 50.27,
+        "fatigue_severity": 0.34
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Small"
+    },
+    {
+      "id": 117,
+      "job_name": "Job-S12-D518",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 12.06,
+        "z_center": 1147.27,
+        "radius": 78.94,
+        "damage_ratio": 0.26
+      },
+      "defect_type": "impact",
+      "size_tier": "Small"
+    },
+    {
+      "id": 118,
+      "job_name": "Job-S12-D519",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 9.8,
+        "z_center": 3557.57,
+        "radius": 83.61,
+        "delam_depth": 0.28
+      },
+      "defect_type": "delamination",
+      "size_tier": "Small"
+    },
+    {
+      "id": 119,
+      "job_name": "Job-S12-D520",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 24.95,
+        "z_center": 3168.61,
+        "radius": 82.64
+      },
+      "defect_type": "debonding",
+      "size_tier": "Small"
+    },
+    {
+      "id": 120,
+      "job_name": "Job-S12-D521",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 22.57,
+        "z_center": 2679.84,
+        "radius": 76.56
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Small"
+    },
+    {
+      "id": 121,
+      "job_name": "Job-S12-D522",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 17.96,
+        "z_center": 1293.46,
+        "radius": 67.07
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Small"
+    },
+    {
+      "id": 122,
+      "job_name": "Job-S12-D523",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 10.21,
+        "z_center": 998.62,
+        "radius": 78.77,
+        "fatigue_severity": 0.28
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Small"
+    },
+    {
+      "id": 123,
+      "job_name": "Job-S12-D524",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 26.13,
+        "z_center": 1363.04,
+        "radius": 98.19
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Small"
+    },
+    {
+      "id": 124,
+      "job_name": "Job-S12-D525",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 4.08,
+        "z_center": 3454.84,
+        "radius": 73.33,
+        "damage_ratio": 0.3
+      },
+      "defect_type": "impact",
+      "size_tier": "Small"
+    },
+    {
+      "id": 125,
+      "job_name": "Job-S12-D526",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 8.03,
+        "z_center": 3170.96,
+        "radius": 79.92
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Small"
+    },
+    {
+      "id": 126,
+      "job_name": "Job-S12-D527",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 20.97,
+        "z_center": 2430.81,
+        "radius": 98.7
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Small"
+    },
+    {
+      "id": 127,
+      "job_name": "Job-S12-D528",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 11.43,
+        "z_center": 2126.11,
+        "radius": 89.82
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Small"
+    },
+    {
+      "id": 128,
+      "job_name": "Job-S12-D529",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 17.34,
+        "z_center": 3374.97,
+        "radius": 68.57
+      },
+      "defect_type": "debonding",
+      "size_tier": "Small"
+    },
+    {
+      "id": 129,
+      "job_name": "Job-S12-D530",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 21.19,
+        "z_center": 861.96,
+        "radius": 77.09
+      },
+      "defect_type": "debonding",
+      "size_tier": "Small"
+    },
+    {
+      "id": 130,
+      "job_name": "Job-S12-D531",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 23.89,
+        "z_center": 1856.25,
+        "radius": 74.7
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Small"
+    },
+    {
+      "id": 131,
+      "job_name": "Job-S12-D532",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 2.76,
+        "z_center": 2348.55,
+        "radius": 57.2
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Small"
+    },
+    {
+      "id": 132,
+      "job_name": "Job-S12-D533",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 4.22,
+        "z_center": 2457.55,
+        "radius": 83.05
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Small"
+    },
+    {
+      "id": 133,
+      "job_name": "Job-S12-D534",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 5.9,
+        "z_center": 2049.25,
+        "radius": 69.57
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Small"
+    },
+    {
+      "id": 134,
+      "job_name": "Job-S12-D535",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 22.11,
+        "z_center": 3899.02,
+        "radius": 77.21,
+        "stiffness_factor": 18.69
+      },
+      "defect_type": "fod",
+      "size_tier": "Small"
+    },
+    {
+      "id": 135,
+      "job_name": "Job-S12-D536",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 12.28,
+        "z_center": 2244.9,
+        "radius": 71.39,
+        "damage_ratio": 0.28
+      },
+      "defect_type": "impact",
+      "size_tier": "Small"
+    },
+    {
+      "id": 136,
+      "job_name": "Job-S12-D537",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 25.82,
+        "z_center": 1241.62,
+        "radius": 76.54,
+        "delam_depth": 0.4
+      },
+      "defect_type": "delamination",
+      "size_tier": "Small"
+    },
+    {
+      "id": 137,
+      "job_name": "Job-S12-D538",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 3.54,
+        "z_center": 2029.26,
+        "radius": 63.25
+      },
+      "defect_type": "debonding",
+      "size_tier": "Small"
+    },
+    {
+      "id": 138,
+      "job_name": "Job-S12-D539",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 16.46,
+        "z_center": 3545.93,
+        "radius": 81.67
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Small"
+    },
+    {
+      "id": 139,
+      "job_name": "Job-S12-D540",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 5.03,
+        "z_center": 1376.64,
+        "radius": 68.06
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Small"
+    },
+    {
+      "id": 140,
+      "job_name": "Job-S12-D541",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 5.03,
+        "z_center": 1879.97,
+        "radius": 77.18
+      },
+      "defect_type": "debonding",
+      "size_tier": "Small"
+    },
+    {
+      "id": 141,
+      "job_name": "Job-S12-D542",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 5.2,
+        "z_center": 2960.47,
+        "radius": 84.72
+      },
+      "defect_type": "debonding",
+      "size_tier": "Small"
+    },
+    {
+      "id": 142,
+      "job_name": "Job-S12-D543",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 14.91,
+        "z_center": 2335.46,
+        "radius": 72.19,
+        "stiffness_factor": 12.91
+      },
+      "defect_type": "fod",
+      "size_tier": "Small"
+    },
+    {
+      "id": 143,
+      "job_name": "Job-S12-D544",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 27.45,
+        "z_center": 1945.47,
+        "radius": 67.85
+      },
+      "defect_type": "debonding",
+      "size_tier": "Small"
+    },
+    {
+      "id": 144,
+      "job_name": "Job-S12-D545",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 19.54,
+        "z_center": 2246.72,
+        "radius": 62.85
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Small"
+    },
+    {
+      "id": 145,
+      "job_name": "Job-S12-D546",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 4.13,
+        "z_center": 1972.29,
+        "radius": 52.13
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Small"
+    },
+    {
+      "id": 146,
+      "job_name": "Job-S12-D547",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 10.97,
+        "z_center": 3233.48,
+        "radius": 91.23
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Small"
+    },
+    {
+      "id": 147,
+      "job_name": "Job-S12-D548",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 22.51,
+        "z_center": 1706.44,
+        "radius": 84.37
+      },
+      "defect_type": "debonding",
+      "size_tier": "Small"
+    },
+    {
+      "id": 148,
+      "job_name": "Job-S12-D549",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 10.55,
+        "z_center": 2141.72,
+        "radius": 80.98
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Small"
+    },
+    {
+      "id": 149,
+      "job_name": "Job-S12-D550",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 18.86,
+        "z_center": 3687.07,
+        "radius": 51.42
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Small"
+    },
+    {
+      "id": 150,
+      "job_name": "Job-S12-D551",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 22.04,
+        "z_center": 1959.3,
+        "radius": 106.88
+      },
+      "defect_type": "debonding",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 151,
+      "job_name": "Job-S12-D552",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 17.84,
+        "z_center": 3799.72,
+        "radius": 131.19
+      },
+      "defect_type": "debonding",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 152,
+      "job_name": "Job-S12-D553",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 27.94,
+        "z_center": 809.54,
+        "radius": 115.46
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 153,
+      "job_name": "Job-S12-D554",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 25.77,
+        "z_center": 3420.35,
+        "radius": 132.26
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 154,
+      "job_name": "Job-S12-D555",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 23.76,
+        "z_center": 2926.14,
+        "radius": 146.45,
+        "stiffness_factor": 8.72
+      },
+      "defect_type": "fod",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 155,
+      "job_name": "Job-S12-D556",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 23.09,
+        "z_center": 3192.9,
+        "radius": 104.67,
+        "fatigue_severity": 0.43
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 156,
+      "job_name": "Job-S12-D557",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 6.67,
+        "z_center": 4098.02,
+        "radius": 113.77,
+        "stiffness_factor": 16.76
+      },
+      "defect_type": "fod",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 157,
+      "job_name": "Job-S12-D558",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 13.98,
+        "z_center": 1142.98,
+        "radius": 136.95
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 158,
+      "job_name": "Job-S12-D559",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 19.88,
+        "z_center": 2211.13,
+        "radius": 117.54,
+        "fatigue_severity": 0.33
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 159,
+      "job_name": "Job-S12-D560",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 20.57,
+        "z_center": 1601.59,
+        "radius": 113.64,
+        "fatigue_severity": 0.38
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 160,
+      "job_name": "Job-S12-D561",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 3.71,
+        "z_center": 881.35,
+        "radius": 136.12
+      },
+      "defect_type": "debonding",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 161,
+      "job_name": "Job-S12-D562",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 13.51,
+        "z_center": 3742.09,
+        "radius": 130.1,
+        "delam_depth": 0.26
+      },
+      "defect_type": "delamination",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 162,
+      "job_name": "Job-S12-D563",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 19.73,
+        "z_center": 1367.85,
+        "radius": 146.97,
+        "fatigue_severity": 0.2
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 163,
+      "job_name": "Job-S12-D564",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 3.83,
+        "z_center": 1646.53,
+        "radius": 117.33,
+        "delam_depth": 0.43
+      },
+      "defect_type": "delamination",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 164,
+      "job_name": "Job-S12-D565",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 27.91,
+        "z_center": 3923.09,
+        "radius": 105.21,
+        "damage_ratio": 0.17
+      },
+      "defect_type": "impact",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 165,
+      "job_name": "Job-S12-D566",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 7.04,
+        "z_center": 4038.73,
+        "radius": 101.6
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 166,
+      "job_name": "Job-S12-D567",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 10.92,
+        "z_center": 2472.81,
+        "radius": 113.14
+      },
+      "defect_type": "debonding",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 167,
+      "job_name": "Job-S12-D568",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 8.46,
+        "z_center": 840.99,
+        "radius": 111.09
+      },
+      "defect_type": "debonding",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 168,
+      "job_name": "Job-S12-D569",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 27.04,
+        "z_center": 3500.45,
+        "radius": 134.98,
+        "stiffness_factor": 11.48
+      },
+      "defect_type": "fod",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 169,
+      "job_name": "Job-S12-D570",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 8.99,
+        "z_center": 952.47,
+        "radius": 127.4,
+        "fatigue_severity": 0.3
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 170,
+      "job_name": "Job-S12-D571",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 27.78,
+        "z_center": 3302.6,
+        "radius": 138.24
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 171,
+      "job_name": "Job-S12-D572",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 20.35,
+        "z_center": 3312.36,
+        "radius": 138.76
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 172,
+      "job_name": "Job-S12-D573",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 7.94,
+        "z_center": 903.09,
+        "radius": 110.49
+      },
+      "defect_type": "debonding",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 173,
+      "job_name": "Job-S12-D574",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 14.9,
+        "z_center": 1642.72,
+        "radius": 140.49
+      },
+      "defect_type": "debonding",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 174,
+      "job_name": "Job-S12-D575",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 5.15,
+        "z_center": 3050.03,
+        "radius": 142.39
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 175,
+      "job_name": "Job-S12-D576",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 12.38,
+        "z_center": 3214.9,
+        "radius": 107.47,
+        "fatigue_severity": 0.22
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 176,
+      "job_name": "Job-S12-D577",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 10.52,
+        "z_center": 3238.59,
+        "radius": 120.34,
+        "fatigue_severity": 0.41
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 177,
+      "job_name": "Job-S12-D578",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 23.68,
+        "z_center": 2867.61,
+        "radius": 105.7
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 178,
+      "job_name": "Job-S12-D579",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 22.49,
+        "z_center": 3488.74,
+        "radius": 100.01,
+        "stiffness_factor": 12.15
+      },
+      "defect_type": "fod",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 179,
+      "job_name": "Job-S12-D580",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 27.1,
+        "z_center": 2685.05,
+        "radius": 131.83
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 180,
+      "job_name": "Job-S12-D581",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 21.98,
+        "z_center": 1901.43,
+        "radius": 140.63
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 181,
+      "job_name": "Job-S12-D582",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 17.39,
+        "z_center": 2836.29,
+        "radius": 121.42
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 182,
+      "job_name": "Job-S12-D583",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 15.25,
+        "z_center": 1419.91,
+        "radius": 132.97,
+        "stiffness_factor": 15.53
+      },
+      "defect_type": "fod",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 183,
+      "job_name": "Job-S12-D584",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 3.74,
+        "z_center": 1589.37,
+        "radius": 118.58,
+        "stiffness_factor": 19.32
+      },
+      "defect_type": "fod",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 184,
+      "job_name": "Job-S12-D585",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 23.45,
+        "z_center": 3072.69,
+        "radius": 146.53
+      },
+      "defect_type": "debonding",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 185,
+      "job_name": "Job-S12-D586",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 14.03,
+        "z_center": 2153.81,
+        "radius": 102.49
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 186,
+      "job_name": "Job-S12-D587",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 22.41,
+        "z_center": 3711.57,
+        "radius": 105.16
+      },
+      "defect_type": "debonding",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 187,
+      "job_name": "Job-S12-D588",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 3.94,
+        "z_center": 2060.26,
+        "radius": 127.49
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 188,
+      "job_name": "Job-S12-D589",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 24.67,
+        "z_center": 3329.4,
+        "radius": 107.13
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 189,
+      "job_name": "Job-S12-D590",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 11.59,
+        "z_center": 2017.84,
+        "radius": 148.33,
+        "delam_depth": 0.38
+      },
+      "defect_type": "delamination",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 190,
+      "job_name": "Job-S12-D591",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 27.14,
+        "z_center": 2785.59,
+        "radius": 105.92
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 191,
+      "job_name": "Job-S12-D592",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 20.02,
+        "z_center": 2756.28,
+        "radius": 121.89,
+        "fatigue_severity": 0.22
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 192,
+      "job_name": "Job-S12-D593",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 23.67,
+        "z_center": 3630.01,
+        "radius": 138.0,
+        "fatigue_severity": 0.26
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 193,
+      "job_name": "Job-S12-D594",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 2.59,
+        "z_center": 3117.88,
+        "radius": 111.66
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 194,
+      "job_name": "Job-S12-D595",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 26.54,
+        "z_center": 4142.64,
+        "radius": 101.8
+      },
+      "defect_type": "debonding",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 195,
+      "job_name": "Job-S12-D596",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 10.88,
+        "z_center": 4035.17,
+        "radius": 112.41,
+        "fatigue_severity": 0.45
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 196,
+      "job_name": "Job-S12-D597",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 9.46,
+        "z_center": 981.17,
+        "radius": 108.83
+      },
+      "defect_type": "debonding",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 197,
+      "job_name": "Job-S12-D598",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 26.85,
+        "z_center": 1016.4,
+        "radius": 113.66,
+        "fatigue_severity": 0.44
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 198,
+      "job_name": "Job-S12-D599",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 26.33,
+        "z_center": 3289.09,
+        "radius": 142.9
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 199,
+      "job_name": "Job-S12-D600",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 23.19,
+        "z_center": 1443.37,
+        "radius": 142.7,
+        "damage_ratio": 0.26
+      },
+      "defect_type": "impact",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 200,
+      "job_name": "Job-S12-D601",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 24.46,
+        "z_center": 4086.28,
+        "radius": 121.4,
+        "fatigue_severity": 0.3
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 201,
+      "job_name": "Job-S12-D602",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 12.72,
+        "z_center": 2783.01,
+        "radius": 149.92,
+        "stiffness_factor": 8.03
+      },
+      "defect_type": "fod",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 202,
+      "job_name": "Job-S12-D603",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 18.56,
+        "z_center": 1131.14,
+        "radius": 149.62,
+        "stiffness_factor": 18.43
+      },
+      "defect_type": "fod",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 203,
+      "job_name": "Job-S12-D604",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 24.27,
+        "z_center": 1864.96,
+        "radius": 140.84,
+        "delam_depth": 0.55
+      },
+      "defect_type": "delamination",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 204,
+      "job_name": "Job-S12-D605",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 25.12,
+        "z_center": 3186.55,
+        "radius": 115.61
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 205,
+      "job_name": "Job-S12-D606",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 7.9,
+        "z_center": 3828.41,
+        "radius": 138.15
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 206,
+      "job_name": "Job-S12-D607",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 8.51,
+        "z_center": 4176.0,
+        "radius": 118.22,
+        "delam_depth": 0.26
+      },
+      "defect_type": "delamination",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 207,
+      "job_name": "Job-S12-D608",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 23.51,
+        "z_center": 2422.83,
+        "radius": 147.47
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 208,
+      "job_name": "Job-S12-D609",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 14.5,
+        "z_center": 1931.04,
+        "radius": 101.61
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 209,
+      "job_name": "Job-S12-D610",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 17.69,
+        "z_center": 2119.34,
+        "radius": 133.01
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 210,
+      "job_name": "Job-S12-D611",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 17.67,
+        "z_center": 3564.17,
+        "radius": 116.38,
+        "damage_ratio": 0.11
+      },
+      "defect_type": "impact",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 211,
+      "job_name": "Job-S12-D612",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 24.76,
+        "z_center": 2323.38,
+        "radius": 117.17,
+        "stiffness_factor": 7.55
+      },
+      "defect_type": "fod",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 212,
+      "job_name": "Job-S12-D613",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 19.9,
+        "z_center": 1786.86,
+        "radius": 107.25
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 213,
+      "job_name": "Job-S12-D614",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 14.1,
+        "z_center": 3245.63,
+        "radius": 119.06,
+        "stiffness_factor": 10.65
+      },
+      "defect_type": "fod",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 214,
+      "job_name": "Job-S12-D615",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 18.65,
+        "z_center": 1576.91,
+        "radius": 112.08,
+        "stiffness_factor": 14.33
+      },
+      "defect_type": "fod",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 215,
+      "job_name": "Job-S12-D616",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 13.14,
+        "z_center": 3104.56,
+        "radius": 127.64,
+        "stiffness_factor": 6.39
+      },
+      "defect_type": "fod",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 216,
+      "job_name": "Job-S12-D617",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 26.08,
+        "z_center": 1157.71,
+        "radius": 132.06,
+        "delam_depth": 0.72
+      },
+      "defect_type": "delamination",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 217,
+      "job_name": "Job-S12-D618",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 7.68,
+        "z_center": 3884.15,
+        "radius": 145.21
+      },
+      "defect_type": "debonding",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 218,
+      "job_name": "Job-S12-D619",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 3.15,
+        "z_center": 946.54,
+        "radius": 101.94
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 219,
+      "job_name": "Job-S12-D620",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 8.1,
+        "z_center": 1700.6,
+        "radius": 118.02,
+        "delam_depth": 0.45
+      },
+      "defect_type": "delamination",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 220,
+      "job_name": "Job-S12-D621",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 18.43,
+        "z_center": 2173.9,
+        "radius": 126.61,
+        "delam_depth": 0.67
+      },
+      "defect_type": "delamination",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 221,
+      "job_name": "Job-S12-D622",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 10.83,
+        "z_center": 1500.13,
+        "radius": 144.26,
+        "damage_ratio": 0.2
+      },
+      "defect_type": "impact",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 222,
+      "job_name": "Job-S12-D623",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 19.24,
+        "z_center": 2365.75,
+        "radius": 142.63
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 223,
+      "job_name": "Job-S12-D624",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 2.65,
+        "z_center": 918.48,
+        "radius": 109.88
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 224,
+      "job_name": "Job-S12-D625",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 5.21,
+        "z_center": 3943.4,
+        "radius": 113.92,
+        "delam_depth": 0.66
+      },
+      "defect_type": "delamination",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 225,
+      "job_name": "Job-S12-D626",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 15.43,
+        "z_center": 892.72,
+        "radius": 106.41,
+        "fatigue_severity": 0.41
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 226,
+      "job_name": "Job-S12-D627",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 13.79,
+        "z_center": 3268.81,
+        "radius": 149.4,
+        "damage_ratio": 0.2
+      },
+      "defect_type": "impact",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 227,
+      "job_name": "Job-S12-D628",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 12.16,
+        "z_center": 3011.76,
+        "radius": 112.47,
+        "delam_depth": 0.68
+      },
+      "defect_type": "delamination",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 228,
+      "job_name": "Job-S12-D629",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 7.35,
+        "z_center": 1307.94,
+        "radius": 101.51,
+        "fatigue_severity": 0.48
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 229,
+      "job_name": "Job-S12-D630",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 6.83,
+        "z_center": 2993.82,
+        "radius": 115.01,
+        "stiffness_factor": 6.63
+      },
+      "defect_type": "fod",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 230,
+      "job_name": "Job-S12-D631",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 16.19,
+        "z_center": 1451.83,
+        "radius": 146.78
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 231,
+      "job_name": "Job-S12-D632",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 21.15,
+        "z_center": 4135.95,
+        "radius": 126.56,
+        "stiffness_factor": 7.25
+      },
+      "defect_type": "fod",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 232,
+      "job_name": "Job-S12-D633",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 11.74,
+        "z_center": 1562.98,
+        "radius": 110.97
+      },
+      "defect_type": "debonding",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 233,
+      "job_name": "Job-S12-D634",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 14.33,
+        "z_center": 1409.47,
+        "radius": 106.61,
+        "fatigue_severity": 0.33
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 234,
+      "job_name": "Job-S12-D635",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 5.31,
+        "z_center": 3504.35,
+        "radius": 118.81
+      },
+      "defect_type": "debonding",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 235,
+      "job_name": "Job-S12-D636",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 9.18,
+        "z_center": 1033.37,
+        "radius": 110.88
+      },
+      "defect_type": "debonding",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 236,
+      "job_name": "Job-S12-D637",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 6.02,
+        "z_center": 1843.67,
+        "radius": 113.11
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 237,
+      "job_name": "Job-S12-D638",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 13.13,
+        "z_center": 1683.63,
+        "radius": 135.37,
+        "damage_ratio": 0.44
+      },
+      "defect_type": "impact",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 238,
+      "job_name": "Job-S12-D639",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 9.08,
+        "z_center": 2378.25,
+        "radius": 148.0,
+        "damage_ratio": 0.22
+      },
+      "defect_type": "impact",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 239,
+      "job_name": "Job-S12-D640",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 25.08,
+        "z_center": 3036.85,
+        "radius": 136.96,
+        "damage_ratio": 0.27
+      },
+      "defect_type": "impact",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 240,
+      "job_name": "Job-S12-D641",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 5.36,
+        "z_center": 901.21,
+        "radius": 142.27,
+        "stiffness_factor": 7.52
+      },
+      "defect_type": "fod",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 241,
+      "job_name": "Job-S12-D642",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 15.19,
+        "z_center": 4093.71,
+        "radius": 121.45,
+        "delam_depth": 0.28
+      },
+      "defect_type": "delamination",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 242,
+      "job_name": "Job-S12-D643",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 10.74,
+        "z_center": 2185.52,
+        "radius": 126.97
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 243,
+      "job_name": "Job-S12-D644",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 21.98,
+        "z_center": 2306.99,
+        "radius": 116.58
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 244,
+      "job_name": "Job-S12-D645",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 24.62,
+        "z_center": 3596.68,
+        "radius": 110.1
+      },
+      "defect_type": "debonding",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 245,
+      "job_name": "Job-S12-D646",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 26.71,
+        "z_center": 4086.87,
+        "radius": 105.12
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 246,
+      "job_name": "Job-S12-D647",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 10.14,
+        "z_center": 3713.45,
+        "radius": 141.36,
+        "delam_depth": 0.51
+      },
+      "defect_type": "delamination",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 247,
+      "job_name": "Job-S12-D648",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 2.26,
+        "z_center": 3786.51,
+        "radius": 102.77,
+        "stiffness_factor": 7.18
+      },
+      "defect_type": "fod",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 248,
+      "job_name": "Job-S12-D649",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 3.65,
+        "z_center": 812.07,
+        "radius": 121.73
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 249,
+      "job_name": "Job-S12-D650",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 16.38,
+        "z_center": 1103.07,
+        "radius": 119.08
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 250,
+      "job_name": "Job-S12-D651",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 18.2,
+        "z_center": 3624.17,
+        "radius": 130.04
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 251,
+      "job_name": "Job-S12-D652",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 19.57,
+        "z_center": 1048.67,
+        "radius": 144.28,
+        "stiffness_factor": 11.36
+      },
+      "defect_type": "fod",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 252,
+      "job_name": "Job-S12-D653",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 21.86,
+        "z_center": 2970.35,
+        "radius": 109.2,
+        "fatigue_severity": 0.45
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 253,
+      "job_name": "Job-S12-D654",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 15.99,
+        "z_center": 2510.64,
+        "radius": 131.58,
+        "damage_ratio": 0.29
+      },
+      "defect_type": "impact",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 254,
+      "job_name": "Job-S12-D655",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 8.67,
+        "z_center": 1031.69,
+        "radius": 135.58,
+        "stiffness_factor": 11.08
+      },
+      "defect_type": "fod",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 255,
+      "job_name": "Job-S12-D656",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 4.84,
+        "z_center": 1175.81,
+        "radius": 141.35
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 256,
+      "job_name": "Job-S12-D657",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 9.6,
+        "z_center": 1231.65,
+        "radius": 145.19
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 257,
+      "job_name": "Job-S12-D658",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 27.07,
+        "z_center": 3509.18,
+        "radius": 149.22
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 258,
+      "job_name": "Job-S12-D659",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 7.74,
+        "z_center": 3041.16,
+        "radius": 149.51,
+        "fatigue_severity": 0.27
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 259,
+      "job_name": "Job-S12-D660",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 5.97,
+        "z_center": 2844.72,
+        "radius": 144.09,
+        "delam_depth": 0.39
+      },
+      "defect_type": "delamination",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 260,
+      "job_name": "Job-S12-D661",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 7.77,
+        "z_center": 4044.6,
+        "radius": 131.37,
+        "delam_depth": 0.78
+      },
+      "defect_type": "delamination",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 261,
+      "job_name": "Job-S12-D662",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 15.71,
+        "z_center": 2158.57,
+        "radius": 112.25,
+        "damage_ratio": 0.22
+      },
+      "defect_type": "impact",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 262,
+      "job_name": "Job-S12-D663",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 20.79,
+        "z_center": 4149.21,
+        "radius": 123.37
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 263,
+      "job_name": "Job-S12-D664",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 24.91,
+        "z_center": 4165.97,
+        "radius": 104.12
+      },
+      "defect_type": "debonding",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 264,
+      "job_name": "Job-S12-D665",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 25.24,
+        "z_center": 991.41,
+        "radius": 142.94
+      },
+      "defect_type": "debonding",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 265,
+      "job_name": "Job-S12-D666",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 6.91,
+        "z_center": 3340.54,
+        "radius": 104.34
+      },
+      "defect_type": "debonding",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 266,
+      "job_name": "Job-S12-D667",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 8.69,
+        "z_center": 3273.92,
+        "radius": 109.48
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 267,
+      "job_name": "Job-S12-D668",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 13.57,
+        "z_center": 2611.29,
+        "radius": 101.04
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 268,
+      "job_name": "Job-S12-D669",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 16.85,
+        "z_center": 4123.53,
+        "radius": 148.91
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 269,
+      "job_name": "Job-S12-D670",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 3.79,
+        "z_center": 2092.13,
+        "radius": 114.41
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 270,
+      "job_name": "Job-S12-D671",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 19.15,
+        "z_center": 1440.17,
+        "radius": 142.76
+      },
+      "defect_type": "debonding",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 271,
+      "job_name": "Job-S12-D672",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 10.34,
+        "z_center": 4011.48,
+        "radius": 133.94,
+        "damage_ratio": 0.11
+      },
+      "defect_type": "impact",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 272,
+      "job_name": "Job-S12-D673",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 18.63,
+        "z_center": 3396.12,
+        "radius": 147.31
+      },
+      "defect_type": "debonding",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 273,
+      "job_name": "Job-S12-D674",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 16.63,
+        "z_center": 2359.34,
+        "radius": 126.82,
+        "fatigue_severity": 0.48
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 274,
+      "job_name": "Job-S12-D675",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 15.0,
+        "z_center": 2718.58,
+        "radius": 129.37
+      },
+      "defect_type": "debonding",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 275,
+      "job_name": "Job-S12-D676",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 23.24,
+        "z_center": 3467.53,
+        "radius": 100.34,
+        "fatigue_severity": 0.44
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 276,
+      "job_name": "Job-S12-D677",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 16.87,
+        "z_center": 817.5,
+        "radius": 114.41
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 277,
+      "job_name": "Job-S12-D678",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 15.63,
+        "z_center": 2986.38,
+        "radius": 135.11
+      },
+      "defect_type": "debonding",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 278,
+      "job_name": "Job-S12-D679",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 2.0,
+        "z_center": 970.45,
+        "radius": 142.9
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 279,
+      "job_name": "Job-S12-D680",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 11.89,
+        "z_center": 4144.09,
+        "radius": 106.3,
+        "delam_depth": 0.3
+      },
+      "defect_type": "delamination",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 280,
+      "job_name": "Job-S12-D681",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 13.48,
+        "z_center": 2078.32,
+        "radius": 131.75
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 281,
+      "job_name": "Job-S12-D682",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 2.38,
+        "z_center": 3358.67,
+        "radius": 104.55
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 282,
+      "job_name": "Job-S12-D683",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 20.67,
+        "z_center": 996.02,
+        "radius": 144.07
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 283,
+      "job_name": "Job-S12-D684",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 4.49,
+        "z_center": 3567.11,
+        "radius": 100.34,
+        "stiffness_factor": 11.34
+      },
+      "defect_type": "fod",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 284,
+      "job_name": "Job-S12-D685",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 23.33,
+        "z_center": 2593.41,
+        "radius": 143.35
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 285,
+      "job_name": "Job-S12-D686",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 25.05,
+        "z_center": 1749.94,
+        "radius": 109.81,
+        "fatigue_severity": 0.23
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 286,
+      "job_name": "Job-S12-D687",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 13.32,
+        "z_center": 3047.53,
+        "radius": 113.95,
+        "fatigue_severity": 0.43
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 287,
+      "job_name": "Job-S12-D688",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 9.15,
+        "z_center": 3085.16,
+        "radius": 113.3
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 288,
+      "job_name": "Job-S12-D689",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 16.29,
+        "z_center": 2328.71,
+        "radius": 120.03
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 289,
+      "job_name": "Job-S12-D690",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 9.71,
+        "z_center": 1116.47,
+        "radius": 126.32,
+        "stiffness_factor": 19.62
+      },
+      "defect_type": "fod",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 290,
+      "job_name": "Job-S12-D691",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 14.21,
+        "z_center": 2494.75,
+        "radius": 143.14
+      },
+      "defect_type": "debonding",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 291,
+      "job_name": "Job-S12-D692",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 27.7,
+        "z_center": 1654.71,
+        "radius": 148.87,
+        "delam_depth": 0.27
+      },
+      "defect_type": "delamination",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 292,
+      "job_name": "Job-S12-D693",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 2.53,
+        "z_center": 3023.2,
+        "radius": 118.52
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 293,
+      "job_name": "Job-S12-D694",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 26.38,
+        "z_center": 2868.36,
+        "radius": 118.16
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 294,
+      "job_name": "Job-S12-D695",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 27.54,
+        "z_center": 3815.17,
+        "radius": 114.41
+      },
+      "defect_type": "debonding",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 295,
+      "job_name": "Job-S12-D696",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 26.43,
+        "z_center": 3637.01,
+        "radius": 101.61,
+        "delam_depth": 0.56
+      },
+      "defect_type": "delamination",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 296,
+      "job_name": "Job-S12-D697",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 15.44,
+        "z_center": 1713.5,
+        "radius": 104.49
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 297,
+      "job_name": "Job-S12-D698",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 16.73,
+        "z_center": 1128.49,
+        "radius": 115.12,
+        "damage_ratio": 0.49
+      },
+      "defect_type": "impact",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 298,
+      "job_name": "Job-S12-D699",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 11.79,
+        "z_center": 1616.62,
+        "radius": 122.28
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 299,
+      "job_name": "Job-S12-D700",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 21.58,
+        "z_center": 871.35,
+        "radius": 137.16
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 300,
+      "job_name": "Job-S12-D701",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 10.26,
+        "z_center": 1807.42,
+        "radius": 142.82
+      },
+      "defect_type": "debonding",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 301,
+      "job_name": "Job-S12-D702",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 8.96,
+        "z_center": 2451.94,
+        "radius": 142.99
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 302,
+      "job_name": "Job-S12-D703",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 3.46,
+        "z_center": 2388.77,
+        "radius": 111.45
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 303,
+      "job_name": "Job-S12-D704",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 25.86,
+        "z_center": 1757.24,
+        "radius": 119.34
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 304,
+      "job_name": "Job-S12-D705",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 18.29,
+        "z_center": 3478.05,
+        "radius": 102.58,
+        "fatigue_severity": 0.44
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 305,
+      "job_name": "Job-S12-D706",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 2.26,
+        "z_center": 3211.71,
+        "radius": 114.41
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 306,
+      "job_name": "Job-S12-D707",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 22.25,
+        "z_center": 1404.49,
+        "radius": 138.21
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 307,
+      "job_name": "Job-S12-D708",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 8.01,
+        "z_center": 913.22,
+        "radius": 107.66,
+        "stiffness_factor": 11.06
+      },
+      "defect_type": "fod",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 308,
+      "job_name": "Job-S12-D709",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 14.09,
+        "z_center": 1671.26,
+        "radius": 111.78
+      },
+      "defect_type": "debonding",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 309,
+      "job_name": "Job-S12-D710",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 17.55,
+        "z_center": 2144.83,
+        "radius": 147.56,
+        "damage_ratio": 0.39
+      },
+      "defect_type": "impact",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 310,
+      "job_name": "Job-S12-D711",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 11.0,
+        "z_center": 2124.7,
+        "radius": 126.7,
+        "damage_ratio": 0.21
+      },
+      "defect_type": "impact",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 311,
+      "job_name": "Job-S12-D712",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 23.96,
+        "z_center": 2486.18,
+        "radius": 137.48
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 312,
+      "job_name": "Job-S12-D713",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 21.6,
+        "z_center": 2546.13,
+        "radius": 107.64
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 313,
+      "job_name": "Job-S12-D714",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 9.4,
+        "z_center": 3854.06,
+        "radius": 130.57
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 314,
+      "job_name": "Job-S12-D715",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 6.54,
+        "z_center": 3602.89,
+        "radius": 136.82,
+        "delam_depth": 0.51
+      },
+      "defect_type": "delamination",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 315,
+      "job_name": "Job-S12-D716",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 9.93,
+        "z_center": 1638.5,
+        "radius": 111.12
+      },
+      "defect_type": "debonding",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 316,
+      "job_name": "Job-S12-D717",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 2.92,
+        "z_center": 3296.55,
+        "radius": 118.63
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 317,
+      "job_name": "Job-S12-D718",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 18.99,
+        "z_center": 3322.16,
+        "radius": 104.66,
+        "fatigue_severity": 0.22
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 318,
+      "job_name": "Job-S12-D719",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 8.37,
+        "z_center": 1189.74,
+        "radius": 118.77,
+        "stiffness_factor": 14.95
+      },
+      "defect_type": "fod",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 319,
+      "job_name": "Job-S12-D720",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 21.0,
+        "z_center": 1597.86,
+        "radius": 142.9
+      },
+      "defect_type": "debonding",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 320,
+      "job_name": "Job-S12-D721",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 12.81,
+        "z_center": 2725.49,
+        "radius": 121.01,
+        "fatigue_severity": 0.41
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 321,
+      "job_name": "Job-S12-D722",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 18.08,
+        "z_center": 1056.84,
+        "radius": 123.3
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 322,
+      "job_name": "Job-S12-D723",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 12.12,
+        "z_center": 1270.96,
+        "radius": 145.66
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 323,
+      "job_name": "Job-S12-D724",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 18.74,
+        "z_center": 3782.39,
+        "radius": 105.96
+      },
+      "defect_type": "debonding",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 324,
+      "job_name": "Job-S12-D725",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 8.33,
+        "z_center": 2861.5,
+        "radius": 122.51
+      },
+      "defect_type": "debonding",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 325,
+      "job_name": "Job-S12-D726",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 19.31,
+        "z_center": 2749.16,
+        "radius": 112.47
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 326,
+      "job_name": "Job-S12-D727",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 6.26,
+        "z_center": 1488.16,
+        "radius": 108.19
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 327,
+      "job_name": "Job-S12-D728",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 14.68,
+        "z_center": 1936.0,
+        "radius": 132.06,
+        "damage_ratio": 0.38
+      },
+      "defect_type": "impact",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 328,
+      "job_name": "Job-S12-D729",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 3.09,
+        "z_center": 3647.57,
+        "radius": 117.84
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 329,
+      "job_name": "Job-S12-D730",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 6.33,
+        "z_center": 3082.31,
+        "radius": 128.39
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 330,
+      "job_name": "Job-S12-D731",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 25.16,
+        "z_center": 1471.26,
+        "radius": 138.16
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 331,
+      "job_name": "Job-S12-D732",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 17.57,
+        "z_center": 4077.03,
+        "radius": 109.5,
+        "damage_ratio": 0.44
+      },
+      "defect_type": "impact",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 332,
+      "job_name": "Job-S12-D733",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 26.81,
+        "z_center": 3901.77,
+        "radius": 130.26,
+        "stiffness_factor": 18.07
+      },
+      "defect_type": "fod",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 333,
+      "job_name": "Job-S12-D734",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 25.51,
+        "z_center": 3138.78,
+        "radius": 143.13,
+        "fatigue_severity": 0.35
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 334,
+      "job_name": "Job-S12-D735",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 24.57,
+        "z_center": 822.87,
+        "radius": 132.33,
+        "delam_depth": 0.77
+      },
+      "defect_type": "delamination",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 335,
+      "job_name": "Job-S12-D736",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 4.53,
+        "z_center": 2633.45,
+        "radius": 103.6,
+        "fatigue_severity": 0.37
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 336,
+      "job_name": "Job-S12-D737",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 12.98,
+        "z_center": 3385.55,
+        "radius": 100.89
+      },
+      "defect_type": "debonding",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 337,
+      "job_name": "Job-S12-D738",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 17.48,
+        "z_center": 4109.57,
+        "radius": 126.27
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 338,
+      "job_name": "Job-S12-D739",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 12.96,
+        "z_center": 3876.4,
+        "radius": 124.77
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 339,
+      "job_name": "Job-S12-D740",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 24.4,
+        "z_center": 1093.79,
+        "radius": 110.24
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 340,
+      "job_name": "Job-S12-D741",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 25.41,
+        "z_center": 3891.96,
+        "radius": 108.42
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 341,
+      "job_name": "Job-S12-D742",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 10.78,
+        "z_center": 1081.12,
+        "radius": 147.79
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 342,
+      "job_name": "Job-S12-D743",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 15.9,
+        "z_center": 2220.82,
+        "radius": 118.48
+      },
+      "defect_type": "debonding",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 343,
+      "job_name": "Job-S12-D744",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 11.18,
+        "z_center": 3534.83,
+        "radius": 141.96
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 344,
+      "job_name": "Job-S12-D745",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 24.12,
+        "z_center": 2898.42,
+        "radius": 142.57
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 345,
+      "job_name": "Job-S12-D746",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 8.79,
+        "z_center": 3444.35,
+        "radius": 149.26,
+        "stiffness_factor": 9.39
+      },
+      "defect_type": "fod",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 346,
+      "job_name": "Job-S12-D747",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 16.07,
+        "z_center": 3877.74,
+        "radius": 133.64,
+        "delam_depth": 0.41
+      },
+      "defect_type": "delamination",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 347,
+      "job_name": "Job-S12-D748",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 4.95,
+        "z_center": 1925.55,
+        "radius": 143.91
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 348,
+      "job_name": "Job-S12-D749",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 16.48,
+        "z_center": 2613.66,
+        "radius": 102.42
+      },
+      "defect_type": "debonding",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 349,
+      "job_name": "Job-S12-D750",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 13.84,
+        "z_center": 1739.77,
+        "radius": 106.64,
+        "delam_depth": 0.38
+      },
+      "defect_type": "delamination",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 350,
+      "job_name": "Job-S12-D751",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 2.04,
+        "z_center": 2407.65,
+        "radius": 128.3
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 351,
+      "job_name": "Job-S12-D752",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 13.36,
+        "z_center": 2491.97,
+        "radius": 125.25
+      },
+      "defect_type": "debonding",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 352,
+      "job_name": "Job-S12-D753",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 13.06,
+        "z_center": 2806.69,
+        "radius": 146.33,
+        "delam_depth": 0.76
+      },
+      "defect_type": "delamination",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 353,
+      "job_name": "Job-S12-D754",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 16.91,
+        "z_center": 2277.26,
+        "radius": 126.68
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 354,
+      "job_name": "Job-S12-D755",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 2.46,
+        "z_center": 3969.44,
+        "radius": 129.96,
+        "stiffness_factor": 5.39
+      },
+      "defect_type": "fod",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 355,
+      "job_name": "Job-S12-D756",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 25.98,
+        "z_center": 2478.44,
+        "radius": 132.84
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 356,
+      "job_name": "Job-S12-D757",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 19.68,
+        "z_center": 1194.28,
+        "radius": 111.67
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 357,
+      "job_name": "Job-S12-D758",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 13.29,
+        "z_center": 1527.74,
+        "radius": 132.68
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 358,
+      "job_name": "Job-S12-D759",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 16.4,
+        "z_center": 1491.92,
+        "radius": 125.2
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 359,
+      "job_name": "Job-S12-D760",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 10.0,
+        "z_center": 2063.68,
+        "radius": 124.24,
+        "damage_ratio": 0.2
+      },
+      "defect_type": "impact",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 360,
+      "job_name": "Job-S12-D761",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 17.17,
+        "z_center": 1289.34,
+        "radius": 115.21
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 361,
+      "job_name": "Job-S12-D762",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 19.83,
+        "z_center": 1203.87,
+        "radius": 121.55
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 362,
+      "job_name": "Job-S12-D763",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 2.99,
+        "z_center": 831.21,
+        "radius": 142.83,
+        "delam_depth": 0.39
+      },
+      "defect_type": "delamination",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 363,
+      "job_name": "Job-S12-D764",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 17.76,
+        "z_center": 3769.44,
+        "radius": 111.66
+      },
+      "defect_type": "debonding",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 364,
+      "job_name": "Job-S12-D765",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 2.12,
+        "z_center": 3523.91,
+        "radius": 120.29
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 365,
+      "job_name": "Job-S12-D766",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 14.38,
+        "z_center": 3640.77,
+        "radius": 118.82,
+        "damage_ratio": 0.48
+      },
+      "defect_type": "impact",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 366,
+      "job_name": "Job-S12-D767",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 21.7,
+        "z_center": 1998.8,
+        "radius": 126.42
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 367,
+      "job_name": "Job-S12-D768",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 4.71,
+        "z_center": 1801.04,
+        "radius": 111.46,
+        "damage_ratio": 0.25
+      },
+      "defect_type": "impact",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 368,
+      "job_name": "Job-S12-D769",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 6.1,
+        "z_center": 2540.86,
+        "radius": 127.94
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 369,
+      "job_name": "Job-S12-D770",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 2.81,
+        "z_center": 3197.04,
+        "radius": 144.7
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 370,
+      "job_name": "Job-S12-D771",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 3.48,
+        "z_center": 3519.68,
+        "radius": 124.85
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 371,
+      "job_name": "Job-S12-D772",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 19.39,
+        "z_center": 2828.83,
+        "radius": 128.73
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 372,
+      "job_name": "Job-S12-D773",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 2.33,
+        "z_center": 1841.28,
+        "radius": 127.77
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 373,
+      "job_name": "Job-S12-D774",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 6.46,
+        "z_center": 3160.12,
+        "radius": 119.48
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 374,
+      "job_name": "Job-S12-D775",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 18.54,
+        "z_center": 3030.09,
+        "radius": 105.15
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 375,
+      "job_name": "Job-S12-D776",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 10.65,
+        "z_center": 3250.96,
+        "radius": 146.35
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 376,
+      "job_name": "Job-S12-D777",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 8.91,
+        "z_center": 4057.97,
+        "radius": 124.36
+      },
+      "defect_type": "debonding",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 377,
+      "job_name": "Job-S12-D778",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 21.37,
+        "z_center": 1942.5,
+        "radius": 100.69
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 378,
+      "job_name": "Job-S12-D779",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 14.83,
+        "z_center": 1021.62,
+        "radius": 122.49,
+        "stiffness_factor": 8.42
+      },
+      "defect_type": "fod",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 379,
+      "job_name": "Job-S12-D780",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 24.32,
+        "z_center": 1519.94,
+        "radius": 109.79
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 380,
+      "job_name": "Job-S12-D781",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 18.35,
+        "z_center": 2445.7,
+        "radius": 103.96,
+        "damage_ratio": 0.2
+      },
+      "defect_type": "impact",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 381,
+      "job_name": "Job-S12-D782",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 11.13,
+        "z_center": 2977.95,
+        "radius": 111.92,
+        "stiffness_factor": 18.28
+      },
+      "defect_type": "fod",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 382,
+      "job_name": "Job-S12-D783",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 27.64,
+        "z_center": 1537.52,
+        "radius": 142.45,
+        "damage_ratio": 0.32
+      },
+      "defect_type": "impact",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 383,
+      "job_name": "Job-S12-D784",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 18.93,
+        "z_center": 3413.34,
+        "radius": 144.54
+      },
+      "defect_type": "debonding",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 384,
+      "job_name": "Job-S12-D785",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 21.79,
+        "z_center": 1895.65,
+        "radius": 143.32
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 385,
+      "job_name": "Job-S12-D786",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 26.14,
+        "z_center": 1822.6,
+        "radius": 143.65
+      },
+      "defect_type": "debonding",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 386,
+      "job_name": "Job-S12-D787",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 12.26,
+        "z_center": 878.43,
+        "radius": 148.74,
+        "fatigue_severity": 0.27
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 387,
+      "job_name": "Job-S12-D788",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 21.03,
+        "z_center": 888.59,
+        "radius": 141.75
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 388,
+      "job_name": "Job-S12-D789",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 18.4,
+        "z_center": 2578.85,
+        "radius": 103.39
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 389,
+      "job_name": "Job-S12-D790",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 21.4,
+        "z_center": 2646.64,
+        "radius": 101.19
+      },
+      "defect_type": "debonding",
+      "size_tier": "Medium"
+    },
+    {
+      "id": 390,
+      "job_name": "Job-S12-D791",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 8.14,
+        "z_center": 3974.64,
+        "radius": 150.3,
+        "damage_ratio": 0.17
+      },
+      "defect_type": "impact",
+      "size_tier": "Large"
+    },
+    {
+      "id": 391,
+      "job_name": "Job-S12-D792",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 3.31,
+        "z_center": 2346.16,
+        "radius": 167.74
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 392,
+      "job_name": "Job-S12-D793",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 9.36,
+        "z_center": 2111.94,
+        "radius": 214.71,
+        "damage_ratio": 0.26
+      },
+      "defect_type": "impact",
+      "size_tier": "Large"
+    },
+    {
+      "id": 393,
+      "job_name": "Job-S12-D794",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 6.63,
+        "z_center": 3987.5,
+        "radius": 193.72
+      },
+      "defect_type": "debonding",
+      "size_tier": "Large"
+    },
+    {
+      "id": 394,
+      "job_name": "Job-S12-D795",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 3.36,
+        "z_center": 3091.5,
+        "radius": 168.92
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 395,
+      "job_name": "Job-S12-D796",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 17.92,
+        "z_center": 1762.36,
+        "radius": 197.46
+      },
+      "defect_type": "debonding",
+      "size_tier": "Large"
+    },
+    {
+      "id": 396,
+      "job_name": "Job-S12-D797",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 18.5,
+        "z_center": 1795.43,
+        "radius": 195.81
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 397,
+      "job_name": "Job-S12-D798",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 5.41,
+        "z_center": 3226.97,
+        "radius": 199.32
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 398,
+      "job_name": "Job-S12-D799",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 23.11,
+        "z_center": 3950.67,
+        "radius": 239.52
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 399,
+      "job_name": "Job-S12-D800",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 4.61,
+        "z_center": 3019.56,
+        "radius": 151.43,
+        "delam_depth": 0.4
+      },
+      "defect_type": "delamination",
+      "size_tier": "Large"
+    },
+    {
+      "id": 400,
+      "job_name": "Job-S12-D801",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 11.08,
+        "z_center": 1510.79,
+        "radius": 234.6,
+        "stiffness_factor": 9.62
+      },
+      "defect_type": "fod",
+      "size_tier": "Large"
+    },
+    {
+      "id": 401,
+      "job_name": "Job-S12-D802",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 21.81,
+        "z_center": 1315.22,
+        "radius": 160.53,
+        "delam_depth": 0.67
+      },
+      "defect_type": "delamination",
+      "size_tier": "Large"
+    },
+    {
+      "id": 402,
+      "job_name": "Job-S12-D803",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 11.82,
+        "z_center": 2197.89,
+        "radius": 190.47
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 403,
+      "job_name": "Job-S12-D804",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 15.28,
+        "z_center": 1870.25,
+        "radius": 215.37
+      },
+      "defect_type": "debonding",
+      "size_tier": "Large"
+    },
+    {
+      "id": 404,
+      "job_name": "Job-S12-D805",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 11.63,
+        "z_center": 3448.06,
+        "radius": 216.44
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 405,
+      "job_name": "Job-S12-D806",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 3.05,
+        "z_center": 2032.24,
+        "radius": 177.63
+      },
+      "defect_type": "debonding",
+      "size_tier": "Large"
+    },
+    {
+      "id": 406,
+      "job_name": "Job-S12-D807",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 20.84,
+        "z_center": 2798.14,
+        "radius": 245.61
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Large"
+    },
+    {
+      "id": 407,
+      "job_name": "Job-S12-D808",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 24.43,
+        "z_center": 1542.63,
+        "radius": 178.63,
+        "fatigue_severity": 0.27
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Large"
+    },
+    {
+      "id": 408,
+      "job_name": "Job-S12-D809",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 9.64,
+        "z_center": 3914.04,
+        "radius": 191.81,
+        "fatigue_severity": 0.33
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Large"
+    },
+    {
+      "id": 409,
+      "job_name": "Job-S12-D810",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 13.19,
+        "z_center": 1041.21,
+        "radius": 153.43
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Large"
+    },
+    {
+      "id": 410,
+      "job_name": "Job-S12-D811",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 26.68,
+        "z_center": 2944.3,
+        "radius": 171.6
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 411,
+      "job_name": "Job-S12-D812",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 7.57,
+        "z_center": 2939.73,
+        "radius": 169.25,
+        "fatigue_severity": 0.2
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Large"
+    },
+    {
+      "id": 412,
+      "job_name": "Job-S12-D813",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 10.61,
+        "z_center": 2512.15,
+        "radius": 218.05
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Large"
+    },
+    {
+      "id": 413,
+      "job_name": "Job-S12-D814",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 20.51,
+        "z_center": 3657.19,
+        "radius": 167.26
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 414,
+      "job_name": "Job-S12-D815",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 19.1,
+        "z_center": 1096.05,
+        "radius": 249.47
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 415,
+      "job_name": "Job-S12-D816",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 4.07,
+        "z_center": 3461.47,
+        "radius": 234.46
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 416,
+      "job_name": "Job-S12-D817",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 4.42,
+        "z_center": 1851.12,
+        "radius": 150.22,
+        "fatigue_severity": 0.22
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Large"
+    },
+    {
+      "id": 417,
+      "job_name": "Job-S12-D818",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 21.24,
+        "z_center": 4051.76,
+        "radius": 217.61,
+        "stiffness_factor": 12.42
+      },
+      "defect_type": "fod",
+      "size_tier": "Large"
+    },
+    {
+      "id": 418,
+      "job_name": "Job-S12-D819",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 11.36,
+        "z_center": 3069.26,
+        "radius": 154.08,
+        "damage_ratio": 0.34
+      },
+      "defect_type": "impact",
+      "size_tier": "Large"
+    },
+    {
+      "id": 419,
+      "job_name": "Job-S12-D820",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 27.0,
+        "z_center": 2777.47,
+        "radius": 196.19,
+        "delam_depth": 0.61
+      },
+      "defect_type": "delamination",
+      "size_tier": "Large"
+    },
+    {
+      "id": 420,
+      "job_name": "Job-S12-D821",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 17.43,
+        "z_center": 2395.1,
+        "radius": 224.76,
+        "stiffness_factor": 18.13
+      },
+      "defect_type": "fod",
+      "size_tier": "Large"
+    },
+    {
+      "id": 421,
+      "job_name": "Job-S12-D822",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 19.66,
+        "z_center": 1323.24,
+        "radius": 207.82
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 422,
+      "job_name": "Job-S12-D823",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 14.76,
+        "z_center": 3205.23,
+        "radius": 249.7,
+        "fatigue_severity": 0.33
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Large"
+    },
+    {
+      "id": 423,
+      "job_name": "Job-S12-D824",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 20.48,
+        "z_center": 1276.05,
+        "radius": 198.67,
+        "stiffness_factor": 5.02
+      },
+      "defect_type": "fod",
+      "size_tier": "Large"
+    },
+    {
+      "id": 424,
+      "job_name": "Job-S12-D825",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 7.6,
+        "z_center": 1386.43,
+        "radius": 238.88,
+        "delam_depth": 0.49
+      },
+      "defect_type": "delamination",
+      "size_tier": "Large"
+    },
+    {
+      "id": 425,
+      "job_name": "Job-S12-D826",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 11.03,
+        "z_center": 3933.33,
+        "radius": 192.21,
+        "stiffness_factor": 17.82
+      },
+      "defect_type": "fod",
+      "size_tier": "Large"
+    },
+    {
+      "id": 426,
+      "job_name": "Job-S12-D827",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 22.16,
+        "z_center": 925.77,
+        "radius": 180.23
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 427,
+      "job_name": "Job-S12-D828",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 26.25,
+        "z_center": 1766.79,
+        "radius": 196.12
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 428,
+      "job_name": "Job-S12-D829",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 4.74,
+        "z_center": 2237.28,
+        "radius": 181.65,
+        "fatigue_severity": 0.28
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Large"
+    },
+    {
+      "id": 429,
+      "job_name": "Job-S12-D830",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 15.38,
+        "z_center": 3593.27,
+        "radius": 151.7,
+        "delam_depth": 0.3
+      },
+      "defect_type": "delamination",
+      "size_tier": "Large"
+    },
+    {
+      "id": 430,
+      "job_name": "Job-S12-D831",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 24.18,
+        "z_center": 2259.52,
+        "radius": 153.22,
+        "fatigue_severity": 0.26
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Large"
+    },
+    {
+      "id": 431,
+      "job_name": "Job-S12-D832",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 8.18,
+        "z_center": 1912.23,
+        "radius": 176.5
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 432,
+      "job_name": "Job-S12-D833",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 14.57,
+        "z_center": 1726.35,
+        "radius": 172.71
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 433,
+      "job_name": "Job-S12-D834",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 17.81,
+        "z_center": 2827.65,
+        "radius": 209.94
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 434,
+      "job_name": "Job-S12-D835",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 3.22,
+        "z_center": 2813.65,
+        "radius": 179.59,
+        "fatigue_severity": 0.29
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Large"
+    },
+    {
+      "id": 435,
+      "job_name": "Job-S12-D836",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 20.73,
+        "z_center": 1630.81,
+        "radius": 188.08
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 436,
+      "job_name": "Job-S12-D837",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 3.97,
+        "z_center": 3282.78,
+        "radius": 188.03
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 437,
+      "job_name": "Job-S12-D838",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 8.26,
+        "z_center": 1088.05,
+        "radius": 205.1
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 438,
+      "job_name": "Job-S12-D839",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 27.78,
+        "z_center": 1977.94,
+        "radius": 195.64
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 439,
+      "job_name": "Job-S12-D840",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 14.25,
+        "z_center": 1480.62,
+        "radius": 227.63,
+        "delam_depth": 0.56
+      },
+      "defect_type": "delamination",
+      "size_tier": "Large"
+    },
+    {
+      "id": 440,
+      "job_name": "Job-S12-D841",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 16.23,
+        "z_center": 2566.02,
+        "radius": 191.21
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Large"
+    },
+    {
+      "id": 441,
+      "job_name": "Job-S12-D842",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 11.53,
+        "z_center": 3257.13,
+        "radius": 183.19
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 442,
+      "job_name": "Job-S12-D843",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 27.32,
+        "z_center": 4071.72,
+        "radius": 174.15
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 443,
+      "job_name": "Job-S12-D844",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 14.55,
+        "z_center": 3910.41,
+        "radius": 203.87,
+        "fatigue_severity": 0.33
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Large"
+    },
+    {
+      "id": 444,
+      "job_name": "Job-S12-D845",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 16.09,
+        "z_center": 2193.85,
+        "radius": 208.83
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 445,
+      "job_name": "Job-S12-D846",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 27.21,
+        "z_center": 2374.31,
+        "radius": 189.31,
+        "stiffness_factor": 13.27
+      },
+      "defect_type": "fod",
+      "size_tier": "Large"
+    },
+    {
+      "id": 446,
+      "job_name": "Job-S12-D847",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 2.85,
+        "z_center": 2401.19,
+        "radius": 184.36
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 447,
+      "job_name": "Job-S12-D848",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 25.27,
+        "z_center": 3484.18,
+        "radius": 173.6,
+        "fatigue_severity": 0.28
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Large"
+    },
+    {
+      "id": 448,
+      "job_name": "Job-S12-D849",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 4.2,
+        "z_center": 3751.61,
+        "radius": 220.46,
+        "delam_depth": 0.36
+      },
+      "defect_type": "delamination",
+      "size_tier": "Large"
+    },
+    {
+      "id": 449,
+      "job_name": "Job-S12-D850",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 11.27,
+        "z_center": 2526.62,
+        "radius": 159.1
+      },
+      "defect_type": "debonding",
+      "size_tier": "Large"
+    },
+    {
+      "id": 450,
+      "job_name": "Job-S12-D851",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 6.22,
+        "z_center": 3553.38,
+        "radius": 190.12
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Large"
+    },
+    {
+      "id": 451,
+      "job_name": "Job-S12-D852",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 16.98,
+        "z_center": 3056.55,
+        "radius": 165.58,
+        "stiffness_factor": 19.7
+      },
+      "defect_type": "fod",
+      "size_tier": "Large"
+    },
+    {
+      "id": 452,
+      "job_name": "Job-S12-D853",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 4.88,
+        "z_center": 1244.43,
+        "radius": 207.09,
+        "fatigue_severity": 0.43
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Large"
+    },
+    {
+      "id": 453,
+      "job_name": "Job-S12-D854",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 7.82,
+        "z_center": 2733.6,
+        "radius": 184.17,
+        "stiffness_factor": 16.08
+      },
+      "defect_type": "fod",
+      "size_tier": "Large"
+    },
+    {
+      "id": 454,
+      "job_name": "Job-S12-D855",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 27.35,
+        "z_center": 1009.9,
+        "radius": 175.74,
+        "damage_ratio": 0.45
+      },
+      "defect_type": "impact",
+      "size_tier": "Large"
+    },
+    {
+      "id": 455,
+      "job_name": "Job-S12-D856",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 13.95,
+        "z_center": 4068.44,
+        "radius": 230.67
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 456,
+      "job_name": "Job-S12-D857",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 13.9,
+        "z_center": 4158.53,
+        "radius": 236.58
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 457,
+      "job_name": "Job-S12-D858",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 22.62,
+        "z_center": 864.24,
+        "radius": 210.3,
+        "fatigue_severity": 0.32
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Large"
+    },
+    {
+      "id": 458,
+      "job_name": "Job-S12-D859",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 17.63,
+        "z_center": 1775.88,
+        "radius": 160.42
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 459,
+      "job_name": "Job-S12-D860",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 18.72,
+        "z_center": 2770.51,
+        "radius": 166.71,
+        "damage_ratio": 0.45
+      },
+      "defect_type": "impact",
+      "size_tier": "Large"
+    },
+    {
+      "id": 460,
+      "job_name": "Job-S12-D861",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 14.15,
+        "z_center": 2599.24,
+        "radius": 186.4
+      },
+      "defect_type": "debonding",
+      "size_tier": "Large"
+    },
+    {
+      "id": 461,
+      "job_name": "Job-S12-D862",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 2.63,
+        "z_center": 2894.16,
+        "radius": 187.95
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 462,
+      "job_name": "Job-S12-D863",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 18.01,
+        "z_center": 3674.36,
+        "radius": 213.36
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 463,
+      "job_name": "Job-S12-D864",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 18.04,
+        "z_center": 3691.86,
+        "radius": 211.8
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 464,
+      "job_name": "Job-S12-D865",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 21.45,
+        "z_center": 3920.65,
+        "radius": 155.37,
+        "damage_ratio": 0.37
+      },
+      "defect_type": "impact",
+      "size_tier": "Large"
+    },
+    {
+      "id": 465,
+      "job_name": "Job-S12-D866",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 26.02,
+        "z_center": 2209.13,
+        "radius": 164.69,
+        "damage_ratio": 0.49
+      },
+      "defect_type": "impact",
+      "size_tier": "Large"
+    },
+    {
+      "id": 466,
+      "job_name": "Job-S12-D867",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 9.32,
+        "z_center": 3150.04,
+        "radius": 204.65
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 467,
+      "job_name": "Job-S12-D868",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 22.9,
+        "z_center": 3260.18,
+        "radius": 224.08,
+        "delam_depth": 0.76
+      },
+      "defect_type": "delamination",
+      "size_tier": "Large"
+    },
+    {
+      "id": 468,
+      "job_name": "Job-S12-D869",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 22.94,
+        "z_center": 1352.95,
+        "radius": 202.91,
+        "delam_depth": 0.57
+      },
+      "defect_type": "delamination",
+      "size_tier": "Large"
+    },
+    {
+      "id": 469,
+      "job_name": "Job-S12-D870",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 9.93,
+        "z_center": 1062.56,
+        "radius": 171.1
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 470,
+      "job_name": "Job-S12-D871",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 4.79,
+        "z_center": 1356.56,
+        "radius": 171.48
+      },
+      "defect_type": "debonding",
+      "size_tier": "Large"
+    },
+    {
+      "id": 471,
+      "job_name": "Job-S12-D872",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 11.69,
+        "z_center": 3402.65,
+        "radius": 202.51
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 472,
+      "job_name": "Job-S12-D873",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 12.05,
+        "z_center": 1414.79,
+        "radius": 204.4,
+        "stiffness_factor": 19.29
+      },
+      "defect_type": "fod",
+      "size_tier": "Large"
+    },
+    {
+      "id": 473,
+      "job_name": "Job-S12-D874",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 22.65,
+        "z_center": 3740.19,
+        "radius": 189.74
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Large"
+    },
+    {
+      "id": 474,
+      "job_name": "Job-S12-D875",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 15.58,
+        "z_center": 2311.87,
+        "radius": 224.69
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 475,
+      "job_name": "Job-S12-D876",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 7.52,
+        "z_center": 4177.72,
+        "radius": 246.15,
+        "damage_ratio": 0.35
+      },
+      "defect_type": "impact",
+      "size_tier": "Large"
+    },
+    {
+      "id": 476,
+      "job_name": "Job-S12-D877",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 21.29,
+        "z_center": 1611.17,
+        "radius": 187.92,
+        "damage_ratio": 0.31
+      },
+      "defect_type": "impact",
+      "size_tier": "Large"
+    },
+    {
+      "id": 477,
+      "job_name": "Job-S12-D878",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 12.52,
+        "z_center": 1209.22,
+        "radius": 156.15,
+        "stiffness_factor": 10.83
+      },
+      "defect_type": "fod",
+      "size_tier": "Large"
+    },
+    {
+      "id": 478,
+      "job_name": "Job-S12-D879",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 19.26,
+        "z_center": 3575.8,
+        "radius": 215.69,
+        "delam_depth": 0.56
+      },
+      "defect_type": "delamination",
+      "size_tier": "Large"
+    },
+    {
+      "id": 479,
+      "job_name": "Job-S12-D880",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 6.12,
+        "z_center": 3779.89,
+        "radius": 168.52,
+        "fatigue_severity": 0.29
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Large"
+    },
+    {
+      "id": 480,
+      "job_name": "Job-S12-D881",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 2.19,
+        "z_center": 4186.74,
+        "radius": 221.36
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Large"
+    },
+    {
+      "id": 481,
+      "job_name": "Job-S12-D882",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 2.14,
+        "z_center": 2958.97,
+        "radius": 230.43,
+        "delam_depth": 0.34
+      },
+      "defect_type": "delamination",
+      "size_tier": "Large"
+    },
+    {
+      "id": 482,
+      "job_name": "Job-S12-D883",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 18.22,
+        "z_center": 2167.44,
+        "radius": 201.94,
+        "delam_depth": 0.58
+      },
+      "defect_type": "delamination",
+      "size_tier": "Large"
+    },
+    {
+      "id": 483,
+      "job_name": "Job-S12-D884",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 26.78,
+        "z_center": 2529.07,
+        "radius": 196.27,
+        "fatigue_severity": 0.34
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Large"
+    },
+    {
+      "id": 484,
+      "job_name": "Job-S12-D885",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 19.77,
+        "z_center": 3869.02,
+        "radius": 183.3,
+        "fatigue_severity": 0.42
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Large"
+    },
+    {
+      "id": 485,
+      "job_name": "Job-S12-D886",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 6.06,
+        "z_center": 2588.42,
+        "radius": 179.95,
+        "damage_ratio": 0.25
+      },
+      "defect_type": "impact",
+      "size_tier": "Large"
+    },
+    {
+      "id": 486,
+      "job_name": "Job-S12-D887",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 20.06,
+        "z_center": 2731.04,
+        "radius": 244.98
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 487,
+      "job_name": "Job-S12-D888",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 6.99,
+        "z_center": 4198.11,
+        "radius": 194.29
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Large"
+    },
+    {
+      "id": 488,
+      "job_name": "Job-S12-D889",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 8.21,
+        "z_center": 3472.93,
+        "radius": 182.51,
+        "fatigue_severity": 0.4
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Large"
+    },
+    {
+      "id": 489,
+      "job_name": "Job-S12-D890",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 11.85,
+        "z_center": 3062.07,
+        "radius": 242.73,
+        "delam_depth": 0.68
+      },
+      "defect_type": "delamination",
+      "size_tier": "Large"
+    },
+    {
+      "id": 490,
+      "job_name": "Job-S12-D891",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 25.22,
+        "z_center": 2921.48,
+        "radius": 201.67,
+        "stiffness_factor": 19.01
+      },
+      "defect_type": "fod",
+      "size_tier": "Large"
+    },
+    {
+      "id": 491,
+      "job_name": "Job-S12-D892",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 20.61,
+        "z_center": 3824.97,
+        "radius": 198.76,
+        "damage_ratio": 0.18
+      },
+      "defect_type": "impact",
+      "size_tier": "Large"
+    },
+    {
+      "id": 492,
+      "job_name": "Job-S12-D893",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 16.02,
+        "z_center": 1709.24,
+        "radius": 224.85
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 493,
+      "job_name": "Job-S12-D894",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 6.75,
+        "z_center": 966.22,
+        "radius": 198.87,
+        "stiffness_factor": 6.32
+      },
+      "defect_type": "fod",
+      "size_tier": "Large"
+    },
+    {
+      "id": 494,
+      "job_name": "Job-S12-D895",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 25.69,
+        "z_center": 1574.45,
+        "radius": 225.98
+      },
+      "defect_type": "debonding",
+      "size_tier": "Large"
+    },
+    {
+      "id": 495,
+      "job_name": "Job-S12-D896",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 6.32,
+        "z_center": 3807.18,
+        "radius": 156.64
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 496,
+      "job_name": "Job-S12-D897",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 24.83,
+        "z_center": 3947.08,
+        "radius": 181.53
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Large"
+    },
+    {
+      "id": 497,
+      "job_name": "Job-S12-D898",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 16.59,
+        "z_center": 3431.25,
+        "radius": 172.5
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 498,
+      "job_name": "Job-S12-D899",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 16.8,
+        "z_center": 2268.32,
+        "radius": 153.84
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Large"
+    },
+    {
+      "id": 499,
+      "job_name": "Job-S12-D900",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 19.34,
+        "z_center": 3281.65,
+        "radius": 162.86,
+        "fatigue_severity": 0.31
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Large"
+    },
+    {
+      "id": 500,
+      "job_name": "Job-S12-D901",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 7.14,
+        "z_center": 1117.45,
+        "radius": 188.92,
+        "stiffness_factor": 14.37
+      },
+      "defect_type": "fod",
+      "size_tier": "Large"
+    },
+    {
+      "id": 501,
+      "job_name": "Job-S12-D902",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 12.68,
+        "z_center": 3428.36,
+        "radius": 179.25,
+        "delam_depth": 0.78
+      },
+      "defect_type": "delamination",
+      "size_tier": "Large"
+    },
+    {
+      "id": 502,
+      "job_name": "Job-S12-D903",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 4.37,
+        "z_center": 1718.5,
+        "radius": 155.25
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 503,
+      "job_name": "Job-S12-D904",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 15.02,
+        "z_center": 3606.91,
+        "radius": 233.01,
+        "fatigue_severity": 0.46
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Large"
+    },
+    {
+      "id": 504,
+      "job_name": "Job-S12-D905",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 26.64,
+        "z_center": 3002.08,
+        "radius": 212.8
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 505,
+      "job_name": "Job-S12-D906",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 7.28,
+        "z_center": 2279.63,
+        "radius": 161.17,
+        "fatigue_severity": 0.38
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Large"
+    },
+    {
+      "id": 506,
+      "job_name": "Job-S12-D907",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 14.43,
+        "z_center": 2505.63,
+        "radius": 176.6
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Large"
+    },
+    {
+      "id": 507,
+      "job_name": "Job-S12-D908",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 27.4,
+        "z_center": 4026.81,
+        "radius": 222.38,
+        "fatigue_severity": 0.24
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Large"
+    },
+    {
+      "id": 508,
+      "job_name": "Job-S12-D909",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 27.86,
+        "z_center": 1826.59,
+        "radius": 204.5
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 509,
+      "job_name": "Job-S12-D910",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 26.52,
+        "z_center": 1463.08,
+        "radius": 210.59
+      },
+      "defect_type": "debonding",
+      "size_tier": "Large"
+    },
+    {
+      "id": 510,
+      "job_name": "Job-S12-D911",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 25.56,
+        "z_center": 3982.32,
+        "radius": 210.17
+      },
+      "defect_type": "debonding",
+      "size_tier": "Large"
+    },
+    {
+      "id": 511,
+      "job_name": "Job-S12-D912",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 24.71,
+        "z_center": 3540.1,
+        "radius": 230.77
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Large"
+    },
+    {
+      "id": 512,
+      "job_name": "Job-S12-D913",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 10.4,
+        "z_center": 1874.6,
+        "radius": 209.92
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Large"
+    },
+    {
+      "id": 513,
+      "job_name": "Job-S12-D914",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 27.5,
+        "z_center": 2911.66,
+        "radius": 224.13,
+        "delam_depth": 0.67
+      },
+      "defect_type": "delamination",
+      "size_tier": "Large"
+    },
+    {
+      "id": 514,
+      "job_name": "Job-S12-D915",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 22.42,
+        "z_center": 1248.46,
+        "radius": 192.68,
+        "delam_depth": 0.54
+      },
+      "defect_type": "delamination",
+      "size_tier": "Large"
+    },
+    {
+      "id": 515,
+      "job_name": "Job-S12-D916",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 19.43,
+        "z_center": 2638.5,
+        "radius": 150.89,
+        "damage_ratio": 0.27
+      },
+      "defect_type": "impact",
+      "size_tier": "Large"
+    },
+    {
+      "id": 516,
+      "job_name": "Job-S12-D917",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 9.57,
+        "z_center": 3705.72,
+        "radius": 205.53
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 517,
+      "job_name": "Job-S12-D918",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 15.84,
+        "z_center": 2821.59,
+        "radius": 207.81,
+        "stiffness_factor": 15.25
+      },
+      "defect_type": "fod",
+      "size_tier": "Large"
+    },
+    {
+      "id": 518,
+      "job_name": "Job-S12-D919",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 21.49,
+        "z_center": 3333.3,
+        "radius": 171.92
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Large"
+    },
+    {
+      "id": 519,
+      "job_name": "Job-S12-D920",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 12.62,
+        "z_center": 3354.87,
+        "radius": 192.17,
+        "damage_ratio": 0.22
+      },
+      "defect_type": "impact",
+      "size_tier": "Large"
+    },
+    {
+      "id": 520,
+      "job_name": "Job-S12-D921",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 9.44,
+        "z_center": 2102.23,
+        "radius": 172.79
+      },
+      "defect_type": "debonding",
+      "size_tier": "Large"
+    },
+    {
+      "id": 521,
+      "job_name": "Job-S12-D922",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 15.65,
+        "z_center": 2071.2,
+        "radius": 161.09
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 522,
+      "job_name": "Job-S12-D923",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 5.58,
+        "z_center": 4060.87,
+        "radius": 219.35
+      },
+      "defect_type": "debonding",
+      "size_tier": "Large"
+    },
+    {
+      "id": 523,
+      "job_name": "Job-S12-D924",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 7.32,
+        "z_center": 1978.7,
+        "radius": 192.78,
+        "fatigue_severity": 0.35
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Large"
+    },
+    {
+      "id": 524,
+      "job_name": "Job-S12-D925",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 19.61,
+        "z_center": 1110.09,
+        "radius": 214.03
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 525,
+      "job_name": "Job-S12-D926",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 22.36,
+        "z_center": 4119.45,
+        "radius": 166.08
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Large"
+    },
+    {
+      "id": 526,
+      "job_name": "Job-S12-D927",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 12.55,
+        "z_center": 4128.45,
+        "radius": 208.92
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 527,
+      "job_name": "Job-S12-D928",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 8.59,
+        "z_center": 4022.99,
+        "radius": 196.11,
+        "damage_ratio": 0.5
+      },
+      "defect_type": "impact",
+      "size_tier": "Large"
+    },
+    {
+      "id": 528,
+      "job_name": "Job-S12-D929",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 13.41,
+        "z_center": 2012.0,
+        "radius": 248.94
+      },
+      "defect_type": "debonding",
+      "size_tier": "Large"
+    },
+    {
+      "id": 529,
+      "job_name": "Job-S12-D930",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 3.58,
+        "z_center": 2136.77,
+        "radius": 239.45
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 530,
+      "job_name": "Job-S12-D931",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 7.16,
+        "z_center": 2750.92,
+        "radius": 174.9
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 531,
+      "job_name": "Job-S12-D932",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 10.68,
+        "z_center": 1260.81,
+        "radius": 225.05
+      },
+      "defect_type": "debonding",
+      "size_tier": "Large"
+    },
+    {
+      "id": 532,
+      "job_name": "Job-S12-D933",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 23.58,
+        "z_center": 2706.48,
+        "radius": 168.99,
+        "delam_depth": 0.31
+      },
+      "defect_type": "delamination",
+      "size_tier": "Large"
+    },
+    {
+      "id": 533,
+      "job_name": "Job-S12-D934",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 24.51,
+        "z_center": 1665.25,
+        "radius": 164.62,
+        "delam_depth": 0.58
+      },
+      "defect_type": "delamination",
+      "size_tier": "Large"
+    },
+    {
+      "id": 534,
+      "job_name": "Job-S12-D935",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 4.27,
+        "z_center": 936.98,
+        "radius": 180.64
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 535,
+      "job_name": "Job-S12-D936",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 6.18,
+        "z_center": 2006.73,
+        "radius": 214.14
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Large"
+    },
+    {
+      "id": 536,
+      "job_name": "Job-S12-D937",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 22.79,
+        "z_center": 1910.08,
+        "radius": 246.49
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 537,
+      "job_name": "Job-S12-D938",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 25.91,
+        "z_center": 986.58,
+        "radius": 207.76
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 538,
+      "job_name": "Job-S12-D939",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 6.98,
+        "z_center": 2232.32,
+        "radius": 175.85,
+        "damage_ratio": 0.29
+      },
+      "defect_type": "impact",
+      "size_tier": "Large"
+    },
+    {
+      "id": 539,
+      "job_name": "Job-S12-D940",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 25.0,
+        "z_center": 1392.21,
+        "radius": 191.81
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 540,
+      "job_name": "Job-S12-D941",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 23.03,
+        "z_center": 851.64,
+        "radius": 201.98
+      },
+      "defect_type": "debonding",
+      "size_tier": "Large"
+    },
+    {
+      "id": 541,
+      "job_name": "Job-S12-D942",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 26.9,
+        "z_center": 1073.0,
+        "radius": 249.92
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 542,
+      "job_name": "Job-S12-D943",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 18.15,
+        "z_center": 3961.64,
+        "radius": 195.87
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 543,
+      "job_name": "Job-S12-D944",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 15.49,
+        "z_center": 2560.38,
+        "radius": 166.33,
+        "fatigue_severity": 0.42
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Large"
+    },
+    {
+      "id": 544,
+      "job_name": "Job-S12-D945",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 23.72,
+        "z_center": 2251.18,
+        "radius": 178.7
+      },
+      "defect_type": "debonding",
+      "size_tier": "Large"
+    },
+    {
+      "id": 545,
+      "job_name": "Job-S12-D946",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 17.88,
+        "z_center": 3653.06,
+        "radius": 226.34,
+        "fatigue_severity": 0.2
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Large"
+    },
+    {
+      "id": 546,
+      "job_name": "Job-S12-D947",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 21.5,
+        "z_center": 1257.12,
+        "radius": 233.76
+      },
+      "defect_type": "debonding",
+      "size_tier": "Large"
+    },
+    {
+      "id": 547,
+      "job_name": "Job-S12-D948",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 25.65,
+        "z_center": 2881.67,
+        "radius": 203.72
+      },
+      "defect_type": "debonding",
+      "size_tier": "Large"
+    },
+    {
+      "id": 548,
+      "job_name": "Job-S12-D949",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 6.58,
+        "z_center": 836.39,
+        "radius": 196.54,
+        "delam_depth": 0.58
+      },
+      "defect_type": "delamination",
+      "size_tier": "Large"
+    },
+    {
+      "id": 549,
+      "job_name": "Job-S12-D950",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 10.45,
+        "z_center": 3361.46,
+        "radius": 223.28
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 550,
+      "job_name": "Job-S12-D951",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 7.47,
+        "z_center": 2846.88,
+        "radius": 182.85,
+        "fatigue_severity": 0.21
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Large"
+    },
+    {
+      "id": 551,
+      "job_name": "Job-S12-D952",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 25.31,
+        "z_center": 2108.2,
+        "radius": 229.21
+      },
+      "defect_type": "debonding",
+      "size_tier": "Large"
+    },
+    {
+      "id": 552,
+      "job_name": "Job-S12-D953",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 16.69,
+        "z_center": 2465.6,
+        "radius": 212.21
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Large"
+    },
+    {
+      "id": 553,
+      "job_name": "Job-S12-D954",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 23.0,
+        "z_center": 1992.61,
+        "radius": 218.9
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 554,
+      "job_name": "Job-S12-D955",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 8.36,
+        "z_center": 2989.59,
+        "radius": 236.66
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 555,
+      "job_name": "Job-S12-D956",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 8.42,
+        "z_center": 2584.36,
+        "radius": 161.52
+      },
+      "defect_type": "debonding",
+      "size_tier": "Large"
+    },
+    {
+      "id": 556,
+      "job_name": "Job-S12-D957",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 23.38,
+        "z_center": 4169.23,
+        "radius": 237.86,
+        "fatigue_severity": 0.43
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Large"
+    },
+    {
+      "id": 557,
+      "job_name": "Job-S12-D958",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 24.66,
+        "z_center": 1964.35,
+        "radius": 174.65,
+        "stiffness_factor": 12.37
+      },
+      "defect_type": "fod",
+      "size_tier": "Large"
+    },
+    {
+      "id": 558,
+      "job_name": "Job-S12-D959",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 12.48,
+        "z_center": 1536.14,
+        "radius": 203.15
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 559,
+      "job_name": "Job-S12-D960",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 5.77,
+        "z_center": 3099.35,
+        "radius": 231.43
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 560,
+      "job_name": "Job-S12-D961",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 8.81,
+        "z_center": 2419.16,
+        "radius": 232.21
+      },
+      "defect_type": "debonding",
+      "size_tier": "Large"
+    },
+    {
+      "id": 561,
+      "job_name": "Job-S12-D962",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 11.97,
+        "z_center": 1734.58,
+        "radius": 158.02
+      },
+      "defect_type": "debonding",
+      "size_tier": "Large"
+    },
+    {
+      "id": 562,
+      "job_name": "Job-S12-D963",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 21.91,
+        "z_center": 3409.03,
+        "radius": 246.57
+      },
+      "defect_type": "debonding",
+      "size_tier": "Large"
+    },
+    {
+      "id": 563,
+      "job_name": "Job-S12-D964",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 23.84,
+        "z_center": 1267.08,
+        "radius": 162.66,
+        "fatigue_severity": 0.43
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Large"
+    },
+    {
+      "id": 564,
+      "job_name": "Job-S12-D965",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 10.16,
+        "z_center": 3007.34,
+        "radius": 201.07,
+        "delam_depth": 0.64
+      },
+      "defect_type": "delamination",
+      "size_tier": "Large"
+    },
+    {
+      "id": 565,
+      "job_name": "Job-S12-D966",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 9.21,
+        "z_center": 4006.46,
+        "radius": 166.16
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Large"
+    },
+    {
+      "id": 566,
+      "job_name": "Job-S12-D967",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 24.07,
+        "z_center": 1222.42,
+        "radius": 157.11,
+        "damage_ratio": 0.37
+      },
+      "defect_type": "impact",
+      "size_tier": "Large"
+    },
+    {
+      "id": 567,
+      "job_name": "Job-S12-D968",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 10.48,
+        "z_center": 1383.46,
+        "radius": 158.15,
+        "delam_depth": 0.64
+      },
+      "defect_type": "delamination",
+      "size_tier": "Large"
+    },
+    {
+      "id": 568,
+      "job_name": "Job-S12-D969",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 15.33,
+        "z_center": 959.13,
+        "radius": 155.83,
+        "damage_ratio": 0.48
+      },
+      "defect_type": "impact",
+      "size_tier": "Large"
+    },
+    {
+      "id": 569,
+      "job_name": "Job-S12-D970",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 2.51,
+        "z_center": 3667.87,
+        "radius": 175.17
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Large"
+    },
+    {
+      "id": 570,
+      "job_name": "Job-S12-D971",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 26.27,
+        "z_center": 3131.88,
+        "radius": 383.56
+      },
+      "defect_type": "debonding",
+      "size_tier": "Critical"
+    },
+    {
+      "id": 571,
+      "job_name": "Job-S12-D972",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 11.22,
+        "z_center": 2652.52,
+        "radius": 283.07
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Critical"
+    },
+    {
+      "id": 572,
+      "job_name": "Job-S12-D973",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 11.45,
+        "z_center": 2688.77,
+        "radius": 360.25,
+        "fatigue_severity": 0.43
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Critical"
+    },
+    {
+      "id": 573,
+      "job_name": "Job-S12-D974",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 3.26,
+        "z_center": 1426.54,
+        "radius": 345.28
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Critical"
+    },
+    {
+      "id": 574,
+      "job_name": "Job-S12-D975",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 3.64,
+        "z_center": 2020.2,
+        "radius": 345.13,
+        "damage_ratio": 0.12
+      },
+      "defect_type": "impact",
+      "size_tier": "Critical"
+    },
+    {
+      "id": 575,
+      "job_name": "Job-S12-D976",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 16.53,
+        "z_center": 2789.98,
+        "radius": 344.23,
+        "delam_depth": 0.46
+      },
+      "defect_type": "delamination",
+      "size_tier": "Critical"
+    },
+    {
+      "id": 576,
+      "job_name": "Job-S12-D977",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 5.66,
+        "z_center": 3583.02,
+        "radius": 272.38
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Critical"
+    },
+    {
+      "id": 577,
+      "job_name": "Job-S12-D978",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 5.89,
+        "z_center": 2178.14,
+        "radius": 293.6,
+        "delam_depth": 0.25
+      },
+      "defect_type": "delamination",
+      "size_tier": "Critical"
+    },
+    {
+      "id": 578,
+      "job_name": "Job-S12-D979",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 20.12,
+        "z_center": 3836.61,
+        "radius": 265.96,
+        "damage_ratio": 0.42
+      },
+      "defect_type": "impact",
+      "size_tier": "Critical"
+    },
+    {
+      "id": 579,
+      "job_name": "Job-S12-D980",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 15.09,
+        "z_center": 3125.24,
+        "radius": 377.22,
+        "stiffness_factor": 18.94
+      },
+      "defect_type": "fod",
+      "size_tier": "Critical"
+    },
+    {
+      "id": 580,
+      "job_name": "Job-S12-D981",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 8.56,
+        "z_center": 3995.25,
+        "radius": 358.08
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Critical"
+    },
+    {
+      "id": 581,
+      "job_name": "Job-S12-D982",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 20.92,
+        "z_center": 2432.52,
+        "radius": 397.58,
+        "fatigue_severity": 0.41
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Critical"
+    },
+    {
+      "id": 582,
+      "job_name": "Job-S12-D983",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 14.63,
+        "z_center": 2674.04,
+        "radius": 297.88
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Critical"
+    },
+    {
+      "id": 583,
+      "job_name": "Job-S12-D984",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 17.21,
+        "z_center": 3140.52,
+        "radius": 377.36
+      },
+      "defect_type": "debonding",
+      "size_tier": "Critical"
+    },
+    {
+      "id": 584,
+      "job_name": "Job-S12-D985",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 24.04,
+        "z_center": 2467.69,
+        "radius": 266.22,
+        "fatigue_severity": 0.24
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Critical"
+    },
+    {
+      "id": 585,
+      "job_name": "Job-S12-D986",
+      "defect_params": {
+        "defect_type": "debonding",
+        "theta_deg": 5.72,
+        "z_center": 1330.19,
+        "radius": 348.36
+      },
+      "defect_type": "debonding",
+      "size_tier": "Critical"
+    },
+    {
+      "id": 586,
+      "job_name": "Job-S12-D987",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 20.4,
+        "z_center": 1951.63,
+        "radius": 376.61
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Critical"
+    },
+    {
+      "id": 587,
+      "job_name": "Job-S12-D988",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 7.68,
+        "z_center": 2384.33,
+        "radius": 371.23,
+        "fatigue_severity": 0.27
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Critical"
+    },
+    {
+      "id": 588,
+      "job_name": "Job-S12-D989",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "theta_deg": 24.84,
+        "z_center": 2412.5,
+        "radius": 390.88
+      },
+      "defect_type": "thermal_progression",
+      "size_tier": "Critical"
+    },
+    {
+      "id": 589,
+      "job_name": "Job-S12-D990",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 12.84,
+        "z_center": 3864.18,
+        "radius": 318.59
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Critical"
+    },
+    {
+      "id": 590,
+      "job_name": "Job-S12-D991",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 16.13,
+        "z_center": 2522.65,
+        "radius": 311.58,
+        "fatigue_severity": 0.37
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Critical"
+    },
+    {
+      "id": 591,
+      "job_name": "Job-S12-D992",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 12.19,
+        "z_center": 1771.05,
+        "radius": 334.15
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Critical"
+    },
+    {
+      "id": 592,
+      "job_name": "Job-S12-D993",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 14.83,
+        "z_center": 2968.87,
+        "radius": 379.86,
+        "delam_depth": 0.51
+      },
+      "defect_type": "delamination",
+      "size_tier": "Critical"
+    },
+    {
+      "id": 593,
+      "job_name": "Job-S12-D994",
+      "defect_params": {
+        "defect_type": "fod",
+        "theta_deg": 20.28,
+        "z_center": 1449.83,
+        "radius": 313.21,
+        "stiffness_factor": 7.3
+      },
+      "defect_type": "fod",
+      "size_tier": "Critical"
+    },
+    {
+      "id": 594,
+      "job_name": "Job-S12-D995",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "theta_deg": 14.29,
+        "z_center": 801.13,
+        "radius": 304.56,
+        "fatigue_severity": 0.35
+      },
+      "defect_type": "acoustic_fatigue",
+      "size_tier": "Critical"
+    },
+    {
+      "id": 595,
+      "job_name": "Job-S12-D996",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 20.88,
+        "z_center": 2035.71,
+        "radius": 378.53
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Critical"
+    },
+    {
+      "id": 596,
+      "job_name": "Job-S12-D997",
+      "defect_params": {
+        "defect_type": "impact",
+        "theta_deg": 24.22,
+        "z_center": 3999.46,
+        "radius": 325.05,
+        "damage_ratio": 0.11
+      },
+      "defect_type": "impact",
+      "size_tier": "Critical"
+    },
+    {
+      "id": 597,
+      "job_name": "Job-S12-D998",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 15.09,
+        "z_center": 1007.59,
+        "radius": 253.46
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Critical"
+    },
+    {
+      "id": 598,
+      "job_name": "Job-S12-D999",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "theta_deg": 3.18,
+        "z_center": 1549.39,
+        "radius": 337.9
+      },
+      "defect_type": "inner_debond",
+      "size_tier": "Critical"
+    },
+    {
+      "id": 599,
+      "job_name": "Job-S12-D1000",
+      "defect_params": {
+        "defect_type": "delamination",
+        "theta_deg": 13.04,
+        "z_center": 2800.5,
+        "radius": 283.41,
+        "delam_depth": 0.55
+      },
+      "defect_type": "delamination",
+      "size_tier": "Critical"
+    }
+  ]
+}

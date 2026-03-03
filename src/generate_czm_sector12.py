@@ -171,6 +171,22 @@ OPENINGS_PHASE2 = [
     },
 ]
 
+# 1/12 sector に完全に収まる穴のみ (AccessDoor は θ=30° 境界上のため除外)
+OPENINGS_S12 = [
+    {
+        'name': 'HVAC_Door',
+        'theta_deg': 20.0,
+        'z_center': 2500.0,
+        'diameter': 400.0,
+    },
+    {
+        'name': 'Vent_1',
+        'theta_deg': 15.0,
+        'z_center': 300.0,
+        'diameter': 100.0,
+    },
+]
+
 # ==============================================================================
 # RING FRAME DEFINITIONS
 # ==============================================================================
@@ -2272,17 +2288,19 @@ def create_and_run_job(model, job_name, no_run=False, project_root=None):
 # ==============================================================================
 
 def generate_sector12_model(job_name, defect_params=None,
+                             openings_mode='none',
                              global_seed=None, defect_seed=None,
                              frame_seed=None,
                              adhesive_thickness=None, adhesive_params=None,
                              no_run=False, project_root=None):
     """
-    Main entry point: CZM 1/12 sector (30 deg) model, no openings.
+    Main entry point: CZM 1/12 sector (30 deg) model.
 
     Args:
         job_name: Abaqus job name
         defect_params: dict with defect_type, theta_deg, z_center, radius, ...
                        None for healthy model
+        openings_mode: 'none' (default) or 's12' (HVAC_Door + Vent_1)
         global_seed: mesh size (mm), default 25
         defect_seed: local mesh for defect zone (mm), default 10
         frame_seed: ring frame mesh (mm), default 15
@@ -2303,11 +2321,15 @@ def generate_sector12_model(job_name, defect_params=None,
     defect_type = (defect_params.get('defect_type', 'debonding')
                    if defect_params else None)
 
-    # No openings in 1/12 sector model
-    openings = []
+    # Openings
+    if openings_mode == 's12':
+        openings = list(OPENINGS_S12)
+    else:
+        openings = []
 
     print("=" * 70)
-    print("CZM SECTOR 1/12 (%.0f deg) -- No Openings" % SECTOR_ANGLE)
+    print("CZM SECTOR 1/12 (%.0f deg) -- Openings: %s" % (
+        SECTOR_ANGLE, openings_mode))
     print("  Mesh: global=%.0f, defect=%.0f, frame=%.0f mm" % (
         g_seed, d_seed, f_seed))
     print("  Adhesive: thickness=%.2f mm, Kn=%.0e, Ks=%.0e" % (
@@ -2324,7 +2346,8 @@ def generate_sector12_model(job_name, defect_params=None,
     Mdb()
     model = mdb.models['Model-1']
 
-    print("Openings: 0 (sector model, no openings)")
+    print("Openings: %d (%s)" % (len(openings),
+          ', '.join(o['name'] for o in openings) if openings else 'none'))
 
     # Ring frame positions (no collision check needed — no openings)
     frame_z_positions = list(RING_FRAME_Z_POSITIONS)
@@ -2345,7 +2368,11 @@ def generate_sector12_model(job_name, defect_params=None,
     p_inner, p_adh_inner, p_core, p_adh_outer, p_outer = \
         create_base_parts_with_adhesive(model, adh_t)
 
-    # 3. Partition openings — SKIPPED (no openings in sector model)
+    # 3. Partition openings
+    if openings:
+        partition_all_openings_with_adhesive(
+            p_inner, p_adh_inner, p_core, p_adh_outer, p_outer, openings)
+        print("Openings partitioned: %d" % len(openings))
 
     # 4. Partition defect zone (skins + core only)
     if defect_params:
@@ -2454,6 +2481,9 @@ if __name__ == '__main__':
                         help='Cohesive layer thickness (mm), default 0.2')
     parser.add_argument('--adhesive_params', type=str, default=None,
                         help='JSON string or file with CZM material params')
+    parser.add_argument('--openings', type=str, default='none',
+                        choices=['none', 's12'],
+                        help='Opening mode: none (default) or s12 (HVAC+Vent)')
     parser.add_argument('--no_run', action='store_true',
                         help='Write INP only, do not run solver')
     parser.add_argument('--project_root', type=str, default=None,
@@ -2509,6 +2539,7 @@ if __name__ == '__main__':
     generate_sector12_model(
         job_name=job_name,
         defect_params=defect_data,
+        openings_mode=args.openings,
         global_seed=g_seed,
         defect_seed=args.defect_seed,
         adhesive_thickness=args.adhesive_thickness,
