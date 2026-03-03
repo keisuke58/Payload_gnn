@@ -1,0 +1,50 @@
+<Description>
+      ABAQUS/ABQcaeK rank 0 / pid 40605 received the TERM signal from process 124841 bash
+
+</Description>
+
+<Details>
+      bash: /usr/bin/bash
+</Details>
+
+
+<Context>
+   CAE
+</Context>
+
+
+<Memory>
+   <Current>            2 GB </Current>
+   <Resident>           0 GB </Resident>
+   <Physical>          63 GB </Physical>
+   <Limit>              0 GB </Limit>
+   <Accessible>        63 GB </Accessible>
+   <Available>          2 GB </Available>
+   <Allocator>            DL </Allocator>
+   <HugePages>        always </HugePages>
+</Memory>
+
+<Swap>
+       <Size>           7 GB </Size>
+       <Used>           0 GB </Used>
+       <Free>           7 GB </Free>
+</Swap>
+
+<Directories>
+  <current> /home/nishioka/Payload2026     </current> <free>  99200 GB </free>   <used>  51468 GB </used> 
+</Directories>
+
+<Installation>
+     <Version> 2024  </Version>
+       <Build> 2023_09_21-21.55.25 RELr426 190762 </Build>
+</Installation>
+
+<Callstack>
+   1) libc.so.6                  0x0014f5ad ! accept           :?
+   2) libABQSMAInbVwrIPC.so      0x00019ca7 ! ipc_Socket::Accept ??:?
+   3) libABQSMAInkVwrKer.so      0x00208668 ! ker_main         ??:?
+   4) ABQcaeK                    0x0042ee72 ! ABQmain          ??:?
+   5) ABQcaeK                    0x0042e407 ! main             ??:?
+   6) libc.so.6                  0x0003feb0 ! __libc_start_call_main ??:?
+</Callstack>
+

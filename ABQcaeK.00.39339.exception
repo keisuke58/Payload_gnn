@@ -1,0 +1,62 @@
+<Description>
+      ABAQUS/ABQcaeK rank 0 / pid 39339 received the TERM signal from process 124841 bash
+
+</Description>
+
+<Details>
+      bash: /usr/bin/bash
+</Details>
+
+
+<Context>
+   CAE
+</Context>
+
+
+<Memory>
+   <Current>            2 GB </Current>
+   <Resident>           0 GB </Resident>
+   <Physical>          63 GB </Physical>
+   <Limit>              0 GB </Limit>
+   <Accessible>        63 GB </Accessible>
+   <Available>          2 GB </Available>
+   <Allocator>            DL </Allocator>
+   <HugePages>        always </HugePages>
+</Memory>
+
+<Swap>
+       <Size>           7 GB </Size>
+       <Used>           0 GB </Used>
+       <Free>           7 GB </Free>
+</Swap>
+
+<Directories>
+  <current> /home/nishioka/Payload2026     </current> <free>  99200 GB </free>   <used>  51468 GB </used> 
+</Directories>
+
+<Installation>
+     <Version> 2024 2024 </Version>
+       <Build> 2023_09_21-21.55.25 RELr426 190762 </Build>
+</Installation>
+
+<Callstack>
+   1) libc.so.6                  0x001182dd ! wait4            :?
+   2) libpython3.10.so           0x0022cd99 ! PyPickleBuffer_Release ??:?
+   3) libpython3.10.so           0x001ecee8 ! PyBuffer_ToContiguous ??:?
+   4) libpython3.10.so           0x00095b09 ! _PyEval_EvalFrameDefault ??:?
+   5) libpython3.10.so           0x00157b48 ! _PyEval_Vector   ??:?
+   6) libpython3.10.so           0x0009226e ! _PyEval_EvalFrameDefault ??:?
+   7) libpython3.10.so           0x00157b48 ! _PyEval_Vector   ??:?
+   8) libpython3.10.so           0x00159290 ! Py_LeaveRecursiveCall ??:?
+   9) libpython3.10.so           0x00091a75 ! _PyEval_EvalFrameDefault ??:?
+  10) libpython3.10.so           0x00157b48 ! _PyEval_Vector   ??:?
+  11) libpython3.10.so           0x00159290 ! Py_LeaveRecursiveCall ??:?
+  12) libpython3.10.so           0x00091a75 ! _PyEval_EvalFrameDefault ??:?
+  13) libpython3.10.so           0x00157b48 ! _PyEval_Vector   ??:?
+  14) libpython3.10.so           0x00091a75 ! _PyEval_EvalFrameDefault ??:?
+  15) libpython3.10.so           0x00157b48 ! _PyEval_Vector   ??:?
+  16) libpython3.10.so           0x000930eb ! _PyEval_EvalFrameDefault ??:?
+  17) libpython3.10.so           0x00157b48 ! _PyEval_Vector   ??:?
+  18) libpython3.10.so           0x00091a75 ! _PyEval_EvalFrameDefault ??:?
+</Callstack>
+
