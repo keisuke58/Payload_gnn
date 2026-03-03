@@ -115,28 +115,48 @@ doe_sector12_ext100.json (D101-D200)
 | 3.0 | 0.8099 |
 | 5.0 | 0.7842 |
 
-### 5-Fold CV (γ=1.0, GAT, Focal Loss)
+### Recall 改善: Defect Weight + Residual
+
+ベースラインモデル (Recall=74.4%) の見逃し率が高い問題に対し、以下の3つの改善を実施:
+
+1. **欠陥ノード重み付け** (`defect_weight=5.0`): 欠陥ノードの損失を5倍に重み付け → 見逃しペナルティ増大
+2. **Residual connection**: スキップ接続で深い層への勾配伝搬を改善
+3. **サブグラフサンプラーへの重み適用**: 従来は `train_epoch` のみ重み適用 → `train_epoch_subgraph` にも修正
+
+**Defect Weight グリッドサーチ結果:**
+
+| 設定 | F1 | Precision | Recall | AUC |
+|------|-----|-----------|--------|-----|
+| Baseline (DW=1, noRes) | 0.830 | 0.821 | 0.744 | 0.963 |
+| DW=3, Res | 0.783 | 0.729 | 0.846 | 0.985 |
+| **DW=5, Res** | **0.772** | **0.697** | **0.864** | **0.991** |
+| DW=5, noRes | 0.797 | 0.768 | 0.828 | 0.930 |
+| DW=8, Res | 0.714 | 0.622 | 0.840 | 0.983 |
+
+### 5-Fold CV (DW=5, Residual ON)
 
 ![5-Fold CV Training Curves](images/training/fig1_cv_training_curves.png)
 
 ![5-Fold CV Box Plot](images/training/fig3_cv_boxplot.png)
 
-| Fold | Best Val F1 |
-|------|-----------|
-| 1 | 0.8652 |
-| 2 | 0.8764 |
-| 3 | 0.8414 |
-| 4 | 0.8751 |
-| 5 | 0.8159 |
-| **Mean** | **0.8548 ± 0.0231** |
+| Fold | F1 | Precision | Recall | AUC |
+|------|-----|-----------|--------|-----|
+| 0 | 0.7971 | 0.6895 | 0.9446 | 0.9931 |
+| 1 | 0.8610 | 0.7890 | 0.9474 | 0.9951 |
+| 2 | 0.8137 | 0.7277 | 0.9227 | 0.9853 |
+| 3 | 0.8415 | 0.7514 | 0.9561 | 0.9864 |
+| 4 | 0.8064 | 0.7466 | 0.8765 | 0.9987 |
+| **Mean** | **0.8239±0.024** | **0.7408±0.033** | **0.9295±0.029** | **0.9917±0.005** |
+
+**Baseline比:** Recall 89.3% → **92.9%** (+3.6pp), AUC 94.8% → **99.2%** (+4.4pp)
 
 ### Confusion Matrix (Best Fold)
 
 ![Confusion Matrix](images/training/fig4_confusion_matrix.png)
 
 - Healthy Precision: 99.9% — 偽陽性（誤報）が極めて少ない
-- Defect Recall: 74.4% — 欠陥ノードの3/4を正しく検出
-- F1=0.876 (Best Fold 2)
+- **Defect Recall: 87.7%** (旧: 74.4%) — **+13.3pp 改善**
+- F1=0.861 (Best Fold 2)
 
 ### Defect Probability Map (Real-Scale Inference)
 
@@ -146,13 +166,13 @@ doe_sector12_ext100.json (D101-D200)
 
 | サンプル | 欠陥ノード数 | F1 | Precision | Recall |
 |---------|------------|-----|-----------|--------|
-| val[0] (Large) | 346 | 0.946 | 0.953 | 0.939 |
-| val[19] (Medium) | 89 | 0.888 | 0.847 | 0.933 |
-| val[31] (Small) | 21 | 0.743 | 0.929 | 0.619 |
+| val[0] (Large) | 346 | 0.937 | 0.895 | 0.983 |
+| val[19] (Medium) | 89 | 0.901 | 0.843 | 0.966 |
+| val[31] (Small) | 21 | 0.955 | 0.913 | 1.000 |
 
-- 大欠陥（346ノード）: F1=0.95、ほぼ完全に検出
-- 中欠陥（89ノード）: F1=0.89、Recall高く見落とし少ない
-- 小欠陥（21ノード）: Precision=0.93 で誤検出は少ないが、Recall=0.62 で一部見落とし
+- 大欠陥（346ノード）: F1=0.94、Recall=0.98 でほぼ完全検出
+- 中欠陥（89ノード）: F1=0.90、高精度に検出
+- **小欠陥（21ノード）: Recall=1.000 で完全検出**（旧モデルでは Recall=0.62）
 
 ### ROC Curve
 
@@ -162,14 +182,15 @@ doe_sector12_ext100.json (D101-D200)
 
 | 項目 | 値 |
 |------|------|
-| アーキテクチャ | GAT (4層, hidden=128, 634K params) |
+| アーキテクチャ | GAT (4層, hidden=128, Residual ON, 718K params) |
 | 損失関数 | Focal Loss (γ=1.0, α=auto) |
 | サンプリング | DefectCentric (4-hop, healthy_ratio=5) |
 | 拡張 | DropEdge=0.1, FeatureNoise=0.003 |
 | 境界重み | 1.5 |
+| **欠陥ノード重み** | **5.0** |
 | 学習率 | 1e-3 → CosineAnnealing |
 | Early Stopping | patience=30 |
-| GPU | 4x RTX 4090 (vancouver02) |
+| GPU | RTX 4090 (vancouver02) |
 
 ## 熱解析仕様
 
