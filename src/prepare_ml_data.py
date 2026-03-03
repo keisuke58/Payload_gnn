@@ -80,15 +80,23 @@ def _collect_sample_dirs(input_dir):
     return sample_dirs
 
 
-def prepare_dataset(input_dir, output_dir, val_ratio=0.2, seed=42, no_geodesic=True):
+def prepare_dataset(input_dir, output_dir, val_ratio=0.2, seed=42, no_geodesic=True,
+                    extra_inputs=None):
     """
-    Process all samples in input_dir, build graphs, split train/val, save.
+    Process all samples in input_dir (+ extra_inputs), build graphs, split train/val, save.
     """
     input_dir = os.path.join(PROJECT_ROOT, input_dir)
     output_dir = os.path.join(PROJECT_ROOT, output_dir)
     os.makedirs(output_dir, exist_ok=True)
 
     sample_dirs = _collect_sample_dirs(input_dir)
+
+    # Merge extra input directories
+    for extra in (extra_inputs or []):
+        extra_abs = os.path.join(PROJECT_ROOT, extra)
+        extra_dirs = _collect_sample_dirs(extra_abs)
+        print("Found %d samples in %s" % (len(extra_dirs), extra))
+        sample_dirs.extend(extra_dirs)
 
     if not sample_dirs:
         print("No sample directories found in %s" % input_dir)
@@ -169,6 +177,8 @@ def main():
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--no_geodesic', action='store_true', default=True,
                         help='Skip geodesic (faster, default)')
+    parser.add_argument('--extra_inputs', nargs='+', default=None,
+                        help='Additional input dirs to merge (e.g. batch_s12_ext200)')
     args = parser.parse_args()
 
     prepare_dataset(
@@ -177,6 +187,7 @@ def main():
         val_ratio=args.val_ratio,
         seed=args.seed,
         no_geodesic=args.no_geodesic,
+        extra_inputs=args.extra_inputs,
     )
 
 
