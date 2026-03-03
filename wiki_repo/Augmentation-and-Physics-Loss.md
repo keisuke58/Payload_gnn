@@ -190,15 +190,55 @@ python src/prepare_ml_data.py \
 ### 6.4 次のステップ
 
 1. N=500 データセットで再実験 (Abaqus バッチ完了待ち)
-2. λ グリッドサーチ (smooth, stress, connected の最適化)
+2. ~~λ グリッドサーチ (smooth, stress, connected の最適化)~~ → **完了** (Section 7)
 3. 不確実性定量化 → [Uncertainty-Quantification](Uncertainty-Quantification)
 
 ---
 
-## 7. 関連ファイル
+## 7. λ グリッドサーチ結果
+
+> 実験日: 2026-03-04 | GPU: vancouver02 RTX 4090 × 4
+
+### 7.1 探索設定
+
+- **探索空間**: smooth × connected の 3×3 = 9 組合せ (stress=0.05 固定)
+- **評価**: Single train/val split (80/20)、Early stopping patience=30
+- **固定パラメータ**: GAT h128 L4, Focal γ=3.0, DW=5, Residual, Aug (mask=0.1, flip=0.5, drop=0.1, noise=0.01)
+
+### 7.2 結果
+
+| smooth | stress | connected | **Val F1** |
+|--------|--------|-----------|-----------|
+| 0.01 | 0.05 | 0.01 | 0.7548 |
+| 0.01 | 0.05 | 0.1 | 0.7263 |
+| 0.01 | 0.05 | 0.5 | 0.7319 |
+| 0.1 | 0.05 | 0.01 | 0.7571 |
+| 0.1 | 0.05 | 0.1 | 0.7358 |
+| 0.1 | 0.05 | 0.5 | 0.7447 |
+| **0.5** | **0.05** | **0.01** | **0.7785** |
+| 0.5 | 0.05 | 0.1 | 0.7681 |
+| 0.5 | 0.05 | 0.5 | 0.7528 |
+
+### 7.3 考察
+
+- **Smoothness が最重要**: smooth 0.01→0.5 で F1 が単調増加。隣接ノード間の予測一貫性が最も効果的。
+- **Connected は小さいほど良い**: 0.01 > 0.1 > 0.5。強すぎると正しい孤立予測も抑制。
+- **最適設定**: `smooth=0.5, stress=0.05, connected=0.01` → F1=0.7785
+- 前回設定 (smooth=0.1, connected=0.1) の F1=0.7358 から **+4.3pt 改善**
+
+### 7.4 物理的解釈
+
+Smoothness loss が支配的 = **欠陥は空間的に連続** という事前知識が最も価値がある。
+Connected component penalty は smoothness と役割が重複しており、弱い方が良い。
+
+---
+
+## 8. 関連ファイル
 
 | ファイル | 内容 |
 |---------|------|
 | `src/train.py` | Augmentation 関数 + 物理損失 + CLI 引数 |
 | `src/prepare_ml_data.py` | `--extra_inputs` 対応 |
 | `src/build_graph.py` L478-493 | 34次元特徴量の順序定義 |
+| `scripts/grid_search_physics.sh` | λ グリッドサーチスクリプト (4GPU並列) |
+| `scripts/ensemble_inference.py` | アンサンブル推論 + 不確実性定量化 |
