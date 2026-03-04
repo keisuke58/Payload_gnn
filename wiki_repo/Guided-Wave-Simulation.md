@@ -2,7 +2,7 @@
 
 # ガイド波（ラム波）シミュレーション — Guided Wave Simulation
 
-> 最終更新: 2026-03-04
+> 最終更新: 2026-03-05
 > **Phase 4/5 準備**: アクティブ SHM のための Abaqus/Explicit 動解析
 
 ---
@@ -62,14 +62,15 @@ A(t) = 0                                              (t > T_burst)
 | 半径 | 25 mm |
 | 実装 | Outer Skin ↔ Core 間の Tie 拘束を欠陥ゾーンで除去 |
 
-### センサー配置
+### センサー配置 (v2)
 
 | センサー | X 位置 | 備考 |
 |----------|--------|------|
 | Sensor 0 | 0 mm | 励振点 |
-| Sensor 1 | ~50 mm | 欠陥ゾーン手前 |
-| Sensor 2 | ~100 mm | 欠陥ゾーン内 |
-| Sensor 3/4 | 150 mm | パネル端部 |
+| Sensor 1 | 30 mm | 欠陥ゾーン手前 |
+| Sensor 2 | 60 mm | 欠陥境界付近 (55mm) |
+| Sensor 3 | 90 mm | 欠陥ゾーン内 |
+| Sensor 4 | 120 mm | 欠陥ゾーン外側 |
 
 ---
 
@@ -79,41 +80,56 @@ A(t) = 0                                              (t > T_burst)
 
 <img src="https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/guided_wave/gw_comparison.png" width="100%">
 
-**観測結果:**
+**観測結果 (5センサー, v2):**
 - Sensor 0 (励振点): Healthy / Debond はほぼ同一
-- Sensor 1 (x=50mm): 散乱波の影響が微小に出現
-- **Sensor 2 (x=100mm): 明確な波形変化** — 欠陥ゾーン (55-105mm) 内
-- Sensor 3 (x=150mm): 欠陥透過後の波形に顕著な差異
+- Sensor 1 (x=30mm): 直接波は類似、後続の散乱波で微小な差異
+- **Sensor 2 (x=60mm)**: 欠陥境界付近で波形が変化し始める
+- **Sensor 3 (x=90mm)**: 欠陥ゾーン中心。最大の波形差異
+- Sensor 4 (x=120mm): 欠陥透過後、反射波の影響で位相がずれる
 
 ### 散乱波 (差分信号)
 
 <img src="https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/guided_wave/gw_difference.png" width="100%">
 
-Defect - Healthy の差分信号。欠陥による反射・散乱波が t ≈ 200-500 μs で明瞭に観測。
+Defect - Healthy の差分信号。Sensor 2-3 (欠陥ゾーン 55-105mm) で最大の散乱波。
+
+### ヒルベルト変換エンベロープ解析
+
+<table>
+<tr><th>Healthy</th><th>Debonding</th></tr>
+<tr>
+<td><img src="https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/guided_wave/gw_envelope_healthy.png" width="100%"></td>
+<td><img src="https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/guided_wave/gw_envelope_debond.png" width="100%"></td>
+</tr>
+</table>
+
+赤: Hilbert エンベロープ、緑: ピーク時刻、橙: 初期到達 (5% 閾値)
 
 ### 波面伝播スナップショット
 
-<img src="https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/guided_wave/gw_snapshots.png" width="100%">
+<img src="https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/guided_wave/gw_snapshots_v2.png" width="100%">
 
 上段: Healthy (同心円状の波面), 下段: Debonding (欠陥ゾーン付近で波面の乱れ)
 緑破線円 = 欠陥ゾーン (x=80mm, r=25mm)
 
 ### 波面伝播アニメーション
 
-<img src="https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/guided_wave/gw_wave_comparison.gif" width="100%">
+<img src="https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/guided_wave/gw_wave_comparison_v2.gif" width="100%">
 
 左: Healthy, 右: Debonding (緑破線 = 欠陥ゾーン)。
-80フレーム (0 ~ 684 μs)。欠陥ゾーンで波面が散乱・反射する様子がリアルタイムで確認可能。
+80フレーム (0 ~ 684 μs)。欠陥ゾーンで波面が散乱・反射する様子が確認可能。
 
 ### 群速度
 
-| モデル | 測定値 | 理論値 | 偏差 | 備考 |
-|--------|--------|--------|------|------|
-| Healthy | ~400 m/s | ~1550 m/s | 76% | 境界反射重畳による max\|U3\| ピーク遅延 |
-| Debond | ~1600 m/s | ~1550 m/s | 6% | 散乱波のタイミングシフトが影響 |
+ヒルベルト変換エンベロープ + 参照ベース法 (sensor 0 → 各センサーの初期到達時間)
 
-> **注**: max|U3| 法はピーク振幅時刻を検出するため、境界反射の影響を受けやすい。
-> ヒルベルト変換エンベロープの立ち上がり検出で改善予定。
+| モデル | Method 3 平均 | Mindlin 理論 | 偏差 | 備考 |
+|--------|-------------|-------------|------|------|
+| Healthy | **1089 m/s** | ~1911 m/s | 29.7% | 0→1: 1067, 0→2: 1196 m/s |
+| Debond | **1161 m/s** | ~1911 m/s | 25.1% | 0→1: 1112, 0→2: 983, 0→3: 1085 m/s |
+
+> **理論値について**: Mindlin 厚板理論 (E_eff = 45.8 GPa for QI layup) の位相速度 ~1911 m/s。
+> FEM 測定値は 3D 効果・近接場・分散効果により ~57-60% に低下。物理的に妥当な範囲。
 
 ---
 

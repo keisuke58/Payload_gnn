@@ -10,6 +10,7 @@ import sys
 import os
 import csv
 import numpy as np
+from scipy.signal import hilbert
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -136,43 +137,164 @@ def plot_difference(csv_healthy, csv_defect, output_path='gw_difference.png'):
     plt.close()
 
 
+def _envelope_arrival(t, signal, threshold_frac=0.05, min_time_us=5.0):
+    """Find envelope peak time and first-arrival time via Hilbert transform.
+
+    Returns: (t_peak, t_arrival, envelope)
+      t_peak: time of envelope maximum
+      t_arrival: first time envelope exceeds threshold_frac * peak
+                 (after min_time_us to avoid edge artifacts)
+    """
+    # Apply Tukey window to suppress Hilbert edge artifacts
+    n = len(signal)
+    win = np.ones(n)
+    taper = min(50, n // 10)
+    win[:taper] = 0.5 * (1 - np.cos(np.pi * np.arange(taper) / taper))
+    win[-taper:] = 0.5 * (1 - np.cos(np.pi * np.arange(taper, 0, -1) / taper))
+
+    env = np.abs(hilbert(signal * win))
+    idx_peak = np.argmax(env)
+    t_peak = t[idx_peak]
+    env_max = env[idx_peak]
+
+    # First arrival: envelope > threshold, after minimum time
+    threshold = threshold_frac * env_max
+    t_min = min_time_us * 1e-6
+    arrival_indices = np.where((env > threshold) & (t > t_min))[0]
+    t_arrival = t[arrival_indices[0]] if len(arrival_indices) > 0 else t_peak
+
+    return t_peak, t_arrival, env
+
+
 def compute_and_print_velocity(csv_path, label=''):
-    """Compute group velocity from peak arrival times using actual positions."""
+    """Compute group velocity using Hilbert envelope and actual positions.
+
+    Two methods:
+      1. Envelope peak (max of analytic signal envelope)
+      2. First arrival (envelope crosses 10% of peak)
+    """
     t, sensors, x_pos = load_csv(csv_path)
     print("\n--- Group Velocity: %s ---" % label)
 
     if not x_pos:
         x_pos = [0.0, 50.0, 100.0, 150.0, 200.0]
 
-    peak_times = []
+    peak_data = []  # (x, t_peak, t_arrival, env_max)
     for i in sorted(sensors.keys()):
-        idx_peak = np.argmax(np.abs(sensors[i]))
-        t_peak = t[idx_peak]
-        u3_peak = sensors[i][idx_peak]
         offset = x_pos[i] if i < len(x_pos) else i * 50
-        peak_times.append((t_peak, offset))
-        print("  Sensor %d (x=%.0f mm): t_peak=%.3f us, |U3|_max=%.3e mm" %
-              (i, offset, t_peak * 1e6, abs(u3_peak)))
+        t_peak, t_arrival, env = _envelope_arrival(t, sensors[i])
+        env_max = np.max(env)
+        peak_data.append((offset, t_peak, t_arrival, env_max))
+        print("  Sensor %d (x=%.0f mm): t_peak=%.1f us, t_arrival=%.1f us, "
+              "|env|_max=%.3e" %
+              (i, offset, t_peak * 1e6, t_arrival * 1e6, env_max))
 
-    # Velocity from consecutive pairs (skip sensor 0 at excitation point)
+    # Method 1: pairwise envelope peak
+    print("\n  Method 1: Envelope peak (pairwise)")
+    v_peak = _compute_pairwise_velocity(peak_data, method='peak')
+
+    # Method 2: pairwise first arrival
+    print("\n  Method 2: First arrival (pairwise)")
+    v_arrival = _compute_pairwise_velocity(peak_data, method='arrival')
+
+    # Method 3: reference-based (sensor 0 → each sensor)
+    print("\n  Method 3: Reference-based (sensor 0 → each)")
+    v_ref = _compute_reference_velocity(peak_data)
+
+    return v_peak, v_arrival, v_ref
+
+
+def _compute_pairwise_velocity(peak_data, method='peak'):
+    """Compute velocities from consecutive sensor pairs."""
+    t_idx = 1 if method == 'peak' else 2  # index into peak_data tuple
     velocities = []
-    for i in range(1, len(peak_times) - 1):
-        dt = peak_times[i + 1][0] - peak_times[i][0]
-        dx = peak_times[i + 1][1] - peak_times[i][1]
+    for i in range(1, len(peak_data) - 1):
+        dx = peak_data[i + 1][0] - peak_data[i][0]
+        dt = peak_data[i + 1][t_idx] - peak_data[i][t_idx]
         if abs(dx) < 1.0:
-            print("  Sensor %d->%d: dx~0 (same position), skip" % (i, i + 1))
+            print("    Sensor %d->%d: dx~0, skip" % (i, i + 1))
             continue
         if abs(dt) > 1e-10:
             v = dx / dt / 1000.0  # m/s
             velocities.append(v)
-            print("  Sensor %d->%d: dx=%.0f mm, dt=%.3f us -> v = %.0f m/s" %
+            print("    Sensor %d->%d: dx=%.0f mm, dt=%.1f us -> v = %.0f m/s" %
                   (i, i + 1, dx, dt * 1e6, v))
+        else:
+            print("    Sensor %d->%d: dt~0 (near-field)" % (i, i + 1))
 
     if velocities:
         v_avg = np.mean(velocities)
-        print("  Average: %.0f m/s (theory ~1550 m/s, dev %.1f%%)" %
+        print("    Average: %.0f m/s (theory ~1550 m/s, dev %.1f%%)" %
               (v_avg, abs(v_avg - 1550) / 1550 * 100))
     return velocities
+
+
+def _compute_reference_velocity(peak_data):
+    """Compute velocity from sensor 0 to each distant sensor (first arrival)."""
+    if len(peak_data) < 2:
+        return []
+    x0, _, t0_arr, _ = peak_data[0]
+    velocities = []
+    for i in range(1, len(peak_data)):
+        xi, _, ti_arr, _ = peak_data[i]
+        dx = xi - x0
+        dt = ti_arr - t0_arr
+        if abs(dx) < 1.0 or abs(dt) < 1e-10:
+            continue
+        v = dx / dt / 1000.0  # m/s
+        if v > 0:
+            velocities.append(v)
+            print("    Sensor 0->%d: dx=%.0f mm, dt=%.1f us -> v = %.0f m/s" %
+                  (i, dx, dt * 1e6, v))
+    if velocities:
+        v_avg = np.mean(velocities)
+        print("    Average: %.0f m/s (theory ~1550 m/s, dev %.1f%%)" %
+              (v_avg, abs(v_avg - 1550) / 1550 * 100))
+    return velocities
+
+
+def plot_envelopes(csv_path, output_path, label=''):
+    """Plot signals with Hilbert envelope overlay and arrival markers."""
+    t, sensors, x_pos = load_csv(csv_path)
+    if not x_pos:
+        x_pos = [0.0, 50.0, 100.0, 150.0, 200.0]
+
+    n_sensors = len(sensors)
+    fig, axes = plt.subplots(n_sensors, 1, figsize=(14, 3 * n_sensors),
+                             sharex=True)
+    if n_sensors == 1:
+        axes = [axes]
+
+    for i in sorted(sensors.keys()):
+        ax = axes[i]
+        t_us = t * 1e6
+        t_peak, t_arrival, env = _envelope_arrival(t, sensors[i])
+
+        ax.plot(t_us, sensors[i], 'b-', linewidth=0.6, alpha=0.5, label='U3')
+        ax.plot(t_us, env, 'r-', linewidth=1.2, label='Envelope')
+        ax.plot(t_us, -env, 'r-', linewidth=1.2, alpha=0.3)
+        ax.axvline(t_peak * 1e6, color='green', linestyle='--', linewidth=1.0,
+                   label='Peak (%.0f us)' % (t_peak * 1e6))
+        ax.axvline(t_arrival * 1e6, color='orange', linestyle='--',
+                   linewidth=1.0,
+                   label='Arrival (%.0f us)' % (t_arrival * 1e6))
+
+        offset = x_pos[i] if i < len(x_pos) else i * 50
+        ax.set_ylabel('U3 [mm]', fontsize=10)
+        ax.set_title('Sensor %d (x = %.0f mm)' % (i, offset),
+                     fontsize=11, fontweight='bold')
+        ax.legend(loc='upper right', fontsize=8, ncol=2)
+        ax.grid(True, alpha=0.3)
+        ax.ticklabel_format(axis='y', style='scientific', scilimits=(-3, 3))
+
+    axes[-1].set_xlabel('Time [us]', fontsize=11)
+    fig.suptitle('Hilbert Envelope Analysis: %s\n'
+                 '(green=peak, orange=first arrival @10%% threshold)' % label,
+                 fontsize=13, fontweight='bold')
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=150, bbox_inches='tight')
+    print("Envelope plot saved: %s" % output_path)
+    plt.close()
 
 
 if __name__ == '__main__':
@@ -184,7 +306,7 @@ if __name__ == '__main__':
     csv_d = sys.argv[2]
     out_dir = os.path.dirname(csv_h) or '.'
 
-    # Group velocity
+    # Group velocity (Hilbert envelope)
     compute_and_print_velocity(csv_h, 'Healthy')
     compute_and_print_velocity(csv_d, 'Debonding')
 
@@ -193,3 +315,9 @@ if __name__ == '__main__':
                    os.path.join(out_dir, 'gw_comparison.png'))
     plot_difference(csv_h, csv_d,
                     os.path.join(out_dir, 'gw_difference.png'))
+
+    # Envelope analysis
+    plot_envelopes(csv_h, os.path.join(out_dir, 'gw_envelope_healthy.png'),
+                   'Healthy')
+    plot_envelopes(csv_d, os.path.join(out_dir, 'gw_envelope_debond.png'),
+                   'Debonding')
