@@ -51,10 +51,10 @@ def _enforce_symmetry(node_rows, step_name=''):
     if not node_rows:
         return
 
-    # Skip for dynamic/explicit analyses (wave propagation breaks symmetry)
+    # Skip for analyses with asymmetric excitation (guided wave actuator etc.)
+    # Symmetric loading (uniform pressure, thermal) is fine even in Explicit.
     su = step_name.upper()
-    if any(kw in su for kw in ('DYNAMIC', 'EXPLICIT', 'FREQUENCY', 'MODAL',
-                                'GUIDEDWAVE', 'GW', 'RANDOM')):
+    if any(kw in su for kw in ('GUIDEDWAVE', 'GW-', 'ACTUAT')):
         return
 
     # Auto-detect sector angle from node geometry
