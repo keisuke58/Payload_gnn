@@ -494,6 +494,14 @@ def _is_face_in_doubler_zone(face):
     return False
 
 
+def _find_cylindrical_csys(part):
+    """Find the cylindrical CSYS datum in a part by name prefix 'CylCS-'."""
+    for did, datum in part.datums.items():
+        if hasattr(datum, 'name') and datum.name.startswith('CylCS-'):
+            return datum
+    return None
+
+
 def assign_doubler_zones(p_inner, p_outer):
     """Override section assignment to 16-ply doubler in reinforcement zones."""
     for part, label in [(p_inner, 'InnerSkin'), (p_outer, 'OuterSkin')]:
@@ -505,11 +513,12 @@ def assign_doubler_zones(p_inner, p_outer):
                                    name='Set-Doubler-%s' % label)
             part.SectionAssignment(region=doubler_reg,
                                    sectionName='Section-CFRP-Doubler')
+            cyl_csys = _find_cylindrical_csys(part)
             part.MaterialOrientation(region=doubler_reg,
-                                     orientationType=GLOBAL,
-                                     axis=AXIS_3,
+                                     orientationType=SYSTEM,
+                                     axis=AXIS_1,
                                      additionalRotationType=ROTATION_NONE,
-                                     localCsys=None)
+                                     localCsys=cyl_csys)
             print("  Doubler: %s -> %d faces (%d zones)" % (
                 label, len(doubler_faces), len(DOUBLER_ZONES)))
         else:
@@ -1225,8 +1234,8 @@ def apply_symmetry_bcs_3part(model, assembly, inst_inner, inst_core,
     if sym0_kwargs:
         sym0_set = assembly.Set(name='BC_Sym_theta0', **sym0_kwargs)
         model.DisplacementBC(name='Symmetry_theta0', createStepName='Initial',
-                             region=sym0_set, u3=0)
-        print("BC: Symmetry theta=0 (Z=0 plane, U3=0): %s" % ', '.join(
+                             region=sym0_set, u3=0, ur1=0, ur2=0)
+        print("BC: Symmetry theta=0 (ZSYMM: U3=UR1=UR2=0): %s" % ', '.join(
             '%s=%d' % (k, len(v)) for k, v in sym0_kwargs.items()))
 
     # theta=SECTOR_ANGLE face: local U3=0
@@ -1277,9 +1286,9 @@ def apply_symmetry_bcs_3part(model, assembly, inst_inner, inst_core,
         sym1_set = assembly.Set(name='BC_Sym_thetaMax', **sym1_kwargs)
         model.DisplacementBC(
             name='Symmetry_thetaMax', createStepName='Initial',
-            region=sym1_set, u3=0,
+            region=sym1_set, u3=0, ur1=0, ur2=0,
             localCsys=assembly.datums[datum_csys.id])
-        print("BC: Symmetry theta=%.0f deg (local U3=0): %s" % (
+        print("BC: Symmetry theta=%.0f deg (local U3=UR1=UR2=0): %s" % (
             SECTOR_ANGLE, ', '.join(
                 '%s=%d' % (k, len(v)) for k, v in sym1_kwargs.items())))
 
@@ -1837,32 +1846,49 @@ def partition_defect_zone(parts_to_partition, defect_params):
 # SECTION ASSIGNMENT: 3-TIER (HEALTHY -> VOID -> DEFECT) for Skins/Core
 # ==============================================================================
 
-def assign_sections_3tier(p_inner, p_core, p_outer, openings, defect_params):
-    """3-tier section assignment for skins and core (same as base)."""
-    # ---- Tier 1: Healthy baseline ----
-    region = p_inner.Set(faces=p_inner.faces, name='Set-All')
-    p_inner.SectionAssignment(region=region, sectionName='Section-CFRP-Skin')
-    p_inner.MaterialOrientation(region=region, orientationType=GLOBAL,
-                                axis=AXIS_3, additionalRotationType=ROTATION_NONE,
-                                localCsys=None)
+def _create_cylindrical_csys(part, name='CylCS'):
+    """Create a cylindrical CSYS aligned with the fairing axis (Y).
 
-    region = p_core.Set(cells=p_core.cells, name='Set-All')
-    p_core.SectionAssignment(region=region, sectionName='Section-Core')
-    cyl_datum = p_core.DatumCsysByThreePoints(
-        name='CylCS-Core', coordSysType=CYLINDRICAL,
+    Convention: CSYS-1=R (radial), CSYS-2=theta (circumferential), CSYS-3=Z (axial=Y).
+    Used for core (solid) and shell parts (material orientation).
+    """
+    datum = part.DatumCsysByThreePoints(
+        name=name, coordSysType=CYLINDRICAL,
         origin=(0.0, 0.0, 0.0),
         point1=(0.0, 0.0, 1.0),
         point2=(1.0, 0.0, 0.0))
+    return datum
+
+
+def assign_sections_3tier(p_inner, p_core, p_outer, openings, defect_params):
+    """3-tier section assignment for skins and core (same as base)."""
+    # ---- Tier 1: Healthy baseline ----
+    # Create cylindrical CSYS for each shell part (circumferential symmetry)
+    cyl_inner = _create_cylindrical_csys(p_inner, 'CylCS-InnerSkin')
+    cyl_outer = _create_cylindrical_csys(p_outer, 'CylCS-OuterSkin')
+
+    # Inner skin: cylindrical CSYS, axis=AXIS_1 (R = approximate shell normal)
+    region = p_inner.Set(faces=p_inner.faces, name='Set-All')
+    p_inner.SectionAssignment(region=region, sectionName='Section-CFRP-Skin')
+    p_inner.MaterialOrientation(region=region, orientationType=SYSTEM,
+                                axis=AXIS_1, additionalRotationType=ROTATION_NONE,
+                                localCsys=p_inner.datums[cyl_inner.id])
+
+    # Core: cylindrical CSYS
+    region = p_core.Set(cells=p_core.cells, name='Set-All')
+    p_core.SectionAssignment(region=region, sectionName='Section-Core')
+    cyl_core = _create_cylindrical_csys(p_core, 'CylCS-Core')
     p_core.MaterialOrientation(
         region=region, orientationType=SYSTEM,
         axis=AXIS_3, additionalRotationType=ROTATION_NONE,
-        localCsys=p_core.datums[cyl_datum.id])
+        localCsys=p_core.datums[cyl_core.id])
 
+    # Outer skin: cylindrical CSYS, axis=AXIS_1 (R = approximate shell normal)
     region = p_outer.Set(faces=p_outer.faces, name='Set-All')
     p_outer.SectionAssignment(region=region, sectionName='Section-CFRP-Skin')
-    p_outer.MaterialOrientation(region=region, orientationType=GLOBAL,
-                                axis=AXIS_3, additionalRotationType=ROTATION_NONE,
-                                localCsys=None)
+    p_outer.MaterialOrientation(region=region, orientationType=SYSTEM,
+                                axis=AXIS_1, additionalRotationType=ROTATION_NONE,
+                                localCsys=p_outer.datums[cyl_outer.id])
 
     print("Tier 1: Healthy baseline assigned to skins/core")
 
@@ -1965,7 +1991,7 @@ def _post_mesh_defect_sections(p_inner, p_core, p_outer,
     Called AFTER meshing. Uses element centroids instead of geometric
     partitions to avoid zero-volume element issues.
     """
-    from abaqusConstants import AXIS_3, GLOBAL, ROTATION_NONE
+    from abaqusConstants import AXIS_1, AXIS_3, SYSTEM, ROTATION_NONE
 
     defect_type = defect_params.get('defect_type', 'debonding')
 
@@ -2004,10 +2030,11 @@ def _post_mesh_defect_sections(p_inner, p_core, p_outer,
                                    name='Set-DefectZone-Skin-Mesh')
             p_outer.SectionAssignment(region=region_d,
                                       sectionName=section_name)
+            cyl_csys = _find_cylindrical_csys(p_outer)
             p_outer.MaterialOrientation(
-                region=region_d, orientationType=GLOBAL,
-                axis=AXIS_3, additionalRotationType=ROTATION_NONE,
-                localCsys=None)
+                region=region_d, orientationType=SYSTEM,
+                axis=AXIS_1, additionalRotationType=ROTATION_NONE,
+                localCsys=cyl_csys)
             print("  Post-mesh defect: %d outer skin elements -> %s" % (
                 len(defect_elems), section_name))
         else:
@@ -2597,8 +2624,8 @@ def apply_symmetry_bcs(model, assembly,
     if set_kwargs_0:
         sym0_set = assembly.Set(name='BC_Sym_Theta0', **set_kwargs_0)
         model.DisplacementBC(name='Sym_Theta0', createStepName='Initial',
-                             region=sym0_set, u3=0)
-        print("BC: Symmetry theta=0 (Z=0 plane, U3=0): %s" % ', '.join(
+                             region=sym0_set, u3=0, ur1=0, ur2=0)
+        print("BC: Symmetry theta=0 (ZSYMM: U3=UR1=UR2=0): %s" % ', '.join(
             '%s=%d' % (k, len(v)) for k, v in set_kwargs_0.items()))
     else:
         print("Warning: No geometry found for theta=0 symmetry BC")
@@ -2682,9 +2709,9 @@ def apply_symmetry_bcs(model, assembly,
         sym_a_set = assembly.Set(name='BC_Sym_ThetaMax', **set_kwargs_a)
         model.DisplacementBC(
             name='Sym_ThetaMax', createStepName='Initial',
-            region=sym_a_set, u3=0,
+            region=sym_a_set, u3=0, ur1=0, ur2=0,
             localCsys=assembly.datums[datum_csys.id])
-        print("BC: Symmetry theta=%.0f deg (local U3=0): %s" % (
+        print("BC: Symmetry theta=%.0f deg (local U3=UR1=UR2=0): %s" % (
             SECTOR_ANGLE,
             ', '.join('%s=%d' % (k, len(v)) for k, v in set_kwargs_a.items())))
     else:
