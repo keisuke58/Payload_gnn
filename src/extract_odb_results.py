@@ -30,6 +30,93 @@ DEFECT_TYPE_MAP = {
 }
 
 
+def _enforce_symmetry(node_rows):
+    """Enforce symmetry on sector boundary nodes (displacement + stress).
+
+    TIE slave skin nodes may have non-zero normal displacement and asymmetric
+    stress at symmetry boundaries. This:
+    1. Zeros out normal displacement at theta=0 and theta=theta_max.
+    2. Averages stress between matched theta=0 / theta_max node pairs
+       so that 360-degree sector mirroring produces smooth stress fields.
+
+    node_rows: list of [nid, x, y, z, ux, uy, uz, u_mag, temp,
+                        s11, s22, s12, smises, thermal_smises,
+                        le11, le22, le12, defect_label]
+    Indices: ux=4, uy=5, uz=6, u_mag=7, s11=9, s22=10, s12=11, smises=12,
+             thermal_smises=13
+    """
+    if not node_rows:
+        return
+
+    # Auto-detect sector angle from node geometry
+    theta_max = 0.0
+    for row in node_rows:
+        x, z = row[1], row[3]
+        r = math.sqrt(x * x + z * z)
+        if r < 1.0:
+            continue
+        theta = math.atan2(z, x)
+        if theta > theta_max:
+            theta_max = theta
+
+    # Skip if not a sector model
+    if theta_max < 0.01 or theta_max > math.pi / 2:
+        return
+
+    tol_rad = math.radians(0.5)
+    sin_t = math.sin(theta_max)
+    cos_t = math.cos(theta_max)
+
+    # Collect boundary nodes: {(y_bin, r_bin): row_index}
+    t0_idx = []   # list of (y, r, row_idx)
+    ta_idx = []
+
+    for i, row in enumerate(node_rows):
+        x, z = row[1], row[3]
+        r = math.sqrt(x * x + z * z)
+        if r < 1.0:
+            continue
+        theta = math.atan2(z, x)
+
+        if abs(theta) < tol_rad:
+            # Enforce uz=0 at theta=0
+            row[6] = 0.0
+            row[7] = math.sqrt(row[4]**2 + row[5]**2)
+            t0_idx.append((row[2], r, i))
+
+        elif abs(theta - theta_max) < tol_rad:
+            # Project out normal component at theta=max
+            ux, uz = row[4], row[6]
+            u_n = -sin_t * ux + cos_t * uz
+            row[4] = ux + sin_t * u_n
+            row[6] = uz - cos_t * u_n
+            row[7] = math.sqrt(row[4]**2 + row[5]**2 + row[6]**2)
+            ta_idx.append((row[2], r, i))
+
+    # Average stress between matched theta=0 / theta=max pairs
+    # Stress indices: s11=9, s22=10, s12=11, smises=12, thermal_smises=13
+    stress_cols = [9, 10, 11, 12, 13]
+    n_pairs = 0
+    for y0, r0, i0 in t0_idx:
+        best_d = 999.0
+        best_ia = -1
+        for ya, ra, ia in ta_idx:
+            d = math.sqrt((y0 - ya)**2 + (r0 - ra)**2)
+            if d < best_d:
+                best_d = d
+                best_ia = ia
+        if best_ia >= 0 and best_d < 5.0:
+            for c in stress_cols:
+                avg = (node_rows[i0][c] + node_rows[best_ia][c]) / 2.0
+                node_rows[i0][c] = avg
+                node_rows[best_ia][c] = avg
+            n_pairs += 1
+
+    if t0_idx or ta_idx:
+        print("  Symmetry enforced: %d nodes (t0) + %d (ta), %d stress pairs averaged"
+              % (len(t0_idx), len(ta_idx), n_pairs))
+
+
 def _is_node_in_defect(x, y, z, defect_params):
     """
     Check if node (x,y,z) lies inside the circular defect zone on the cylindrical surface.
@@ -317,6 +404,9 @@ def extract_results(odb_path, output_dir, defect_params=None, strict=False):
         node_rows.append([nid, x, y, z, u[0], u[1], u[2], u_mag, t,
                           s11, s22, s12, smises, thermal_smises,
                           le11, le22, le12, defect_label])
+
+    # Enforce symmetry on boundary nodes (TIE slave correction)
+    _enforce_symmetry(node_rows)
 
     csv_nodes = os.path.join(output_dir, 'nodes.csv')
     with open(csv_nodes, 'w', newline='') as f:

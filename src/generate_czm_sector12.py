@@ -1510,6 +1510,10 @@ def apply_symmetry_bcs(model, assembly,
         print("Warning: No geometry found for theta=%.0f symmetry BC" %
               SECTOR_ANGLE)
 
+    # NOTE: TIE slave skin nodes cannot be constrained by *BOUNDARY or *EQUATION
+    # (Abaqus deactivates them). Core has active symmetry BCs; skin symmetry
+    # is enforced in post-processing (extract_odb_results.py).
+
 
 def apply_post_mesh_bcs_with_adhesive(model, assembly,
                                        inst_inner, inst_adh_inner,
