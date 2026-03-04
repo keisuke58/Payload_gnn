@@ -1,7 +1,7 @@
 # Project Wiki: JAXA H3 Rocket — CFRP Fairing SHM
 
 > **本プロジェクトの技術的根拠・背景情報を集約したドキュメント**  
-> 最終更新: 2026-03-03
+> 最終更新: 2026-03-04
 
 ---
 
@@ -10,7 +10,7 @@
 | カテゴリ | ページ |
 |----------|--------|
 | **背景・概要** | [H3ロケット総覧](H3-Rocket-Overview) · [フェアリング仕様](JAXA-Fairing-Specs) · [F8事故](F8-Accident-Analysis) · [SHM文脈](SHM-Context) |
-| **FEM モデリング** | [リアルFEM](Realistic-Fairing-FEM) · [FEMリアリズム計画](FEM-Realism-Roadmap) · [Ground Truth FEM](Ground-Truth-FEM) · [GT vs Baseline](GT-vs-Baseline-Comparison) · [CZMソルバー試行](CZM-Solver-Trials) · [熱解析](Thermal-Analysis) · [FEM可視化](FEM-Visualization) · [メッシュ収束](Mesh-Convergence) · [C3D10バッチ](C3D10-Batch-Generation) |
+| **FEM モデリング** | [リアルFEM](Realistic-Fairing-FEM) · [FEMリアリズム計画](FEM-Realism-Roadmap) · [Ground Truth FEM](Ground-Truth-FEM) · [GT vs Baseline](GT-vs-Baseline-Comparison) · [CZMソルバー試行](CZM-Solver-Trials) · [熱解析](Thermal-Analysis) · [FEM可視化](FEM-Visualization) · [メッシュ収束](Mesh-Convergence) · [C3D10バッチ](C3D10-Batch-Generation) · [**ガイド波シミュレーション**](Guided-Wave-Simulation) |
 | **データセット** | [ノード特徴量 (34次元)](Node-Features) · [データセット形式](Dataset-Format) · [S12 CZMデータセット](S12-CZM-Dataset) · [生成状況](Dataset-Generation-Status) · [バッチINP](Batch-INP-Status) · [完璧度スコア](Dataset-Perfect-Score) · [積層構成](Layup-Structure) |
 | **欠陥設計** | [欠陥生成・ラベリング](Defect-Generation-and-Labeling) · [拡張欠陥タイプ](Extended-Defect-Types) · [欠陥タイプ検証](Defect-Types-Validation) · [欠陥物理量検証](Defect-Physics-Validation) · [発生確率・割合](Defect-Occurrence-Probability-and-Dataset-Ratio) · [メッシュ欠陥](MESH_DEFECTS) |
 | **GNN 学習・結果** | [アーキテクチャ](Architecture) · [ML戦略](ML-Strategy) · [二値分類](Binary-Classification) · [解析結果](Analysis-Results) · [**論文用図表 (27枚)**](Paper-Figures) |
