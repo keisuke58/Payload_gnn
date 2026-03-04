@@ -402,6 +402,20 @@ def partition_all_openings(p_inner, p_core, p_outer, openings):
         partition_opening(p_outer, opening, 'shell')
 
 
+def _create_cylindrical_csys(part, name='CylCS'):
+    """Create a cylindrical CSYS aligned with the fairing axis (Y).
+
+    Convention: CSYS-1=R (radial), CSYS-2=theta (circumferential), CSYS-3=Z (axial=Y).
+    Used for core (solid) and shell parts (material orientation).
+    """
+    datum = part.DatumCsysByThreePoints(
+        name=name, coordSysType=CYLINDRICAL,
+        origin=(0.0, 0.0, 0.0),
+        point1=(0.0, 0.0, 1.0),
+        point2=(1.0, 0.0, 0.0))
+    return datum
+
+
 def assign_sections_with_openings(p_inner, p_core, p_outer, openings):
     """
     Assign sections to ALL faces/cells:
@@ -434,6 +448,10 @@ def assign_sections_with_openings(p_inner, p_core, p_outer, openings):
             (opening if in_any else healthy).append(cell)
         return healthy, opening
 
+    # Create cylindrical CSYS for each shell part (circumferential symmetry)
+    cyl_inner = _create_cylindrical_csys(p_inner, 'CylCS-InnerSkin')
+    cyl_outer = _create_cylindrical_csys(p_outer, 'CylCS-OuterSkin')
+
     # --- Inner Skin ---
     healthy, opening_f = _classify_faces(p_inner, 0.0)
     if healthy:
@@ -441,9 +459,9 @@ def assign_sections_with_openings(p_inner, p_core, p_outer, openings):
         face_seq = p_inner.faces.findAt(*pts)
         region = p_inner.Set(faces=face_seq, name='Set-All')
         p_inner.SectionAssignment(region=region, sectionName='Section-CFRP-Skin')
-        p_inner.MaterialOrientation(region=region, orientationType=GLOBAL,
-                                    axis=AXIS_3, additionalRotationType=ROTATION_NONE,
-                                    localCsys=None)
+        p_inner.MaterialOrientation(region=region, orientationType=SYSTEM,
+                                    axis=AXIS_1, additionalRotationType=ROTATION_NONE,
+                                    localCsys=p_inner.datums[cyl_inner.id])
     if opening_f:
         pts_v = tuple((f.pointOn[0],) for f in opening_f)
         void_seq = p_inner.faces.findAt(*pts_v)
@@ -458,19 +476,11 @@ def assign_sections_with_openings(p_inner, p_core, p_outer, openings):
         cell_seq = p_core.cells.findAt(*pts)
         region = p_core.Set(cells=cell_seq, name='Set-All')
         p_core.SectionAssignment(region=region, sectionName='Section-Core')
-        # Cylindrical CS: 1=radial (through-thickness), 2=theta, 3=axial(Y)
-        # point1 defines axis direction, point2 defines R reference plane
-        # CYLINDRICAL CS: INP axis = cross(point1-origin, point2-origin)
-        # cross(Z, X) = Y (fairing axial direction)
-        cyl_datum = p_core.DatumCsysByThreePoints(
-            name='CylCS-Core', coordSysType=CYLINDRICAL,
-            origin=(0.0, 0.0, 0.0),
-            point1=(0.0, 0.0, 1.0),   # Z direction
-            point2=(1.0, 0.0, 0.0))   # X direction → axis = Z×X = Y
+        cyl_core = _create_cylindrical_csys(p_core, 'CylCS-Core')
         p_core.MaterialOrientation(
             region=region, orientationType=SYSTEM,
             axis=AXIS_3, additionalRotationType=ROTATION_NONE,
-            localCsys=p_core.datums[cyl_datum.id])
+            localCsys=p_core.datums[cyl_core.id])
     if opening_c:
         pts_v = tuple((c.pointOn[0],) for c in opening_c)
         void_seq = p_core.cells.findAt(*pts_v)
@@ -485,9 +495,9 @@ def assign_sections_with_openings(p_inner, p_core, p_outer, openings):
         face_seq = p_outer.faces.findAt(*pts)
         region = p_outer.Set(faces=face_seq, name='Set-All')
         p_outer.SectionAssignment(region=region, sectionName='Section-CFRP-Skin')
-        p_outer.MaterialOrientation(region=region, orientationType=GLOBAL,
-                                    axis=AXIS_3, additionalRotationType=ROTATION_NONE,
-                                    localCsys=None)
+        p_outer.MaterialOrientation(region=region, orientationType=SYSTEM,
+                                    axis=AXIS_1, additionalRotationType=ROTATION_NONE,
+                                    localCsys=p_outer.datums[cyl_outer.id])
     if opening_f:
         pts_v = tuple((f.pointOn[0],) for f in opening_f)
         void_seq = p_outer.faces.findAt(*pts_v)
