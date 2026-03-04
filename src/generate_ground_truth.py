@@ -29,7 +29,11 @@ from mesh import ElemType
 from driverUtils import executeOnCaeStartup
 
 # Add src/ to path for manufacturing_variability import
-_src_dir = os.path.dirname(os.path.abspath(__file__))
+try:
+    _src_dir = os.path.dirname(os.path.abspath(__file__))
+except NameError:
+    # __file__ not defined in Abaqus noGUI mode
+    _src_dir = os.path.dirname(os.path.abspath(sys.argv[-1]))
 if _src_dir not in sys.path:
     sys.path.insert(0, _src_dir)
 
@@ -978,7 +982,7 @@ def create_surface_czm_interactions(model, assembly, inst_inner, inst_core,
             sliding=SMALL,
             initialClearance=OMIT,
             interactionProperty='IntProp-CZM-Healthy',
-            adjustMethod=NONE)
+            adjustMethod=OVERCLOSED)
         print("  Contact CZM 1: Core(inner) <-> InnerSkin, %d faces" % (
             len(core_inner_pts)))
     else:
@@ -1015,7 +1019,7 @@ def create_surface_czm_interactions(model, assembly, inst_inner, inst_core,
                     sliding=SMALL,
                     initialClearance=OMIT,
                     interactionProperty='IntProp-CZM-Healthy',
-                    adjustMethod=NONE)
+                    adjustMethod=OVERCLOSED)
 
                 # Defect zone: use damaged contact property
                 defect_type = defect_params.get('defect_type', 'debonding')
@@ -1032,7 +1036,7 @@ def create_surface_czm_interactions(model, assembly, inst_inner, inst_core,
                     sliding=SMALL,
                     initialClearance=OMIT,
                     interactionProperty=defect_prop,
-                    adjustMethod=NONE)
+                    adjustMethod=OVERCLOSED)
                 print("  Contact CZM 2: Core(outer) <-> OuterSkin")
                 print("    Healthy: %d faces, Defect: %d faces (%s)" % (
                     len(healthy_pts), len(defect_pts), defect_prop))
@@ -1049,7 +1053,7 @@ def create_surface_czm_interactions(model, assembly, inst_inner, inst_core,
                     sliding=SMALL,
                     initialClearance=OMIT,
                     interactionProperty=defect_prop,
-                    adjustMethod=NONE)
+                    adjustMethod=OVERCLOSED)
                 print("  Contact CZM 2: Core(outer) <-> OuterSkin (all defect)")
             else:
                 # All healthy
@@ -1061,7 +1065,7 @@ def create_surface_czm_interactions(model, assembly, inst_inner, inst_core,
                     sliding=SMALL,
                     initialClearance=OMIT,
                     interactionProperty='IntProp-CZM-Healthy',
-                    adjustMethod=NONE)
+                    adjustMethod=OVERCLOSED)
                 print("  Contact CZM 2: Core(outer) <-> OuterSkin, %d faces" % (
                     len(core_outer_pts)))
         else:
@@ -1074,7 +1078,7 @@ def create_surface_czm_interactions(model, assembly, inst_inner, inst_core,
                 sliding=SMALL,
                 initialClearance=OMIT,
                 interactionProperty='IntProp-CZM-Healthy',
-                adjustMethod=NONE)
+                adjustMethod=OVERCLOSED)
             print("  Contact CZM 2: Core(outer) <-> OuterSkin, %d faces" % (
                 len(core_outer_pts)))
     else:
@@ -3612,7 +3616,8 @@ def generate_ground_truth_model(job_name, defect_params=None,
                                 frame_seed=None,
                                 adhesive_thickness=None, adhesive_params=None,
                                 no_run=False, project_root=None,
-                                variability_seed=None):
+                                variability_seed=None,
+                                sector_angle=None):
     """
     Ground Truth FEM model: CZM 1/12 sector with enhanced physics.
 
@@ -3642,6 +3647,17 @@ def generate_ground_truth_model(job_name, defect_params=None,
     d_seed = defect_seed if defect_seed is not None else DEFECT_SEED
     f_seed = frame_seed if frame_seed is not None else FRAME_SEED
     adh_t = adhesive_thickness if adhesive_thickness is not None else ADHESIVE_T
+
+    # Override sector angle if requested
+    global SECTOR_ANGLE, SOLVER_MEMORY
+    if sector_angle is not None:
+        SECTOR_ANGLE = sector_angle
+        if sector_angle >= 360.0:
+            SOLVER_MEMORY = '32 gb'
+        elif sector_angle >= 180.0:
+            SOLVER_MEMORY = '16 gb'
+        else:
+            SOLVER_MEMORY = '8 gb'
 
     czm = dict(DEFAULT_CZM_PARAMS)
     if adhesive_params:
@@ -3768,13 +3784,23 @@ def generate_ground_truth_model(job_name, defect_params=None,
             apply_symmetry_bcs_3part(
                 model, a, inst_inner, inst_core, inst_outer, frame_insts)
 
-        # 10. Steps
+        # 10. Steps (with stabilization for CZM contact convergence)
         model.StaticStep(name='Step-Cure', previous='Initial',
+                         initialInc=0.1, maxInc=0.5, minInc=1e-8, maxNumInc=200,
+                         stabilizationMagnitude=5e-4,
+                         stabilizationMethod=DISSIPATED_ENERGY_FRACTION,
+                         continueDampingFactors=False,
+                         adaptiveDampingRatio=0.1,
                          description='Cure cooldown: 175C -> 20C (residual stress)')
         model.StaticStep(name='Step-Thermal', previous='Step-Cure',
+                         initialInc=0.1, maxInc=0.5, minInc=1e-8, maxNumInc=200,
+                         stabilizationMagnitude=5e-4,
+                         stabilizationMethod=DISSIPATED_ENERGY_FRACTION,
+                         continueDampingFactors=False,
+                         adaptiveDampingRatio=0.1,
                          description='Operational heating (z-dependent)')
         model.StaticStep(name='Step-Mechanical', previous='Step-Thermal',
-                         initialInc=0.1, maxInc=0.5, minInc=1e-8, maxNumInc=100,
+                         initialInc=0.1, maxInc=0.5, minInc=1e-8, maxNumInc=200,
                          stabilizationMagnitude=2e-4,
                          stabilizationMethod=DISSIPATED_ENERGY_FRACTION,
                          continueDampingFactors=False,
@@ -4007,22 +4033,10 @@ if __name__ == '__main__':
 
     args, _ = parser.parse_known_args()
 
-    # --sector or --full_360 overrides SECTOR_ANGLE globally
+    # --sector or --full_360 overrides SECTOR_ANGLE
     _sector = args.sector
     if args.full_360:
         _sector = 360.0
-    if _sector is not None:
-        global SECTOR_ANGLE, SOLVER_MEMORY
-        SECTOR_ANGLE = _sector
-        if _sector >= 360.0:
-            SOLVER_MEMORY = '32 gb'
-            print("Mode: Full 360-degree model")
-        elif _sector >= 180.0:
-            SOLVER_MEMORY = '16 gb'
-            print("Mode: %.0f-degree sector (1/%.0f)" % (_sector, 360.0 / _sector))
-        else:
-            SOLVER_MEMORY = '8 gb'
-            print("Mode: %.0f-degree sector (1/%.0f)" % (_sector, 360.0 / _sector))
 
     job_name = args.job_name if args.job_name is not None else args.job
 
@@ -4079,4 +4093,5 @@ if __name__ == '__main__':
         no_run=getattr(args, 'no_run', False),
         project_root=project_root,
         variability_seed=args.variability_seed,
+        sector_angle=_sector,
     )
