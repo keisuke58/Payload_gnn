@@ -173,6 +173,51 @@ mat.DamageEvolution(type=ENERGY,
 
 4. **シェル材料配向**: `GLOBAL` → 円筒CSYS + `AXIS_1` (R=シェル法線方向)
 
+#### 2.6.1 TIE slave 対称BC無効化問題 --- DONE (2026-03-05)
+
+5パート接着モデル (InnerSkin / AdhInner / Core / AdhOuter / OuterSkin) では
+TIE constraint が BC を無効化するため、**Core 以外の対称 BC が全て効かない**。
+
+**TIE チェーンと BC 有効性**:
+
+| Part | TIE role | 対称BC |
+|------|----------|--------|
+| InnerSkin | slave (Tie1) | **無効** |
+| AdhInner | master(Tie1), slave(Tie2) | **無効** |
+| **Core** | **master(Tie2,Tie3)** | **有効** |
+| AdhOuter | slave(Tie3), master(Tie4) | **無効** |
+| OuterSkin | slave(Tie4) | **無効** |
+
+Abaqus は TIE slave ノードの全 DOF を消去し、`*BOUNDARY`, `*EQUATION`, `*MPC`
+のいずれも無効化する。`*SPRING1` 等の要素接続も削除される。
+
+**試した対策と結果** (Job-SymBC-Test1〜Test8):
+
+| 対策 | 結果 |
+|------|------|
+| TIE master/slave スワップ (skin=master) | ❌ OVERCONSTRAINT — 接着層が2つの TIE で slave 兼用 |
+| `model.Equation()` API (pre-mesh) | ❌ メッシュ前で `inst.nodes` 空 |
+| `model.Equation()` API (post-mesh) | ❌ SET名必要、ノード参照不可 |
+| INP injection `*EQUATION` (before `*Step`) | ❌ keyword misplaced |
+| INP injection `*EQUATION` (before `*End Assembly`) | ❌ Abaqus 2024: 1-term equation 非対応 |
+| 2-term `*EQUATION` (skin→Core 結合) | ❌ first term が TIE slave → equation 無効化 |
+
+**解決策: ODB 後処理 (`extract_odb_results.py`)**
+
+FEA レベルでの解決は不可能なため、データ抽出時に対称性を強制:
+
+1. **変位**: θ=0 で uz=0、θ=max で法線成分を射影除去
+2. **応力**: θ=0 / θ=max のマッチペア (y,r 最近傍) を平均化
+
+```
+検証結果 (S12 30° セクター):
+  応力差 max: 41.5 → 6.45 MPa (84% 削減)
+  応力差 mean: 10.5 → 0.04 MPa (99.6% 削減)
+  <1MPa ノード: 4% → 99%
+```
+
+セクターモデル (θ_max < 90°) を自動検出して適用。フルモデルではスキップ。
+
 ---
 
 ### Tier 3: 中優先 (精度向上・論文の説得力)
