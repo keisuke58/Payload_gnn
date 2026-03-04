@@ -634,6 +634,19 @@ def partition_defect_zone(parts_to_partition, defect_params):
 # SECTION ASSIGNMENT: 3-TIER (HEALTHY -> VOID -> DEFECT)
 # ==============================================================================
 
+def _create_cylindrical_csys(part, name='CylCS'):
+    """Create a cylindrical CSYS aligned with the fairing axis (Y).
+
+    Convention: CSYS-1=R (radial), CSYS-2=theta (circumferential), CSYS-3=Z (axial=Y).
+    """
+    datum = part.DatumCsysByThreePoints(
+        name=name, coordSysType=CYLINDRICAL,
+        origin=(0.0, 0.0, 0.0),
+        point1=(0.0, 0.0, 1.0),
+        point2=(1.0, 0.0, 0.0))
+    return datum
+
+
 def assign_sections_3tier(p_inner, p_core, p_outer, openings, defect_params):
     """
     3-tier section assignment:
@@ -644,32 +657,28 @@ def assign_sections_3tier(p_inner, p_core, p_outer, openings, defect_params):
     Abaqus: last SectionAssignment wins for any given face/cell.
     """
     # ---- Tier 1: Healthy baseline ----
+    cyl_inner = _create_cylindrical_csys(p_inner, 'CylCS-InnerSkin')
+    cyl_outer = _create_cylindrical_csys(p_outer, 'CylCS-OuterSkin')
+
     region = p_inner.Set(faces=p_inner.faces, name='Set-All')
     p_inner.SectionAssignment(region=region, sectionName='Section-CFRP-Skin')
-    p_inner.MaterialOrientation(region=region, orientationType=GLOBAL,
-                                axis=AXIS_3, additionalRotationType=ROTATION_NONE,
-                                localCsys=None)
+    p_inner.MaterialOrientation(region=region, orientationType=SYSTEM,
+                                axis=AXIS_1, additionalRotationType=ROTATION_NONE,
+                                localCsys=p_inner.datums[cyl_inner.id])
 
     region = p_core.Set(cells=p_core.cells, name='Set-All')
     p_core.SectionAssignment(region=region, sectionName='Section-Core')
-    # Cylindrical CS: 1=radial (through-thickness), 2=theta, 3=axial(Y)
-    # CYLINDRICAL CS: INP axis = cross(point1-origin, point2-origin)
-    # cross(Z, X) = Y (fairing axial direction)
-    cyl_datum = p_core.DatumCsysByThreePoints(
-        name='CylCS-Core', coordSysType=CYLINDRICAL,
-        origin=(0.0, 0.0, 0.0),
-        point1=(0.0, 0.0, 1.0),   # Z direction
-        point2=(1.0, 0.0, 0.0))   # X direction → axis = Z×X = Y
+    cyl_core = _create_cylindrical_csys(p_core, 'CylCS-Core')
     p_core.MaterialOrientation(
         region=region, orientationType=SYSTEM,
         axis=AXIS_3, additionalRotationType=ROTATION_NONE,
-        localCsys=p_core.datums[cyl_datum.id])
+        localCsys=p_core.datums[cyl_core.id])
 
     region = p_outer.Set(faces=p_outer.faces, name='Set-All')
     p_outer.SectionAssignment(region=region, sectionName='Section-CFRP-Skin')
-    p_outer.MaterialOrientation(region=region, orientationType=GLOBAL,
-                                axis=AXIS_3, additionalRotationType=ROTATION_NONE,
-                                localCsys=None)
+    p_outer.MaterialOrientation(region=region, orientationType=SYSTEM,
+                                axis=AXIS_1, additionalRotationType=ROTATION_NONE,
+                                localCsys=p_outer.datums[cyl_outer.id])
 
     print("Tier 1: Healthy baseline assigned to all parts")
 
@@ -739,9 +748,9 @@ def assign_sections_3tier(p_inner, p_core, p_outer, openings, defect_params):
             face_seq = p_outer.faces.findAt(*pts)
             region_d = p_outer.Set(faces=face_seq, name='Set-DefectZone-Skin')
             p_outer.SectionAssignment(region=region_d, sectionName=section_name)
-            p_outer.MaterialOrientation(region=region_d, orientationType=GLOBAL,
-                                        axis=AXIS_3, additionalRotationType=ROTATION_NONE,
-                                        localCsys=None)
+            p_outer.MaterialOrientation(region=region_d, orientationType=SYSTEM,
+                                        axis=AXIS_1, additionalRotationType=ROTATION_NONE,
+                                        localCsys=p_outer.datums[cyl_outer.id])
             print("  Tier 3: %s -> %d outer skin faces -> %s" % (
                 defect_type, len(defect_faces), section_name))
         else:
@@ -759,9 +768,9 @@ def assign_sections_3tier(p_inner, p_core, p_outer, openings, defect_params):
             face_seq = p_inner.faces.findAt(*pts)
             region_d = p_inner.Set(faces=face_seq, name='Set-DefectZone-InnerSkin')
             p_inner.SectionAssignment(region=region_d, sectionName='Section-CFRP-InnerDebonded')
-            p_inner.MaterialOrientation(region=region_d, orientationType=GLOBAL,
-                                        axis=AXIS_3, additionalRotationType=ROTATION_NONE,
-                                        localCsys=None)
+            p_inner.MaterialOrientation(region=region_d, orientationType=SYSTEM,
+                                        axis=AXIS_1, additionalRotationType=ROTATION_NONE,
+                                        localCsys=p_inner.datums[cyl_inner.id])
             print("  Tier 3: inner_debond -> %d inner skin faces" % len(defect_faces_inner))
         else:
             print("  Warning: no inner skin faces found in defect zone")
