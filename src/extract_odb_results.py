@@ -93,9 +93,11 @@ def _enforce_symmetry(node_rows):
             row[7] = math.sqrt(row[4]**2 + row[5]**2 + row[6]**2)
             ta_idx.append((row[2], r, i))
 
-    # Average stress between matched theta=0 / theta=max pairs
-    # Stress indices: s11=9, s22=10, s12=11, smises=12, thermal_smises=13
-    stress_cols = [9, 10, 11, 12, 13]
+    # Average SCALAR stress between matched theta=0 / theta=max pairs.
+    # Only smises (12) and thermal_smises (13) — NOT tensor components
+    # (s11, s22, s12) because they reference different global directions
+    # at theta=0 vs theta=max and cannot be naively averaged.
+    stress_cols = [12, 13]
     n_pairs = 0
     for y0, r0, i0 in t0_idx:
         best_d = 999.0
