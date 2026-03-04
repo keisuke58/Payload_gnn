@@ -93,17 +93,33 @@ def extract_sensor_history(odb_path, output_dir=None):
     else:
         print("  WARNING: No sensor node sets found in assembly")
 
+    # Detect curved geometry: check if sensors are on a cylinder
+    # (if all sensors have similar sqrt(x^2 + z^2), it's curved)
+    is_curved = False
+    if len(sensor_map) >= 2:
+        radii = []
+        for sid, info in sensor_map.items():
+            r = math.sqrt(info['x'] ** 2 + info['z'] ** 2)
+            radii.append(r)
+        if radii and min(radii) > 100:  # sensors far from origin = cylindrical
+            r_mean = sum(radii) / len(radii)
+            r_spread = max(radii) - min(radii)
+            if r_spread / r_mean < 0.01:  # within 1% = cylindrical
+                is_curved = True
+                print("  Detected CURVED geometry (R_mean=%.0f mm)" % r_mean)
+
     # Step 2: Build node_label -> sensor_id lookup
     # History region keys look like: "Node PART-OUTERSKIN-1.12345" or "Node ASSEMBLY.12345"
     label_to_sensor = {}
     for sid, info in sensor_map.items():
         label_to_sensor[info['label']] = sid
 
-    # Step 3: Extract U3 history data
+    # Step 3: Extract history data
     step = odb.steps['Step-Wave']
     history_regions = step.historyRegions
 
     sensor_data = {}
+    sensor_components = {}  # sensor_id -> {'U1': data, 'U2': data, 'U3': data}
     region_assignments = []
 
     for region_name, region in history_regions.items():
@@ -130,16 +146,56 @@ def extract_sensor_history(odb_path, output_dir=None):
             except (ValueError, IndexError):
                 pass
 
-        # If we found a matching sensor, extract U3
+        # If we found a matching sensor, extract displacement components
         if sensor_id is not None:
+            if sensor_id not in sensor_components:
+                sensor_components[sensor_id] = {}
+
             for var_name in region.historyOutputs.keys():
-                if 'U3' in var_name:
-                    ho = region.historyOutputs[var_name]
-                    data = list(ho.data)
-                    sensor_data[sensor_id] = data
-                    region_assignments.append(
-                        (sensor_id, region_name, len(data), var_name))
-                    break
+                for comp in ['U1', 'U2', 'U3']:
+                    if comp in var_name:
+                        ho = region.historyOutputs[var_name]
+                        data = list(ho.data)
+                        sensor_components[sensor_id][comp] = data
+                        if comp == 'U3':
+                            # For flat panel compatibility, U3 is still the primary
+                            if sensor_id not in sensor_data:
+                                sensor_data[sensor_id] = data
+                                region_assignments.append(
+                                    (sensor_id, region_name, len(data), var_name))
+
+    # For curved geometry: compute radial displacement from U1, U3 components
+    if is_curved and sensor_components:
+        print("  Computing radial displacement (U_r) for curved geometry...")
+        for sid in sorted(sensor_components.keys()):
+            if sid not in sensor_map:
+                continue
+            info = sensor_map[sid]
+            x, z = info['x'], info['z']
+            r = math.sqrt(x * x + z * z)
+            if r < 1.0:
+                continue
+            cos_t = x / r
+            sin_t = z / r
+
+            comps = sensor_components[sid]
+            u1_data = comps.get('U1', [])
+            u3_data = comps.get('U3', [])
+
+            if u1_data and u3_data:
+                n_pts = min(len(u1_data), len(u3_data))
+                ur_data = []
+                for j in range(n_pts):
+                    t_val = u1_data[j][0]
+                    u1_val = u1_data[j][1]
+                    u3_val = u3_data[j][1]
+                    # Radial displacement: projection onto radial direction
+                    u_r = u1_val * cos_t + u3_val * sin_t
+                    ur_data.append((t_val, u_r))
+                sensor_data[sid] = ur_data
+                print("    Sensor %d: U_r = U1*cos(%.2f) + U3*sin(%.2f)" % (
+                    sid, math.degrees(math.atan2(sin_t, cos_t)),
+                    math.degrees(math.atan2(sin_t, cos_t))))
 
     # Fallback: if no sensors matched, try coordinate-based matching
     if not sensor_data:
@@ -215,18 +271,37 @@ def extract_sensor_history(odb_path, output_dir=None):
     max_len = max(len(v) for v in sensor_data.values())
     sensor_ids = sorted(sensor_data.keys())
 
-    # Write actual X positions as comment in first line
+    # Write sensor positions as comment in first line
+    # For curved: use arc distance from sensor 0; for flat: use X position
     actual_x = []
-    for sid in sensor_ids:
-        if sid in sensor_map:
-            actual_x.append('%.1f' % sensor_map[sid]['x'])
-        else:
-            actual_x.append('?')
+    if is_curved and 0 in sensor_map:
+        # Compute arc distance from sensor 0
+        s0 = sensor_map[0]
+        r0 = math.sqrt(s0['x'] ** 2 + s0['z'] ** 2)
+        theta0 = math.atan2(s0['z'], s0['x'])
+        for sid in sensor_ids:
+            if sid in sensor_map:
+                si = sensor_map[sid]
+                ri = math.sqrt(si['x'] ** 2 + si['z'] ** 2)
+                theta_i = math.atan2(si['z'], si['x'])
+                arc_dist = r0 * (theta_i - theta0)
+                actual_x.append('%.1f' % arc_dist)
+            else:
+                actual_x.append('?')
+        print("  Using arc distance from sensor 0 for positions")
+    else:
+        for sid in sensor_ids:
+            if sid in sensor_map:
+                actual_x.append('%.1f' % sensor_map[sid]['x'])
+            else:
+                actual_x.append('?')
 
     with open(csv_path, 'w') as f:
         writer = csv.writer(f)
         # Header with actual positions as comment
-        header = ['time_s'] + ['sensor_%d_U3' % sid for sid in sensor_ids]
+        disp_label = 'Ur' if is_curved else 'U3'
+        header = ['time_s'] + ['sensor_%d_%s' % (sid, disp_label)
+                                for sid in sensor_ids]
         writer.writerow(header)
         # Second row: actual X positions (for reference)
         pos_row = ['# x_mm'] + actual_x
@@ -251,7 +326,8 @@ def extract_sensor_history(odb_path, output_dir=None):
         csv_path, max_len, len(sensor_ids)))
 
     # Return sensor_data with metadata
-    return {'data': sensor_data, 'sensor_map': sensor_map}
+    return {'data': sensor_data, 'sensor_map': sensor_map,
+            'is_curved': is_curved}
 
 
 def compute_group_velocity(result, sensor_offsets=None):
@@ -264,9 +340,23 @@ def compute_group_velocity(result, sensor_offsets=None):
 
     sensor_data = result['data']
     sensor_map = result.get('sensor_map', {})
+    is_curved = result.get('is_curved', False)
 
-    # Use actual X positions from ODB if available
-    if sensor_map:
+    # Compute sensor distances (X for flat, arc for curved)
+    if is_curved and sensor_map and 0 in sensor_map:
+        s0 = sensor_map[0]
+        r0 = math.sqrt(s0['x'] ** 2 + s0['z'] ** 2)
+        theta0 = math.atan2(s0['z'], s0['x'])
+        actual_offsets = {}
+        for sid in sorted(sensor_data.keys()):
+            if sid in sensor_map:
+                si = sensor_map[sid]
+                theta_i = math.atan2(si['z'], si['x'])
+                actual_offsets[sid] = r0 * (theta_i - theta0)
+            else:
+                actual_offsets[sid] = sid * 30.0
+        print("  Using arc distance for velocity calculation")
+    elif sensor_map:
         actual_offsets = {}
         for sid in sorted(sensor_data.keys()):
             if sid in sensor_map:
@@ -294,8 +384,10 @@ def compute_group_velocity(result, sensor_offsets=None):
                 t_peak = t
         peak_times[sid] = t_peak
         x_pos = actual_offsets.get(sid, 0.0)
-        print("  Sensor %d (x=%.1f mm): peak at t=%.3e s, |U3|_max=%.3e" % (
-            sid, x_pos, t_peak, max_abs))
+        disp_label = '|Ur|' if is_curved else '|U3|'
+        pos_label = 'arc' if is_curved else 'x'
+        print("  Sensor %d (%s=%.1f mm): peak at t=%.3e s, %s_max=%.3e" % (
+            sid, pos_label, x_pos, t_peak, disp_label, max_abs))
 
     # Velocity from consecutive sensor pairs (skip sensor at excitation)
     print("\n  Group velocity (from sensor pairs):")
