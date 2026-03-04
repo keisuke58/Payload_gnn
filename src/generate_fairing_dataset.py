@@ -21,6 +21,7 @@ import argparse
 from abaqus import *
 from abaqusConstants import *
 from caeModules import *
+from mesh import ElemType
 from driverUtils import executeOnCaeStartup
 
 executeOnCaeStartup()
@@ -520,30 +521,18 @@ def _create_cylindrical_csys(part, name='CylCS'):
     """Create a cylindrical CSYS aligned with the fairing axis (Y).
 
     Convention: CSYS-1=R (radial), CSYS-2=theta (circumferential), CSYS-3=Z (axial=Y).
-    Used for the core solid.
+    Used for core (solid) and shell parts (material orientation).
     """
+    # DatumCsysByThreePoints CYLINDRICAL: point2 is in R-θ plane, NOT on Z axis.
+    # Z_cyl = cross(R_ref, θ_ref). To get Z_cyl = Y (fairing axis):
+    #   point1=(0,0,1) → R reference in Z, point2=(1,0,0) → θ hint in X
+    #   Z_cyl = cross((0,0,1), (1,0,0)) = (0,1,0) = Y ✓
+    # (Same as CZM reference: generate_czm_sector12.py line 868-871)
     datum = part.DatumCsysByThreePoints(
         name=name, coordSysType=CYLINDRICAL,
         origin=(0.0, 0.0, 0.0),
-        point1=(1.0, 0.0, 0.0),   # R at theta=0 -> X direction
-        point2=(0.0, 1.0, 0.0))   # R-Z plane -> Z = Y direction (axial)
-    return datum
-
-
-def _create_shell_orientation_csys(part, name='ShellCS'):
-    """Create a Cartesian CSYS with Y (axial) as the primary direction.
-
-    When used with axis=AXIS_3 on shells:
-      material-3 = shell normal
-      material-1 = projection of CSYS-1 (Y=axial) onto shell = axial direction
-      material-2 = normal x material-1 = circumferential direction
-    This gives consistent fiber orientation everywhere on the cylindrical/ogive shell.
-    """
-    datum = part.DatumCsysByThreePoints(
-        name=name, coordSysType=CARTESIAN,
-        origin=(0.0, 0.0, 0.0),
-        point1=(0.0, 1.0, 0.0),   # local 1 = Y direction (axial)
-        point2=(1.0, 0.0, 0.0))   # local 1-2 plane
+        point1=(0.0, 0.0, 1.0),   # R reference at theta=0 -> Z direction
+        point2=(1.0, 0.0, 0.0))   # in R-theta plane -> Z_cyl = Y direction (axial)
     return datum
 
 
@@ -553,36 +542,42 @@ def assign_all_sections(p_inner, p_core, p_outer, defect_params):
     Must be called AFTER partition_defect_zone().
 
     Material orientation:
-      Shells: Cartesian CSYS (Y=axial primary), axis=AXIS_3.
-              material-1=axial, material-2=circumferential, material-3=shell normal
+      Shells: Cylindrical CSYS with axis=AXIS_1 (R=shell normal).
+              Material-1 = circumferential (theta), Material-2 = axial (Y).
+              Ensures circumferential symmetry for sector models.
       Core:   Cylindrical CSYS, 1=R(through-thickness), 2=theta, 3=Z(axial)
     """
-    # Shell orientation: Cartesian with Y-axial primary (consistent on curved shell)
-    shell_cs_inner = _create_shell_orientation_csys(p_inner, 'ShellCS-Inner')
-    shell_cs_outer = _create_shell_orientation_csys(p_outer, 'ShellCS-Outer')
     # Core orientation: Cylindrical (1=R, 2=theta, 3=Z)
     cyl_core = _create_cylindrical_csys(p_core, 'CylCS-Core')
 
-    # Inner skin: always healthy CFRP
+    # Shell orientation: Cylindrical CSYS with axis=AXIS_1 (R = shell normal)
+    # This ensures material directions follow the geometry circumferentially,
+    # which is REQUIRED for sector symmetry BCs to work correctly.
+    # GLOBAL orientation breaks symmetry because the projection of global X
+    # onto the shell surface varies with theta (and degenerates at theta=0).
+    cyl_inner = _create_cylindrical_csys(p_inner, 'CylCS-InnerSkin')
+    cyl_outer = _create_cylindrical_csys(p_outer, 'CylCS-OuterSkin')
+
+    # Inner skin: cylindrical CSYS, axis=AXIS_1 (R = approximate shell normal)
     region = p_inner.Set(faces=p_inner.faces, name='Set-All')
     p_inner.SectionAssignment(region=region, sectionName='Section-CFRP-Skin')
-    p_inner.MaterialOrientation(region=region, orientationType=SYSTEM, axis=AXIS_3,
-                                additionalRotationType=ROTATION_NONE,
-                                localCsys=p_inner.datums[shell_cs_inner.id])
+    p_inner.MaterialOrientation(region=region, orientationType=SYSTEM,
+                                axis=AXIS_1, additionalRotationType=ROTATION_NONE,
+                                localCsys=p_inner.datums[cyl_inner.id])
 
-    # Core: healthy baseline for all cells
+    # Core: cylindrical CSYS
     region = p_core.Set(cells=p_core.cells, name='Set-All')
     p_core.SectionAssignment(region=region, sectionName='Section-Core')
     p_core.MaterialOrientation(region=region, orientationType=SYSTEM, axis=AXIS_3,
                                 additionalRotationType=ROTATION_NONE,
                                 localCsys=p_core.datums[cyl_core.id])
 
-    # Outer skin: healthy baseline for all faces
+    # Outer skin: cylindrical CSYS, axis=AXIS_1 (R = approximate shell normal)
     region = p_outer.Set(faces=p_outer.faces, name='Set-All')
     p_outer.SectionAssignment(region=region, sectionName='Section-CFRP-Skin')
-    p_outer.MaterialOrientation(region=region, orientationType=SYSTEM, axis=AXIS_3,
-                                additionalRotationType=ROTATION_NONE,
-                                localCsys=p_outer.datums[shell_cs_outer.id])
+    p_outer.MaterialOrientation(region=region, orientationType=SYSTEM,
+                                axis=AXIS_1, additionalRotationType=ROTATION_NONE,
+                                localCsys=p_outer.datums[cyl_outer.id])
 
     if not defect_params:
         return
@@ -608,9 +603,9 @@ def assign_all_sections(p_inner, p_core, p_outer, defect_params):
             face_seq = p_outer.faces.findAt(*pts)
             region_d = p_outer.Set(faces=face_seq, name='Set-DefectZone-Skin')
             p_outer.SectionAssignment(region=region_d, sectionName=section_name)
-            p_outer.MaterialOrientation(region=region_d, orientationType=SYSTEM, axis=AXIS_3,
-                                        additionalRotationType=ROTATION_NONE,
-                                        localCsys=p_outer.datums[shell_cs_outer.id])
+            p_outer.MaterialOrientation(region=region_d, orientationType=SYSTEM,
+                                        axis=AXIS_1, additionalRotationType=ROTATION_NONE,
+                                        localCsys=p_outer.datums[cyl_outer.id])
             print("  %s: %d outer skin faces -> %s" % (defect_type, len(defect_faces), section_name))
         else:
             print("  Warning: no outer skin faces found in defect zone")
@@ -624,9 +619,9 @@ def assign_all_sections(p_inner, p_core, p_outer, defect_params):
             face_seq = p_inner.faces.findAt(*pts)
             region_d = p_inner.Set(faces=face_seq, name='Set-DefectZone-InnerSkin')
             p_inner.SectionAssignment(region=region_d, sectionName='Section-CFRP-InnerDebonded')
-            p_inner.MaterialOrientation(region=region_d, orientationType=SYSTEM, axis=AXIS_3,
-                                        additionalRotationType=ROTATION_NONE,
-                                        localCsys=p_inner.datums[shell_cs_inner.id])
+            p_inner.MaterialOrientation(region=region_d, orientationType=SYSTEM,
+                                        axis=AXIS_1, additionalRotationType=ROTATION_NONE,
+                                        localCsys=p_inner.datums[cyl_inner.id])
             print("  inner_debond: %d inner skin faces -> Section-CFRP-InnerDebonded" % len(defect_faces_inner))
         else:
             print("  Warning: no inner skin faces found in defect zone")
@@ -654,46 +649,42 @@ def assign_all_sections(p_inner, p_core, p_outer, defect_params):
 
 
 def _classify_core_faces(inst_core):
-    """Classify core solid faces as inner (R ~ RADIUS) or outer (R ~ RADIUS+CORE_T).
+    """Identify core inner and outer surface faces using known geometry points.
 
-    Uses nearest-match: each face is classified based on which expected
-    surface its centroid radius is closer to.  Edge faces (bottom, top,
-    sector cuts) are skipped when their centroid is far from both surfaces.
+    Instead of iterating over all faces and classifying by pointOn (which is
+    unreliable for revolved solids where pointOn can land near sector edges),
+    we place sample points at known positions on the inner/outer surfaces
+    at theta=30deg (middle of 60deg sector) to guarantee correct face selection.
     """
+    theta_mid = math.radians(30.0)
+    cos_t = math.cos(theta_mid)
+    sin_t = math.sin(theta_mid)
+
     inner_pts = []
     outer_pts = []
-    theta_60 = math.radians(60.0)
+    rho_outer = OGIVE_RHO + CORE_T
 
-    for f in inst_core.faces:
-        try:
-            pt = f.pointOn[0]
-        except Exception:
-            continue
-        x, y, z = pt
-        r = math.sqrt(x**2 + z**2)
-        theta = math.atan2(z, x)
+    # Barrel section: inner at r=RADIUS, outer at r=RADIUS+CORE_T
+    y_barrel = H_BARREL * 0.5
+    inner_pts.append(((RADIUS * cos_t, y_barrel, RADIUS * sin_t),))
+    outer_pts.append((((RADIUS + CORE_T) * cos_t, y_barrel, (RADIUS + CORE_T) * sin_t),))
 
-        # Skip bottom/top annulus faces
-        if y < 1.0 or y > TOTAL_HEIGHT - 10:
-            continue
-        # Skip sector cut faces (theta ~ 0 or ~ 60 deg)
-        if r > 10.0 and (abs(theta) < 0.02 or abs(theta - theta_60) < 0.02):
-            continue
-
-        # Expected inner/outer radii at this height
-        r_inner = get_radius_at_z(y)
-        r_outer = r_inner + CORE_T
-        d_inner = abs(r - r_inner)
-        d_outer = abs(r - r_outer)
-
-        # Skip faces far from both surfaces (edge artifacts)
-        if min(d_inner, d_outer) > CORE_T * 0.8:
-            continue
-
-        if d_inner <= d_outer:
-            inner_pts.append((pt,))
-        else:
-            outer_pts.append((pt,))
+    # Ogive section: use exact arc geometry for both inner and outer profiles
+    for frac in [0.25, 0.55]:
+        y_og = H_BARREL + H_NOSE * frac
+        z_local = y_og - H_BARREL
+        # Inner ogive
+        term_in = OGIVE_RHO**2 - z_local**2
+        if term_in > 0:
+            r_in = OGIVE_XC + math.sqrt(term_in)
+            if r_in > 50:
+                inner_pts.append(((r_in * cos_t, y_og, r_in * sin_t),))
+        # Outer ogive
+        term_out = rho_outer**2 - z_local**2
+        if term_out > 0:
+            r_out = OGIVE_XC + math.sqrt(term_out)
+            if r_out > 50:
+                outer_pts.append(((r_out * cos_t, y_og, r_out * sin_t),))
 
     return inner_pts, outer_pts
 
@@ -797,130 +788,77 @@ def apply_bottom_fixity(model, assembly, inst_inner, inst_core, inst_outer):
         print("Warning: No BC geometry found at y=0")
 
 
-def apply_symmetry_bcs(model, assembly, inst_inner, inst_core, inst_outer):
-    """Apply symmetry BCs on sector cut faces.
+def _select_boundary_nodes(inst, theta_target, tol_coord=1.0):
+    """Select mesh nodes on a sector cut boundary by coordinate check.
 
-    theta=0 face (Z=0 plane): U3=0 (ZSYMM-like)
-    theta=SECTOR_ANGLE face: normal displacement=0 via local CSYS
+    For theta_target=0: nodes with |z| < tol and x > 0 (Z=0 plane).
+    For theta_target>0: nodes with |atan2(z,x) - theta_target| < angular_tol.
+    Returns list of node labels.
+    """
+    labels = []
+    theta_tol = 0.02  # radians (~1.1 deg)
+    for n in inst.nodes:
+        x, y, z = n.coordinates
+        r = math.sqrt(x**2 + z**2)
+        if r < 1.0:
+            continue
+        if theta_target < 0.01:
+            # theta=0: Z=0 plane
+            if abs(z) < tol_coord and x > 0:
+                labels.append(n.label)
+        else:
+            theta = math.atan2(z, x)
+            if abs(theta - theta_target) < theta_tol:
+                labels.append(n.label)
+    return labels
+
+
+def apply_symmetry_bcs(model, assembly, inst_inner, inst_core, inst_outer):
+    """Apply symmetry BCs on sector cut faces using mesh-level node selection.
+
+    theta=0 face (Z=0 plane): U3=UR1=UR2=0 (ZSYMM)
+    theta=SECTOR_ANGLE face: local U3=UR1=UR2=0 via Cartesian CSYS
     """
     all_insts = [inst_inner, inst_core, inst_outer]
-    r_box = RADIUS + CORE_T + 500.0
-    tol = 1.0  # mm
-
-    # --- theta=0 face: Z=0 plane, constrain U3=0 ---
-    sym0_edges = None
-    sym0_faces = None
-    for inst in all_insts:
-        # Shell edges (skins)
-        try:
-            edges = inst.edges.getByBoundingBox(
-                xMin=-1.0, xMax=r_box,
-                yMin=-0.1, yMax=TOTAL_HEIGHT + 100.0,
-                zMin=-tol, zMax=tol)
-            if len(edges) > 0:
-                sym0_edges = edges if sym0_edges is None else sym0_edges + edges
-        except Exception:
-            pass
-        # Solid faces (core)
-        try:
-            face_pts = []
-            for f in inst.faces:
-                pt = f.pointOn[0]
-                if abs(pt[2]) < tol and pt[0] > 0:
-                    face_pts.append((pt,))
-            if face_pts:
-                fseq = inst.faces.findAt(*face_pts)
-                if len(fseq) > 0:
-                    sym0_faces = fseq if sym0_faces is None else sym0_faces + fseq
-        except Exception:
-            pass
-
-    set_kwargs_0 = {}
-    if sym0_edges is not None and len(sym0_edges) > 0:
-        set_kwargs_0['edges'] = sym0_edges
-    if sym0_faces is not None and len(sym0_faces) > 0:
-        set_kwargs_0['faces'] = sym0_faces
-    if set_kwargs_0:
-        sym0_set = assembly.Set(name='BC_Sym_Theta0', **set_kwargs_0)
-        model.DisplacementBC(name='Sym_Theta0', createStepName='Initial',
-                             region=sym0_set, u3=0)
-        print("BC: Symmetry theta=0 (Z=0 plane, U3=0): %s" % ', '.join(
-            '%s=%d' % (k, len(v)) for k, v in set_kwargs_0.items()))
-    else:
-        print("Warning: No geometry found for theta=0 symmetry BC")
-
-    # --- theta=SECTOR_ANGLE face: constrain normal displacement ---
     theta_rad = math.radians(SECTOR_ANGLE)
+
+    # --- theta=0: Z=0 plane symmetry (ZSYMM) ---
+    total_0 = 0
+    for i, inst in enumerate(all_insts):
+        labels = _select_boundary_nodes(inst, 0.0)
+        if labels:
+            seq = inst.nodes.sequenceFromLabels(tuple(labels))
+            nset = assembly.Set(name='BC_Sym_T0_%s' % inst.name, nodes=seq)
+            model.DisplacementBC(name='Sym_T0_%d' % i, createStepName='Initial',
+                                 region=nset, u3=0, ur1=0, ur2=0)
+            total_0 += len(labels)
+            print("  Sym theta=0: %s -> %d nodes" % (inst.name, len(labels)))
+    print("BC: Symmetry theta=0 (ZSYMM: U3=UR1=UR2=0): %d nodes total" % total_0)
+
+    # --- theta=SECTOR_ANGLE: local CSYS symmetry ---
     cos_t = math.cos(theta_rad)
     sin_t = math.sin(theta_rad)
-
-    # Local Cartesian CSYS:
-    #   local-1 (X') = tangential = (cos_t, 0, sin_t)
-    #   local-2 (Y') = axial = (0, 1, 0)
-    #   local-3 (Z') = normal to cut face = (-sin_t, 0, cos_t)
-    # Constrain local U3 = 0.
+    # Local Cartesian CSYS where local-3 (Z') = normal to cut face
     datum_csys = assembly.DatumCsysByThreePoints(
         name='CSYS-SymTheta',
         coordSysType=CARTESIAN,
         origin=(0.0, 0.0, 0.0),
-        point1=(cos_t, 0.0, sin_t),       # local X direction (tangent)
-        point2=(0.0, 1.0, 0.0))           # defines XY plane -> local Z = normal
+        point1=(cos_t, 0.0, sin_t),       # local X = tangent
+        point2=(0.0, 1.0, 0.0))           # local XY plane -> local Z = normal
 
-    sym_a_edges = None
-    sym_a_faces = None
-    for inst in all_insts:
-        # Shell edges
-        try:
-            edge_pts = []
-            for e in inst.edges:
-                pt = e.pointOn[0]
-                r_pt = math.sqrt(pt[0]**2 + pt[2]**2)
-                if r_pt < 1.0:
-                    continue
-                theta_pt = math.atan2(pt[2], pt[0])
-                if abs(theta_pt - theta_rad) < 0.02:  # ~1 degree tolerance
-                    edge_pts.append((pt,))
-            if edge_pts:
-                eseq = inst.edges.findAt(*edge_pts)
-                if len(eseq) > 0:
-                    sym_a_edges = eseq if sym_a_edges is None else sym_a_edges + eseq
-        except Exception:
-            pass
-        # Solid faces
-        try:
-            face_pts = []
-            for f in inst.faces:
-                pt = f.pointOn[0]
-                r_pt = math.sqrt(pt[0]**2 + pt[2]**2)
-                if r_pt < 1.0:
-                    continue
-                theta_pt = math.atan2(pt[2], pt[0])
-                if abs(theta_pt - theta_rad) < 0.02:
-                    face_pts.append((pt,))
-            if face_pts:
-                fseq = inst.faces.findAt(*face_pts)
-                if len(fseq) > 0:
-                    sym_a_faces = fseq if sym_a_faces is None else sym_a_faces + fseq
-        except Exception:
-            pass
-
-    set_kwargs_a = {}
-    if sym_a_edges is not None and len(sym_a_edges) > 0:
-        set_kwargs_a['edges'] = sym_a_edges
-    if sym_a_faces is not None and len(sym_a_faces) > 0:
-        set_kwargs_a['faces'] = sym_a_faces
-    if set_kwargs_a:
-        sym_a_set = assembly.Set(name='BC_Sym_ThetaMax', **set_kwargs_a)
-        model.DisplacementBC(
-            name='Sym_ThetaMax', createStepName='Initial',
-            region=sym_a_set, u3=0,
-            localCsys=assembly.datums[datum_csys.id])
-        print("BC: Symmetry theta=%.0f deg (local U3=0): %s" % (
-            SECTOR_ANGLE,
-            ', '.join('%s=%d' % (k, len(v)) for k, v in set_kwargs_a.items())))
-    else:
-        print("Warning: No geometry found for theta=%.0f symmetry BC" %
-              SECTOR_ANGLE)
+    total_a = 0
+    for i, inst in enumerate(all_insts):
+        labels = _select_boundary_nodes(inst, theta_rad)
+        if labels:
+            seq = inst.nodes.sequenceFromLabels(tuple(labels))
+            nset = assembly.Set(name='BC_Sym_Ta_%s' % inst.name, nodes=seq)
+            model.DisplacementBC(name='Sym_Ta_%d' % i, createStepName='Initial',
+                                 region=nset, u3=0, ur1=0, ur2=0,
+                                 localCsys=assembly.datums[datum_csys.id])
+            total_a += len(labels)
+            print("  Sym theta=%.0f: %s -> %d nodes" % (SECTOR_ANGLE, inst.name, len(labels)))
+    print("BC: Symmetry theta=%.0f (local U3=UR1=UR2=0): %d nodes total" % (
+        SECTOR_ANGLE, total_a))
 
 
 def generate_model(job_name, defect_params=None, project_root=None,
@@ -978,19 +916,7 @@ def generate_model(job_name, defect_params=None, project_root=None,
     inst_core = a.Instance(name='Part-Core-1', part=p_core, dependent=OFF)
     inst_outer = a.Instance(name='Part-OuterSkin-1', part=p_outer, dependent=OFF)
     
-    # 6. Interaction — Tie constraints (skin-core coupling)
-    apply_tie_constraints(model, a, inst_inner, inst_core, inst_outer)
-
-    # 7. Boundary Conditions (bottom fixity + sector symmetry)
-    apply_bottom_fixity(model, a, inst_inner, inst_core, inst_outer)
-    apply_symmetry_bcs(model, a, inst_inner, inst_core, inst_outer)
-
-    # 8. Step & Loads
-    model.StaticStep(name='Step-1', previous='Initial')
-    # Thermal load: ascent heating (outer 120°C, inner 20°C) — applied in Step-1 after mesh
-    model.fieldOutputRequests['F-Output-1'].setValues(variables=('S', 'U', 'RF', 'TEMP'))
-
-    # 9. Mesh
+    # 6. Mesh (before interactions/BCs to avoid meshing interference)
     a.seedPartInstance(regions=(inst_inner, inst_core, inst_outer), size=g_seed, deviationFactor=0.1)
     # Local refinement around defect (h≤D/2 for physical resolution)
     if defect_params:
@@ -1007,7 +933,64 @@ def generate_model(job_name, defect_params=None, project_root=None,
             print("Local mesh refinement: DEFECT_SEED=%.0f mm in defect zone (z=%.0f–%.0f)" % (d_seed, z1, z2))
         except Exception as e:
             print("Warning: Local seed skipped: %s" % str(e)[:60])
-    a.generateMesh(regions=(inst_inner, inst_core, inst_outer))
+
+    # Core mesh: try SWEEP C3D8R first, then FREE TET C3D4 fallback
+    # Core seed must be >> CORE_T to avoid degenerate tets in thin solid
+    core_seed = max(g_seed, CORE_T * 4)
+    a.seedPartInstance(regions=(inst_core,), size=core_seed, deviationFactor=0.1)
+    core_meshed = False
+    try:
+        a.setMeshControls(regions=inst_core.cells,
+                          elemShape=HEX, technique=SWEEP)
+        a.setElementType(
+            regions=(inst_core.cells,),
+            elemTypes=(ElemType(elemCode=C3D8R, elemLibrary=STANDARD),
+                       ElemType(elemCode=C3D6, elemLibrary=STANDARD)))
+        a.generateMesh(regions=(inst_core,))
+        if len(inst_core.nodes) > 0:
+            core_meshed = True
+            print("Core mesh: SWEEP C3D8R seed=%.0f (%d nodes, %d elements)" %
+                  (core_seed, len(inst_core.nodes), len(inst_core.elements)))
+    except Exception as e:
+        print("Core SWEEP failed: %s" % str(e)[:60])
+
+    if not core_meshed:
+        try:
+            a.deleteMesh(regions=(inst_core,))
+        except Exception:
+            pass
+        # Use C3D4 (first-order tet) — tolerant of thin solids
+        a.seedPartInstance(regions=(inst_core,), size=core_seed, deviationFactor=0.1)
+        a.setMeshControls(regions=inst_core.cells,
+                          elemShape=TET, technique=FREE)
+        a.setElementType(
+            regions=(inst_core.cells,),
+            elemTypes=(ElemType(elemCode=C3D4, elemLibrary=STANDARD),))
+        a.generateMesh(regions=(inst_core,))
+        n_core = len(inst_core.nodes)
+        if n_core > 0:
+            core_meshed = True
+            print("Core mesh: FREE C3D4 seed=%.0f (%d nodes, %d elements)" %
+                  (core_seed, n_core, len(inst_core.elements)))
+        else:
+            print("CRITICAL: Core mesh produced 0 nodes!")
+
+    # Shell meshes (default S4R)
+    a.generateMesh(regions=(inst_inner, inst_outer))
+    print("Shell mesh: InnerSkin=%d, OuterSkin=%d nodes" %
+          (len(inst_inner.nodes), len(inst_outer.nodes)))
+
+    # 7. Interaction — Tie constraints (skin-core coupling)
+    apply_tie_constraints(model, a, inst_inner, inst_core, inst_outer)
+
+    # 8. Boundary Conditions (bottom fixity + sector symmetry)
+    apply_bottom_fixity(model, a, inst_inner, inst_core, inst_outer)
+    apply_symmetry_bcs(model, a, inst_inner, inst_core, inst_outer)
+
+    # 9. Step & Loads
+    model.StaticStep(name='Step-1', previous='Initial')
+    # Thermal load: ascent heating (outer 120°C, inner 20°C) — applied in Step-1 after mesh
+    model.fieldOutputRequests['F-Output-1'].setValues(variables=('S', 'U', 'RF', 'TEMP'))
     # Temperature IC and thermal load are handled by patch_inp_thermal.py post-processing.
 
     # 10. Job
