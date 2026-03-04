@@ -30,14 +30,17 @@ DEFECT_TYPE_MAP = {
 }
 
 
-def _enforce_symmetry(node_rows):
+def _enforce_symmetry(node_rows, step_name=''):
     """Enforce symmetry on sector boundary nodes (displacement + stress).
+
+    Only for STATIC analyses — dynamic/explicit analyses may have non-symmetric
+    wave propagation at boundaries, so symmetry enforcement is skipped.
 
     TIE slave skin nodes may have non-zero normal displacement and asymmetric
     stress at symmetry boundaries. This:
     1. Zeros out normal displacement at theta=0 and theta=theta_max.
-    2. Averages stress between matched theta=0 / theta_max node pairs
-       so that 360-degree sector mirroring produces smooth stress fields.
+    2. Averages scalar stress (smises) between matched theta=0 / theta_max
+       node pairs so that 360-degree sector mirroring is smooth.
 
     node_rows: list of [nid, x, y, z, ux, uy, uz, u_mag, temp,
                         s11, s22, s12, smises, thermal_smises,
@@ -46,6 +49,12 @@ def _enforce_symmetry(node_rows):
              thermal_smises=13
     """
     if not node_rows:
+        return
+
+    # Skip for dynamic/explicit analyses (wave propagation breaks symmetry)
+    su = step_name.upper()
+    if any(kw in su for kw in ('DYNAMIC', 'EXPLICIT', 'FREQUENCY', 'MODAL',
+                                'GUIDEDWAVE', 'GW', 'RANDOM')):
         return
 
     # Auto-detect sector angle from node geometry
@@ -407,8 +416,8 @@ def extract_results(odb_path, output_dir, defect_params=None, strict=False):
                           s11, s22, s12, smises, thermal_smises,
                           le11, le22, le12, defect_label])
 
-    # Enforce symmetry on boundary nodes (TIE slave correction)
-    _enforce_symmetry(node_rows)
+    # Enforce symmetry on boundary nodes (TIE slave correction, static only)
+    _enforce_symmetry(node_rows, step_name=step_name)
 
     csv_nodes = os.path.join(output_dir, 'nodes.csv')
     with open(csv_nodes, 'w', newline='') as f:
