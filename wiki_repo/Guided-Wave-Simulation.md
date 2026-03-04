@@ -98,6 +98,13 @@ Defect - Healthy の差分信号。欠陥による反射・散乱波が t ≈ 20
 上段: Healthy (同心円状の波面), 下段: Debonding (欠陥ゾーン付近で波面の乱れ)
 緑破線円 = 欠陥ゾーン (x=80mm, r=25mm)
 
+### 波面伝播アニメーション
+
+<img src="https://raw.githubusercontent.com/keisuke58/Payload_gnn/main/wiki_repo/images/guided_wave/gw_wave_comparison.gif" width="100%">
+
+左: Healthy, 右: Debonding (緑破線 = 欠陥ゾーン)。
+80フレーム (0 ~ 684 μs)。欠陥ゾーンで波面が散乱・反射する様子がリアルタイムで確認可能。
+
 ### 群速度
 
 | モデル | 測定値 | 理論値 | 偏差 | 備考 |
