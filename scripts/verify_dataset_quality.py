@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Verify dataset quality: count samples with non-zero displacement and temperature.
+静解析データセット品質検証: 変位・温度の有無をカウント。
+
+動解析 (GW) は scripts/verify_gw_dataset_quality.py を使用。
 
 Usage:
   python scripts/verify_dataset_quality.py [--data_dir dataset_output]
