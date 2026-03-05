@@ -231,13 +231,87 @@ def create_snapshot_grid(prefix_healthy, prefix_defect,
     print("Snapshot grid saved: %s" % output_path)
 
 
+def create_multi_defect_animation(prefix_healthy, defect_list, output_path='gw_wave_all_defects.gif',
+                                   defect_x=80, defect_y=0, defect_r=25,
+                                   defect_params_list=None,
+                                   fps=20, dpi=100, levels=50):
+    """Create one GIF with Healthy + all defect types side by side.
+
+    defect_list: list of (prefix, label) e.g. [
+        ('abaqus_work/Job-GW-Flat-Debond', 'Debonding'),
+        ...
+    ]
+    defect_params_list: optional list of (x,y,r) per defect panel; None = use defect_x,y,r for all
+    """
+    print("Loading healthy field data...")
+    x_h, y_h, t_h, u3_h = load_field_data(prefix_healthy)
+
+    datasets = [('Healthy', x_h, y_h, t_h, u3_h)]
+    for prefix, label in defect_list:
+        coords_path = prefix + '_coords.csv'
+        if not os.path.exists(coords_path):
+            print("  SKIP %s (no _coords.csv)" % prefix)
+            continue
+        print("Loading %s..." % label)
+        x, y, t, u3 = load_field_data(prefix)
+        datasets.append((label, x, y, t, u3))
+
+    n_panels = len(datasets)
+    n_frames = min(len(d[3]) for d in datasets)  # min frames across all
+    print("  %d panels, %d frames" % (n_panels, n_frames))
+
+    # Global vmax
+    vmax = 0
+    for _, _, _, _, u3_frames in datasets:
+        vmax = max(vmax, max(np.max(np.abs(f)) for f in u3_frames))
+    vmax = vmax * 0.3
+
+    # Layout: 1 row for all panels
+    fig, axes = plt.subplots(1, n_panels, figsize=(5 * n_panels, 6))
+    if n_panels == 1:
+        axes = [axes]
+
+    tris = [Triangulation(d[1], d[2]) for d in datasets]
+
+    def animate(i):
+        for j, (label, x, y, t, u3_frames) in enumerate(datasets):
+            ax = axes[j]
+            ax.clear()
+            ax.tricontourf(tris[j], u3_frames[i], levels=levels,
+                           cmap='RdBu_r', vmin=-vmax, vmax=vmax)
+            ax.set_xlim(x.min() - 5, x.max() + 5)
+            ax.set_ylim(y.min() - 5, y.max() + 5)
+            ax.set_aspect('equal')
+            ax.set_xlabel('X [mm]', fontsize=9)
+            ax.set_ylabel('Y [mm]', fontsize=9)
+            ax.set_title('%s\nt = %.1f us' % (label, t[i] * 1e6),
+                         fontsize=11, fontweight='bold')
+            if j > 0:  # Draw defect circle on defect panels
+                dx, dy, dr = defect_x, defect_y, defect_r
+                if defect_params_list and j - 1 < len(defect_params_list):
+                    dx, dy, dr = defect_params_list[j - 1]
+                theta = np.linspace(0, 2 * np.pi, 100)
+                ax.plot(dx + dr * np.cos(theta), dy + dr * np.sin(theta),
+                        'g--', linewidth=2, alpha=0.8)
+        fig.suptitle('Guided Wave: A0 Mode (50 kHz) — Defect Type Comparison',
+                     fontsize=14, fontweight='bold')
+        return []
+
+    anim = animation.FuncAnimation(fig, animate, frames=n_frames,
+                                   interval=1000 // fps, blit=False)
+    anim.save(output_path, writer='pillow', fps=fps, dpi=dpi)
+    plt.close()
+    print("Multi-defect animation saved: %s (%d panels x %d frames)" % (
+        output_path, n_panels, n_frames))
+
+
 # DOE: (prefix_defect, x, y, r, label) for flat panel sweep
 DEFECT_CASES = [
-    ('Job-GW-Debond-v2', 80, 0, 25, 'D1 r=25mm (基準)'),
-    ('Job-GW-D2-r15', 80, 0, 15, 'D2 r=15mm (小)'),
-    ('Job-GW-D3-r40', 80, 0, 40, 'D3 r=40mm (大)'),
-    ('Job-GW-D4-near', 40, 0, 25, 'D4 x=40mm (近)'),
-    ('Job-GW-D5-edge', 120, 0, 25, 'D5 x=120mm (端)'),
+    ('Job-GW-Debond-v2', 80, 0, 25, 'D1 r=25mm (ref)'),
+    ('Job-GW-D2-r15', 80, 0, 15, 'D2 r=15mm (small)'),
+    ('Job-GW-D3-r40', 80, 0, 40, 'D3 r=40mm (large)'),
+    ('Job-GW-D4-near', 40, 0, 25, 'D4 x=40mm (near)'),
+    ('Job-GW-D5-edge', 120, 0, 25, 'D5 x=120mm (edge)'),
 ]
 
 
@@ -277,8 +351,14 @@ if __name__ == '__main__':
     parser.add_argument('--dpi', type=int, default=120, help='DPI (default 120)')
     parser.add_argument('--defect', type=str, default=None,
                         help='Defect params: x,y,r e.g. 80,0,25')
+    parser.add_argument('--defect_label', type=str, default=None,
+                        help='Defect label for title (e.g. FOD r=25mm)')
+    parser.add_argument('--no_snapshot', action='store_true',
+                        help='Skip snapshot grid (for batch defect-type runs)')
     parser.add_argument('--batch', action='store_true',
                         help='Generate GIFs for all defect cases (D1-D5)')
+    parser.add_argument('--multi_defects', action='store_true',
+                        help='Create one GIF with Healthy + all defect types side by side')
     parser.add_argument('--out_dir', type=str, default=None,
                         help='Output dir for batch (default: wiki_repo/images/guided_wave)')
     args = parser.parse_args()
@@ -289,7 +369,33 @@ if __name__ == '__main__':
         os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
         'wiki_repo', 'images', 'guided_wave')
 
-    if args.batch:
+    if args.multi_defects:
+        # Try flat panel defect types first; fallback to debonding sweep (D1-D5)
+        DEFECT_TYPE_LIST = [
+            (os.path.join(work_dir, 'Job-GW-Flat-Debond'), 'Debonding'),
+            (os.path.join(work_dir, 'Job-GW-Flat-FOD'), 'FOD'),
+            (os.path.join(work_dir, 'Job-GW-Flat-Impact'), 'Impact'),
+            (os.path.join(work_dir, 'Job-GW-Flat-Delam'), 'Delamination'),
+        ]
+        DEFECT_SWEEP_LIST = [
+            (os.path.join(work_dir, job), label)
+            for job, dx, dy, dr, label in DEFECT_CASES
+        ]
+        # Use defect types if Flat-Debond exists, else use debonding sweep
+        defect_list = DEFECT_TYPE_LIST
+        defect_params_list = None
+        if not os.path.exists(os.path.join(work_dir, 'Job-GW-Flat-Debond_coords.csv')):
+            defect_list = DEFECT_SWEEP_LIST
+            defect_params_list = [(dx, dy, dr) for _, dx, dy, dr, _ in DEFECT_CASES]
+            print("  (Using debonding sweep D1-D5 - Flat defect types not found)")
+        out_path = os.path.join(out_dir, 'gw_wave_all_defects.gif')
+        create_multi_defect_animation(
+            prefix1, defect_list,
+            output_path=out_path,
+            defect_x=80, defect_y=0, defect_r=25,
+            defect_params_list=defect_params_list,
+            fps=args.fps, dpi=args.dpi)
+    elif args.batch:
         run_batch_comparisons(prefix1, work_dir, output_dir=out_dir,
                               fps=args.fps, dpi=args.dpi)
     elif args.prefix2:
@@ -302,9 +408,11 @@ if __name__ == '__main__':
         create_comparison_animation(
             prefix1, args.prefix2, output_path=out_path,
             fps=args.fps, dpi=args.dpi,
-            defect_x=dx, defect_y=dy, defect_r=dr)
-        create_snapshot_grid(prefix1, args.prefix2,
-                            os.path.join(os.path.dirname(out_path), 'gw_snapshots.png'),
-                            defect_x=dx, defect_y=dy, defect_r=dr)
+            defect_x=dx, defect_y=dy, defect_r=dr,
+            defect_label=args.defect_label)
+        if not args.no_snapshot:
+            create_snapshot_grid(prefix1, args.prefix2,
+                                os.path.join(os.path.dirname(out_path), 'gw_snapshots.png'),
+                                defect_x=dx, defect_y=dy, defect_r=dr)
     else:
         create_single_animation(prefix1, args.output)
