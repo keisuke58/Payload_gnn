@@ -14,52 +14,59 @@ import sys
 import os
 import csv
 import math
+import re
 from odbAccess import openOdb
+
+# Max sensor count for discovery (supports 10, 20, 30, 50, 100, etc.)
+MAX_SENSORS = 200
+
+
+def _parse_sensor_id(set_name):
+    """Extract sensor ID from Set-Sensor-N. Returns int or None."""
+    m = re.match(r'SET-SENSOR-(\d+)', set_name.upper())
+    return int(m.group(1)) if m else None
 
 
 def _get_sensor_node_map(odb):
     """Build sensor_id -> (node_label, x, y, z) from assembly node sets.
 
+    Dynamically discovers Set-Sensor-0, Set-Sensor-1, ... Set-Sensor-N (up to MAX_SENSORS).
     Returns dict {sensor_id: {'label': int, 'x': float, 'y': float, 'z': float}}
     """
     sensor_map = {}
     root_assembly = odb.rootAssembly
 
-    # Look for Set-Sensor-N in assembly-level node sets
+    # Assembly-level node sets
     for set_name in root_assembly.nodeSets.keys():
-        for i in range(10):
-            target = 'SET-SENSOR-%d' % i
-            if set_name.upper() == target:
-                ns = root_assembly.nodeSets[set_name]
-                # nodeSets contain nodes per instance
-                for inst_name_nodes in ns.nodes:
-                    for node in inst_name_nodes:
-                        coords = node.coordinates
-                        sensor_map[i] = {
-                            'label': node.label,
-                            'instance': '',  # filled below
-                            'x': coords[0],
-                            'y': coords[1],
-                            'z': coords[2]
-                        }
+        sid = _parse_sensor_id(set_name)
+        if sid is not None and sid < MAX_SENSORS:
+            ns = root_assembly.nodeSets[set_name]
+            for inst_name_nodes in ns.nodes:
+                for node in inst_name_nodes:
+                    coords = node.coordinates
+                    sensor_map[sid] = {
+                        'label': node.label,
+                        'instance': '',
+                        'x': coords[0], 'y': coords[1], 'z': coords[2]
+                    }
+                    break
+                break
 
-    # If assembly-level sets not found, try instance-level
+    # Instance-level if assembly had none
     if not sensor_map:
         for inst_name, inst in root_assembly.instances.items():
             for set_name in inst.nodeSets.keys():
-                for i in range(10):
-                    target = 'SET-SENSOR-%d' % i
-                    if set_name.upper() == target:
-                        ns = inst.nodeSets[set_name]
-                        for node in ns.nodes:
-                            coords = node.coordinates
-                            sensor_map[i] = {
-                                'label': node.label,
-                                'instance': inst_name,
-                                'x': coords[0],
-                                'y': coords[1],
-                                'z': coords[2]
-                            }
+                sid = _parse_sensor_id(set_name)
+                if sid is not None and sid < MAX_SENSORS:
+                    ns = inst.nodeSets[set_name]
+                    for node in ns.nodes:
+                        coords = node.coordinates
+                        sensor_map[sid] = {
+                            'label': node.label,
+                            'instance': inst_name,
+                            'x': coords[0], 'y': coords[1], 'z': coords[2]
+                        }
+                        break
 
     return sensor_map
 
@@ -128,12 +135,12 @@ def extract_sensor_history(odb_path, output_dir=None):
         node_label = None
         sensor_id = None
 
-        # Try direct sensor set name match first
-        for i in range(10):
-            set_name = 'Set-Sensor-%d' % i
-            if set_name.upper() in region_name.upper():
-                sensor_id = i
-                break
+        # Try direct sensor set name match (Set-Sensor-N)
+        m = re.search(r'SET-SENSOR-(\d+)', region_name.upper())
+        if m:
+            sid = int(m.group(1))
+            if sid < MAX_SENSORS:
+                sensor_id = sid
 
         # Try parsing node label from region name
         if sensor_id is None and '.' in region_name:
