@@ -98,8 +98,14 @@ def create_single_animation(prefix, output_path=None, fps=15):
 
 
 def create_comparison_animation(prefix_healthy, prefix_defect,
-                                output_path='gw_wave_comparison.gif', fps=15):
-    """Create side-by-side Healthy vs Defect animation."""
+                                output_path='gw_wave_comparison.gif', fps=20,
+                                defect_x=80, defect_y=0, defect_r=25,
+                                defect_label=None, dpi=120, levels=50):
+    """Create side-by-side Healthy vs Defect animation.
+
+    defect_x, defect_y, defect_r: defect zone circle (mm)
+    defect_label: optional title override (e.g. 'D2 r=15mm')
+    """
     print("Loading healthy field data...")
     x_h, y_h, t_h, u3_h = load_field_data(prefix_healthy)
     print("Loading defect field data...")
@@ -118,11 +124,13 @@ def create_comparison_animation(prefix_healthy, prefix_defect,
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 8))
 
+    def_title = defect_label or 'Debonding (x=%d, r=%dmm)' % (defect_x, defect_r)
+
     def animate(i):
         ax1.clear()
         ax2.clear()
 
-        ax1.tricontourf(tri_h, u3_h[i], levels=50,
+        ax1.tricontourf(tri_h, u3_h[i], levels=levels,
                         cmap='RdBu_r', vmin=-vmax, vmax=vmax)
         ax1.set_xlim(x_h.min() - 5, x_h.max() + 5)
         ax1.set_ylim(y_h.min() - 5, y_h.max() + 5)
@@ -132,20 +140,20 @@ def create_comparison_animation(prefix_healthy, prefix_defect,
         ax1.set_title('Healthy\nt = %.1f us' % (t_h[i] * 1e6),
                        fontsize=12, fontweight='bold')
 
-        ax2.tricontourf(tri_d, u3_d[i], levels=50,
+        ax2.tricontourf(tri_d, u3_d[i], levels=levels,
                         cmap='RdBu_r', vmin=-vmax, vmax=vmax)
         ax2.set_xlim(x_d.min() - 5, x_d.max() + 5)
         ax2.set_ylim(y_d.min() - 5, y_d.max() + 5)
         ax2.set_aspect('equal')
         ax2.set_xlabel('X [mm]')
         ax2.set_ylabel('Y [mm]')
-        ax2.set_title('Debonding (x=80, r=25mm)\nt = %.1f us' % (t_d[i] * 1e6),
+        ax2.set_title('%s\nt = %.1f us' % (def_title, t_d[i] * 1e6),
                        fontsize=12, fontweight='bold')
 
         # Draw defect circle on defect plot
         theta = np.linspace(0, 2 * np.pi, 100)
-        ax2.plot(80 + 25 * np.cos(theta), 0 + 25 * np.sin(theta),
-                 'g--', linewidth=2, alpha=0.7, label='Defect zone')
+        ax2.plot(defect_x + defect_r * np.cos(theta), defect_y + defect_r * np.sin(theta),
+                 'g--', linewidth=2.5, alpha=0.8, label='Defect zone')
         ax2.legend(loc='upper left', fontsize=9)
 
         fig.suptitle('Guided Wave Propagation: A0 Mode (50 kHz)\n'
@@ -155,14 +163,14 @@ def create_comparison_animation(prefix_healthy, prefix_defect,
 
     anim = animation.FuncAnimation(fig, animate, frames=n_frames,
                                    interval=1000 // fps, blit=False)
-    anim.save(output_path, writer='pillow', fps=fps, dpi=100)
+    anim.save(output_path, writer='pillow', fps=fps, dpi=dpi)
     plt.close()
     print("Comparison animation saved: %s (%d frames)" % (output_path, n_frames))
 
 
 def create_snapshot_grid(prefix_healthy, prefix_defect,
                          output_path='gw_snapshots.png',
-                         time_points_us=None):
+                         time_points_us=None, defect_x=80, defect_y=0, defect_r=25):
     """Create a grid of snapshots at key time points."""
     x_h, y_h, t_h, u3_h = load_field_data(prefix_healthy)
     x_d, y_d, t_d, u3_d = load_field_data(prefix_defect)
@@ -211,7 +219,7 @@ def create_snapshot_grid(prefix_healthy, prefix_defect,
 
         # Defect circle
         theta = np.linspace(0, 2 * np.pi, 100)
-        ax.plot(80 + 25 * np.cos(theta), 0 + 25 * np.sin(theta),
+        ax.plot(defect_x + defect_r * np.cos(theta), defect_y + defect_r * np.sin(theta),
                 'g--', linewidth=1.5, alpha=0.7)
 
     fig.suptitle('Guided Wave Propagation Snapshots: Healthy vs Debonding\n'
@@ -223,32 +231,80 @@ def create_snapshot_grid(prefix_healthy, prefix_defect,
     print("Snapshot grid saved: %s" % output_path)
 
 
-if __name__ == '__main__':
-    if len(sys.argv) < 2:
-        print("Usage: python plot_gw_animation.py <prefix1> [prefix2]")
-        print("  prefix = path without _coords.csv / _frames.csv")
-        sys.exit(1)
+# DOE: (prefix_defect, x, y, r, label) for flat panel sweep
+DEFECT_CASES = [
+    ('Job-GW-Debond-v2', 80, 0, 25, 'D1 r=25mm (基準)'),
+    ('Job-GW-D2-r15', 80, 0, 15, 'D2 r=15mm (小)'),
+    ('Job-GW-D3-r40', 80, 0, 40, 'D3 r=40mm (大)'),
+    ('Job-GW-D4-near', 40, 0, 25, 'D4 x=40mm (近)'),
+    ('Job-GW-D5-edge', 120, 0, 25, 'D5 x=120mm (端)'),
+]
 
-    prefix1 = sys.argv[1]
 
-    if len(sys.argv) >= 3:
-        prefix2 = sys.argv[2]
-        out_dir = os.path.dirname(prefix1) or '.'
+def run_batch_comparisons(prefix_healthy, work_dir, output_dir=None,
+                          fps=20, dpi=120):
+    """Generate comparison GIFs for all defect cases."""
+    if output_dir is None:
+        output_dir = work_dir
+    os.makedirs(output_dir, exist_ok=True)
 
-        # Individual animations
-        create_single_animation(prefix1,
-                                os.path.join(out_dir, 'gw_wave_healthy.gif'))
-        create_single_animation(prefix2,
-                                os.path.join(out_dir, 'gw_wave_debond.gif'))
-
-        # Side-by-side comparison
+    for job_defect, dx, dy, dr, label in DEFECT_CASES:
+        prefix_d = os.path.join(work_dir, job_defect)
+        coords = os.path.join(work_dir, job_defect + '_coords.csv')
+        if not os.path.exists(coords):
+            print("  SKIP %s (no _coords.csv)" % job_defect)
+            continue
+        out_name = 'gw_wave_comparison_%s.gif' % job_defect.replace('Job-GW-', '').replace('-', '_').lower()
+        out_path = os.path.join(output_dir, out_name)
+        print("\n--- %s ---" % label)
         create_comparison_animation(
-            prefix1, prefix2,
-            os.path.join(out_dir, 'gw_wave_comparison.gif'))
+            prefix_healthy, prefix_d,
+            output_path=out_path,
+            fps=fps, dpi=dpi,
+            defect_x=dx, defect_y=dy, defect_r=dr,
+            defect_label=label)
+    print("\nBatch complete. Outputs in %s" % output_dir)
 
-        # Snapshot grid
-        create_snapshot_grid(
-            prefix1, prefix2,
-            os.path.join(out_dir, 'gw_snapshots.png'))
+
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser(description='GW wave propagation animation')
+    parser.add_argument('prefix1', help='Healthy prefix (path without _coords.csv)')
+    parser.add_argument('prefix2', nargs='?', help='Defect prefix (optional)')
+    parser.add_argument('--output', '-o', type=str, default=None,
+                        help='Output path for GIF')
+    parser.add_argument('--fps', type=int, default=20, help='FPS (default 20)')
+    parser.add_argument('--dpi', type=int, default=120, help='DPI (default 120)')
+    parser.add_argument('--defect', type=str, default=None,
+                        help='Defect params: x,y,r e.g. 80,0,25')
+    parser.add_argument('--batch', action='store_true',
+                        help='Generate GIFs for all defect cases (D1-D5)')
+    parser.add_argument('--out_dir', type=str, default=None,
+                        help='Output dir for batch (default: wiki_repo/images/guided_wave)')
+    args = parser.parse_args()
+
+    prefix1 = args.prefix1
+    work_dir = os.path.dirname(os.path.abspath(prefix1)) or '.'
+    out_dir = args.out_dir or os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+        'wiki_repo', 'images', 'guided_wave')
+
+    if args.batch:
+        run_batch_comparisons(prefix1, work_dir, output_dir=out_dir,
+                              fps=args.fps, dpi=args.dpi)
+    elif args.prefix2:
+        dx, dy, dr = 80, 0, 25
+        if args.defect:
+            parts = [int(x.strip()) for x in args.defect.split(',')]
+            if len(parts) >= 3:
+                dx, dy, dr = parts[0], parts[1], parts[2]
+        out_path = args.output or os.path.join(work_dir, 'gw_wave_comparison.gif')
+        create_comparison_animation(
+            prefix1, args.prefix2, output_path=out_path,
+            fps=args.fps, dpi=args.dpi,
+            defect_x=dx, defect_y=dy, defect_r=dr)
+        create_snapshot_grid(prefix1, args.prefix2,
+                            os.path.join(os.path.dirname(out_path), 'gw_snapshots.png'),
+                            defect_x=dx, defect_y=dy, defect_r=dr)
     else:
-        create_single_animation(prefix1)
+        create_single_animation(prefix1, args.output)

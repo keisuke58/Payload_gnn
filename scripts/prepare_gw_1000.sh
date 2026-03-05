@@ -13,18 +13,21 @@
 #
 # Usage:
 #   bash scripts/prepare_gw_1000.sh                    # フル実行
+#   bash scripts/prepare_gw_1000.sh --healthy-only      # Healthy のみ（欠陥なし、パイプライン検証用）
 #   bash scripts/prepare_gw_1000.sh --prepare-only     # augment スキップ
 #   bash scripts/prepare_gw_1000.sh --sensors 10 30    # s10, s30 のみ prepare
 #   bash scripts/prepare_gw_1000.sh --sensors 10 30 --prepare-only
 
 set -e
 PREPARE_ONLY=false
+HEALTHY_ONLY=false
 SENSORS="10 20 30 50"
 i=1
 while [ $i -le $# ]; do
   arg="${!i}"
   case "$arg" in
     --prepare-only) PREPARE_ONLY=true ;;
+    --healthy-only) HEALTHY_ONLY=true ;;
     --sensors)
       SENSORS=""
       ((i++))
@@ -49,10 +52,10 @@ DOE="doe_gw_fairing.json"
 if [ "$PREPARE_ONLY" = false ]; then
   echo "=== Step 1: Augmentation (100 sensors) ==="
   if [ ! -f "$INPUT_BASE/Job-GW-Fair-Healthy_sensors.csv" ]; then
-      echo "ERROR: Healthy CSV not found. Run batch_generate_gw_dataset.sh all first."
+      echo "ERROR: Healthy CSV not found. Run batch_generate_gw_dataset.sh healthy first."
       exit 1
   fi
-  if [ ! -f "$INPUT_BASE/Job-GW-Fair-0000_sensors.csv" ]; then
+  if [ "$HEALTHY_ONLY" = false ] && [ ! -f "$INPUT_BASE/Job-GW-Fair-0000_sensors.csv" ]; then
       echo "ERROR: Defect CSV (0000) not found. Run batch_generate_gw_dataset.sh all first."
       exit 1
   fi
@@ -64,12 +67,16 @@ if [ "$PREPARE_ONLY" = false ]; then
       --prefix "Job-GW-Fair-Healthy-A" \
       --seed 42
 
-  python src/augment_gw_defect.py \
-      --input "$INPUT_BASE" \
-      --doe "$DOE" \
-      --n_per_defect 5 \
-      --output "$INPUT_BASE" \
-      --seed 43
+  if [ "$HEALTHY_ONLY" = false ]; then
+    python src/augment_gw_defect.py \
+        --input "$INPUT_BASE" \
+        --doe "$DOE" \
+        --n_per_defect 5 \
+        --output "$INPUT_BASE" \
+        --seed 43
+  else
+    echo "  (--healthy-only: defect augment skipped)"
+  fi
 
   echo "=== Step 2: Extract subset (10, 20, 30, 50) ==="
   python scripts/extract_gw_sensor_subset.py --input "$INPUT_BASE" --output "$INPUT_BASE" --k 10 20 30 50

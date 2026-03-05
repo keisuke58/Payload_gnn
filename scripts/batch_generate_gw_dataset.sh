@@ -7,6 +7,7 @@
 #
 # Usage:
 #   bash scripts/batch_generate_gw_dataset.sh all     # 100センサで1回解析 → s10/s20/s30/s50 を抽出
+#   bash scripts/batch_generate_gw_dataset.sh healthy # Healthy 1個のみ: generate→run→extract→copy
 #   bash scripts/batch_generate_gw_dataset.sh subset  # 既存100センサCSVから抽出のみ
 #
 # 100センサで1回解析し、extract_gw_sensor_subset で 10/20/30/50 を抽出。再解析不要。
@@ -199,18 +200,58 @@ extract_subset() {
     echo "  -> $CSV_DIR/s10/, s20/, s30/, s50/"
 }
 
+# Healthy 1個のみ: generate → run → extract → copy
+run_healthy_only() {
+    local job="Job-GW-Fair-Healthy"
+    local odb_check=$(LD_LIBRARY_PATH="" /usr/bin/ssh $REMOTE "test -f $WORK_DIR/$job.odb && echo exists || echo missing" 2>/dev/null)
+    if [ "$odb_check" = "exists" ]; then
+        echo "Skip: $job (ODB exists)"
+        return 0
+    fi
+    echo "Running: $job (100 sensors)"
+    LD_LIBRARY_PATH="" /usr/bin/ssh $REMOTE "cd $WORK_DIR && \
+        $ENV_CMD abaqus job=$job input=$job.inp cpus=$CPUS interactive" 2>&1
+    check_odb "$job" || true
+}
+
+extract_healthy_only() {
+    echo "=== Extracting Healthy only ==="
+    LD_LIBRARY_PATH="" /usr/bin/ssh $REMOTE "cd $WORK_DIR && \
+        $ENV_CMD abaqus python $SCRIPTS_DIR/extract_gw_history.py Job-GW-Fair-Healthy.odb" 2>&1
+    echo "Extraction done."
+}
+
+copy_healthy_only() {
+    echo "=== Copying Healthy CSV to local ==="
+    mkdir -p "$CSV_DIR"
+    LD_LIBRARY_PATH="" /usr/bin/scp $REMOTE:$WORK_DIR/Job-GW-Fair-Healthy_sensors.csv "$CSV_DIR/" 2>/dev/null \
+        && echo "  Got Job-GW-Fair-Healthy_sensors.csv -> $CSV_DIR/" || echo "  SKIP (file not found)"
+}
+
 case "${1:-all}" in
     generate) generate_models ;;
     run)      run_jobs ;;
     extract)  extract_all ;;
     subset)   extract_subset ;;
+    healthy)
+        echo "=== Healthy 1個のみ (100 sensors): generate → run → extract → copy → prepare_gw_1000 ==="
+        GENERATE_LIMIT=0 generate_models
+        run_healthy_only
+        extract_healthy_only
+        copy_healthy_only
+        echo "Done. $CSV_DIR/Job-GW-Fair-Healthy_sensors.csv"
+        echo ""
+        echo "=== Running prepare_gw_1000.sh --healthy-only ==="
+        bash scripts/prepare_gw_1000.sh --healthy-only
+        ;;
     all)
         generate_models
         run_jobs
         extract_all
         extract_subset
         ;;
-    *) echo "Usage: $0 [generate|run|extract|subset|all] [start_idx] [generate_limit]"
+    *) echo "Usage: $0 [generate|run|extract|subset|all|healthy] [start_idx] [generate_limit]"
        echo "  all: 100センサで解析 → 10/20/30/50 を抽出（再解析不要）"
+       echo "  healthy: Healthy 1個のみ generate→run→extract→copy"
        echo "  subset: 既存CSVから抽出のみ" ;;
 esac

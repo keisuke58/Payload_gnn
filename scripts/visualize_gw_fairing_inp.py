@@ -126,7 +126,7 @@ def main():
                         help='Defect JSON for defect zone circle')
     parser.add_argument('--output', type=str, default=None,
                         help='Output PNG path')
-    parser.add_argument('--sample', type=int, default=500,
+    parser.add_argument('--sample', type=int, default=3000,
                         help='Max nodes to plot (for performance)')
     args = parser.parse_args()
 
@@ -147,9 +147,10 @@ def main():
         print("ERROR: No nodes found")
         sys.exit(1)
 
-    # Subsample for visualization
+    # Subsample for visualization (reproducible)
     n_plot = min(args.sample, len(pts))
-    idx = np.random.choice(len(pts), n_plot, replace=False) if len(pts) > n_plot else np.arange(len(pts))
+    rng = np.random.default_rng(42)
+    idx = rng.choice(len(pts), n_plot, replace=False) if len(pts) > n_plot else np.arange(len(pts))
     pts_plot = pts[idx]
 
     # Sensor positions
@@ -172,12 +173,12 @@ def main():
             print("WARNING: Invalid defect JSON: %s" % e)
 
     # Plot
-    fig = plt.figure(figsize=(12, 10))
+    fig = plt.figure(figsize=(14, 11))
     ax = fig.add_subplot(111, projection='3d')
 
-    # Outer skin points (scatter)
+    # Outer skin points (scatter) — 密に表示
     ax.scatter(pts_plot[:, 0], pts_plot[:, 1], pts_plot[:, 2],
-               c='lightblue', s=0.5, alpha=0.4, label='OuterSkin mesh')
+               c='#87CEEB', s=1.2, alpha=0.6, label='OuterSkin mesh')
 
     # Sensors
     if len(sensor_pts) > 0:
@@ -191,7 +192,7 @@ def main():
     # Defect zone circle
     if defect_circle is not None:
         ax.plot(defect_circle[:, 0], defect_circle[:, 1], defect_circle[:, 2],
-                'g-', linewidth=2.5, label='Defect zone (r=%.0f mm)' % defect_params['radius'])
+                'g-', linewidth=3, alpha=0.9, label='Defect zone (r=%.0f mm)' % defect_params['radius'])
 
     ax.set_xlabel('X [mm]')
     ax.set_ylabel('Y (axial) [mm]')
@@ -211,9 +212,11 @@ def main():
     ax.set_ylim(mid[1] - max_range, mid[1] + max_range)
     ax.set_zlim(mid[2] - max_range, mid[2] + max_range)
 
+    # 視点調整（欠陥・センサがよく見える角度）
+    ax.view_init(elev=15, azim=-60)
     out_path = args.output or inp_path.replace('.inp', '_3d.png')
     plt.tight_layout()
-    plt.savefig(out_path, dpi=150, bbox_inches='tight')
+    plt.savefig(out_path, dpi=200, bbox_inches='tight')
     print("Saved: %s" % out_path)
     plt.close()
 
