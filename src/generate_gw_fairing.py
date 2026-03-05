@@ -1219,11 +1219,18 @@ def setup_sensor_outputs(model, assembly, inst_outer, step_name,
                          n_sensors=10, spacing=SENSOR_SPACING):
     """Place sensors in cross pattern on outer skin.
 
-    5 circumferential (vary theta, fixed z) + 5 axial (vary z, fixed theta).
+    n_circ circumferential (vary theta, fixed z) + n_axial axial (vary z, fixed theta).
+    For n_sensors > 20, spacing is auto-reduced to fit within sector.
     """
     r_outer = RADIUS + CORE_T
     n_circ = n_sensors // 2
     n_axial = n_sensors - n_circ
+    # Auto spacing for large n: sector arc ~1360mm, height 2000mm
+    if n_sensors > 20:
+        arc_max = r_outer * math.radians(sector_angle) * 0.9
+        height = DEFAULT_Z_MAX - DEFAULT_Z_MIN
+        spacing = min(spacing, arc_max / max(n_circ - 1, 1), height / max(n_axial - 1, 1))
+        spacing = max(15.0, min(spacing, 30.0))  # clamp 15-30mm
     sensor_count = 0
 
     # Circumferential sensors
