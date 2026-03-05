@@ -87,8 +87,9 @@ DEFAULT_CZM_PARAMS = {
 # ==============================================================================
 # THERMAL LOAD
 # ==============================================================================
-TEMP_INITIAL = 20.0
-TEMP_FINAL_OUTER = 120.0
+TEMP_CURE = 175.0          # autoclave cure temperature (C)
+TEMP_ROOM = 20.0           # room / post-cure cooldown (C)
+TEMP_FINAL_OUTER = 120.0   # operational (aero heating, barrel avg)
 TEMP_FINAL_INNER = 20.0
 TEMP_FINAL_CORE = 70.0
 TEMP_FINAL_ADHESIVE = 45.0  # midway between core and skin
@@ -96,13 +97,38 @@ TEMP_FINAL_ADHESIVE = 45.0  # midway between core and skin
 # ==============================================================================
 # MECHANICAL LOAD PARAMETERS (H3 Max-Q flight condition)
 # ==============================================================================
-AERO_PRESSURE_ZONES = [
-    (0, 1000, 0.0),
-    (1000, 3000, 0.0),
-    (3000, H_BARREL, 0.0),
-]
+Q_INF = 0.035   # 35 kPa dynamic pressure at Max-Q (MPa)
 
-DIFF_PRESSURE = 0.030  # 30 kPa (Max-Q)
+
+def cp_at_z(z_mm):
+    """Pressure coefficient along fairing axis (Modified Newtonian).
+
+    Barrel: Cp = -0.1 (base) to +0.05 (shoulder)
+    Ogive:  Cp = +0.05 (shoulder) to +1.0 (nose stagnation)
+    """
+    if z_mm <= 0:
+        return -0.1
+    elif z_mm <= H_BARREL:
+        frac = z_mm / H_BARREL
+        return -0.1 + 0.15 * frac
+    elif z_mm >= TOTAL_HEIGHT:
+        return 1.0
+    else:
+        frac = (z_mm - H_BARREL) / H_NOSE
+        return 0.05 + 0.95 * frac ** 0.6
+
+
+N_AERO_ZONES = 10
+AERO_PRESSURE_ZONES = []
+for _i in range(N_AERO_ZONES):
+    _z_lo = _i * TOTAL_HEIGHT / N_AERO_ZONES
+    _z_hi = (_i + 1) * TOTAL_HEIGHT / N_AERO_ZONES
+    _z_mid = (_z_lo + _z_hi) / 2.0
+    _p_mpa = Q_INF * cp_at_z(_z_mid)
+    AERO_PRESSURE_ZONES.append((_z_lo, _z_hi, _p_mpa))
+
+DIFF_PRESSURE = 0.030           # 30 kPa cabin differential (Max-Q)
+ACOUSTIC_RMS_PRESSURE = 0.005   # 5 kPa RMS acoustic (148 dB OASPL)
 LAUNCH_G = 3.0
 G_ACCEL = 9810.0
 
@@ -120,6 +146,26 @@ OPENING_SEED = 10.0
 FRAME_SEED = 15.0
 BOUNDARY_SEED_RATIO = 0.4
 BOUNDARY_MARGIN = 30.0
+
+# ==============================================================================
+# DOUBLER REINFORCEMENT ZONES (opening periphery)
+# ==============================================================================
+DOUBLER_ZONES = [
+    # (z_center, z_half_width) — match OPENINGS_S12 locations
+    (2500.0, 250.0),   # HVAC_Door (diameter 400mm → ±250mm)
+    (300.0, 100.0),    # Vent_1 (diameter 100mm → ±100mm)
+]
+DOUBLER_PLY_COUNT = 16
+DOUBLER_THICKNESS = FACE_T * 2.0  # 2.0 mm (double normal skin)
+
+# ==============================================================================
+# OGIVE STRINGER (longitudinal rib)
+# ==============================================================================
+STRINGER_THETA = 15.0       # degrees (sector center for 30-deg sector)
+STRINGER_HEIGHT = 30.0      # mm (rib height, radially outward)
+STRINGER_THICKNESS = 2.0    # mm
+STRINGER_Z_START = H_BARREL              # 5000 mm (barrel-ogive junction)
+STRINGER_Z_END = TOTAL_HEIGHT - 500      # 9900 mm (before nose tip)
 
 # ==============================================================================
 # SOLVER MEMORY (65K nodes → ~5 GB sufficient)
@@ -327,9 +373,27 @@ def create_sections(model):
         thickness=RING_FRAME_THICKNESS)
 
     model.HomogeneousShellSection(
+        name='Section-Stringer', material='CFRP_FRAME',
+        thickness=STRINGER_THICKNESS)
+
+    model.HomogeneousShellSection(
         name='Section-Void-Shell', material='VOID', thickness=0.01)
     model.HomogeneousSolidSection(
         name='Section-Void-Solid', material='VOID')
+
+    # Doubler: 16-ply (2x normal) at opening periphery
+    angles_16 = list(angles) + list(angles)
+    doubler_entries = [section.SectionLayer(
+        thickness=DOUBLER_THICKNESS / float(DOUBLER_PLY_COUNT),
+        orientAngle=ang, material='CFRP_T1000G')
+        for ang in angles_16]
+    model.CompositeShellSection(
+        name='Section-CFRP-Doubler', preIntegrate=OFF,
+        idealization=NO_IDEALIZATION, layup=doubler_entries, symmetric=OFF,
+        thicknessType=UNIFORM, poissonDefinition=DEFAULT,
+        temperature=GRADIENT, integrationRule=SIMPSON)
+    print("  Section-CFRP-Doubler: %d-ply, %.1f mm" % (
+        DOUBLER_PLY_COUNT, DOUBLER_THICKNESS))
 
 
 def create_defect_materials(model, defect_params):
@@ -849,6 +913,47 @@ def partition_defect_zone(parts_to_partition, defect_params):
         z_c, theta_deg, r_def))
 
 
+def _is_face_in_doubler_zone(face):
+    """Check if a face centroid falls within any doubler reinforcement zone."""
+    pt = face.pointOn[0]
+    y_pos = pt[1]
+    for z_c, z_hw in DOUBLER_ZONES:
+        if z_c - z_hw <= y_pos <= z_c + z_hw:
+            return True
+    return False
+
+
+def _find_cylindrical_csys(part):
+    """Find CylCS-* datum in a part."""
+    for did, datum in part.datums.items():
+        if hasattr(datum, 'name') and datum.name.startswith('CylCS-'):
+            return datum
+    return None
+
+
+def assign_doubler_zones(p_inner, p_outer):
+    """Override section to 16-ply doubler in reinforcement zones near openings."""
+    for part, label in [(p_inner, 'InnerSkin'), (p_outer, 'OuterSkin')]:
+        doubler_faces = [f for f in part.faces if _is_face_in_doubler_zone(f)]
+        if doubler_faces:
+            pts = tuple((f.pointOn[0],) for f in doubler_faces)
+            face_seq = part.faces.findAt(*pts)
+            doubler_reg = part.Set(faces=face_seq,
+                                   name='Set-Doubler-%s' % label)
+            part.SectionAssignment(region=doubler_reg,
+                                   sectionName='Section-CFRP-Doubler')
+            cyl_csys = _find_cylindrical_csys(part)
+            if cyl_csys:
+                part.MaterialOrientation(region=doubler_reg,
+                                         orientationType=SYSTEM,
+                                         axis=AXIS_1,
+                                         additionalRotationType=ROTATION_NONE,
+                                         localCsys=cyl_csys)
+            print("  Doubler: %s -> %d faces" % (label, len(doubler_faces)))
+        else:
+            print("  Doubler: %s -> no faces in zones" % label)
+
+
 # ==============================================================================
 # SECTION ASSIGNMENT: 3-TIER (HEALTHY -> VOID -> DEFECT) for Skins/Core
 # ==============================================================================
@@ -1114,12 +1219,76 @@ def create_ring_frame_parts(model, z_positions):
 
 
 # ==============================================================================
-# ASSEMBLY (5 parts + frames)
+# OGIVE STRINGER (longitudinal rib on outer skin)
+# ==============================================================================
+
+def create_stringer_part(model):
+    """Create a longitudinal stringer rib on the ogive section.
+
+    The stringer runs from barrel-ogive junction (z=5000) to near the nose tip
+    (z=9900), along the outer skin at theta=STRINGER_THETA (sector center).
+    It extends radially outward by STRINGER_HEIGHT (30mm).
+    Built as a thin BaseShellRevolve (angular width ~ STRINGER_THICKNESS/r).
+    """
+    # Build stringer profile points along ogive
+    n_pts = 20
+    z_vals = []
+    for i in range(n_pts + 1):
+        z = STRINGER_Z_START + (STRINGER_Z_END - STRINGER_Z_START) * i / n_pts
+        z_vals.append(z)
+
+    pts_inner = []  # on the outer skin surface
+    pts_outer = []  # offset outward by STRINGER_HEIGHT
+    for z in z_vals:
+        r_skin = get_radius_at_z(z) + CORE_T
+        pts_inner.append((r_skin, z))
+        pts_outer.append((r_skin + STRINGER_HEIGHT, z))
+
+    # Create revolve sketch
+    s = model.ConstrainedSketch(name='profile_stringer', sheetSize=20000.0)
+    s.setPrimaryObject(option=STANDALONE)
+    s.ConstructionLine(point1=(0.0, -100.0),
+                       point2=(0.0, TOTAL_HEIGHT + 1000.0))
+
+    # Draw closed profile: inner edge -> top cap -> outer edge -> bottom cap
+    for i in range(len(pts_inner) - 1):
+        s.Line(point1=pts_inner[i], point2=pts_inner[i + 1])
+    s.Line(point1=pts_inner[-1], point2=pts_outer[-1])
+    for i in range(len(pts_outer) - 1, 0, -1):
+        s.Line(point1=pts_outer[i], point2=pts_outer[i - 1])
+    s.Line(point1=pts_outer[0], point2=pts_inner[0])
+
+    p = model.Part(name='Part-Stringer', dimensionality=THREE_D,
+                   type=DEFORMABLE_BODY)
+    # Revolve by angular width ~ thickness / mid-radius
+    r_mid = get_radius_at_z((STRINGER_Z_START + STRINGER_Z_END) / 2.0) + CORE_T
+    stringer_angle = math.degrees(STRINGER_THICKNESS / r_mid)
+    stringer_angle = max(stringer_angle, 0.05)
+    p.BaseShellRevolve(sketch=s, angle=stringer_angle,
+                       flipRevolveDirection=OFF)
+
+    # Rotate to theta=STRINGER_THETA (revolve starts at theta=0)
+    rotate_angle = STRINGER_THETA - stringer_angle / 2.0
+
+    # Assign section
+    region = p.Set(faces=p.faces, name='Set-All')
+    p.SectionAssignment(region=region, sectionName='Section-Stringer')
+
+    print("Stringer created: theta=%.1f deg, z=[%.0f, %.0f], "
+          "H=%.0f mm, angle=%.3f deg" % (
+              STRINGER_THETA, STRINGER_Z_START, STRINGER_Z_END,
+              STRINGER_HEIGHT, stringer_angle))
+    return p, rotate_angle
+
+
+# ==============================================================================
+# ASSEMBLY (5 parts + frames + stringer)
 # ==============================================================================
 
 def create_assembly_with_adhesive(model, p_inner, p_adh_inner, p_core,
-                                   p_adh_outer, p_outer, frame_parts):
-    """Instance all 5 parts + frames into the assembly."""
+                                   p_adh_outer, p_outer, frame_parts,
+                                   stringer_part=None, stringer_rotate=0.0):
+    """Instance all 5 parts + frames + stringer into the assembly."""
     a = model.rootAssembly
     a.DatumCsysByDefault(CARTESIAN)
 
@@ -1136,9 +1305,22 @@ def create_assembly_with_adhesive(model, p_inner, p_adh_inner, p_core,
         inst = a.Instance(name='Part-Frame-%d-1' % i, part=fp, dependent=OFF)
         frame_instances.append(inst)
 
-    print("Assembly: 5 base parts + %d ring frames" % len(frame_instances))
+    # Stringer (ogive longitudinal rib)
+    inst_stringer = None
+    if stringer_part is not None:
+        inst_stringer = a.Instance(name='Part-Stringer-1',
+                                   part=stringer_part, dependent=OFF)
+        if abs(stringer_rotate) > 0.001:
+            a.rotate(instanceList=('Part-Stringer-1',),
+                     axisPoint=(0.0, 0.0, 0.0),
+                     axisDirection=(0.0, 1.0, 0.0),
+                     angle=stringer_rotate)
+        print("  Stringer instanced, rotated by %.3f deg" % stringer_rotate)
+
+    print("Assembly: 5 base parts + %d ring frames + %d stringer" % (
+        len(frame_instances), 1 if inst_stringer else 0))
     return (a, inst_inner, inst_adh_inner, inst_core,
-            inst_adh_outer, inst_outer, frame_instances)
+            inst_adh_outer, inst_outer, frame_instances, inst_stringer)
 
 
 # ==============================================================================
@@ -1191,8 +1373,9 @@ def _classify_solid_faces(inst, r_inner_expected_fn, r_outer_expected_fn,
 def create_cohesive_connections(model, assembly,
                                 inst_inner, inst_adh_inner, inst_core,
                                 inst_adh_outer, inst_outer,
-                                frame_instances, adh_t):
-    """Create Tie constraints for 5-part sandwich + frame connections.
+                                frame_instances, adh_t,
+                                inst_stringer=None):
+    """Create Tie constraints for 5-part sandwich + frame + stringer.
 
     Tie pairs:
       1. InnerSkin <-> AdhesiveInner (inner face)
@@ -1308,6 +1491,20 @@ def create_cohesive_connections(model, assembly,
                   tieRotations=ON, thickness=ON)
     if frame_instances:
         print("  Tie 5+: %d ring frames <-> InnerSkin" % len(frame_instances))
+
+    # --- Stringer <-> OuterSkin ---
+    if inst_stringer is not None and len(inst_stringer.faces) > 0:
+        try:
+            surf_str = assembly.Surface(
+                side1Faces=inst_stringer.faces, name='Surf-Stringer')
+            model.Tie(name='Tie-Stringer', main=surf_outer_skin,
+                      secondary=surf_str,
+                      positionToleranceMethod=COMPUTED, adjust=ON,
+                      tieRotations=ON, thickness=ON)
+            print("  Tie: Stringer <-> OuterSkin (%d faces)" % (
+                len(inst_stringer.faces)))
+        except Exception as e:
+            print("  Stringer Tie warning: %s" % str(e)[:80])
 
 
 # ==============================================================================
@@ -1911,8 +2108,9 @@ def generate_mesh_with_adhesive(assembly,
 def apply_thermal_load_with_adhesive(model, assembly,
                                       inst_inner, inst_adh_inner,
                                       inst_core, inst_adh_outer,
-                                      inst_outer, frame_instances):
-    """Apply thermal gradient including adhesive layers."""
+                                      inst_outer, frame_instances,
+                                      inst_stringer=None):
+    """Apply thermal gradient including adhesive layers + stringer."""
     try:
         reg_inner = inst_inner.sets['Set-All']
         reg_outer = inst_outer.sets['Set-All']
@@ -1920,35 +2118,52 @@ def apply_thermal_load_with_adhesive(model, assembly,
         reg_adh_inner = inst_adh_inner.sets['Set-All']
         reg_adh_outer = inst_adh_outer.sets['Set-All']
 
-        # Initial temperature
+        # Initial temperature = cure temperature (stress-free reference)
         model.Temperature(name='Temp_IC_Inner', createStepName='Initial',
                           region=reg_inner, distributionType=UNIFORM,
-                          magnitudes=(TEMP_INITIAL,))
+                          magnitudes=(TEMP_CURE,))
         model.Temperature(name='Temp_IC_Outer', createStepName='Initial',
                           region=reg_outer, distributionType=UNIFORM,
-                          magnitudes=(TEMP_INITIAL,))
+                          magnitudes=(TEMP_CURE,))
         model.Temperature(name='Temp_IC_Core', createStepName='Initial',
                           region=reg_core, distributionType=UNIFORM,
-                          magnitudes=(TEMP_INITIAL,))
+                          magnitudes=(TEMP_CURE,))
         model.Temperature(name='Temp_IC_AdhInner', createStepName='Initial',
                           region=reg_adh_inner, distributionType=UNIFORM,
-                          magnitudes=(TEMP_INITIAL,))
+                          magnitudes=(TEMP_CURE,))
         model.Temperature(name='Temp_IC_AdhOuter', createStepName='Initial',
                           region=reg_adh_outer, distributionType=UNIFORM,
-                          magnitudes=(TEMP_INITIAL,))
+                          magnitudes=(TEMP_CURE,))
 
-        # Step-1 thermal load
-        model.Temperature(name='Temp_Inner_Step1', createStepName='Step-1',
+        # Step-Cure: cool from cure temp (175C) to room temp (20C)
+        model.Temperature(name='Temp_Inner_Cure', createStepName='Step-Cure',
+                          region=reg_inner, distributionType=UNIFORM,
+                          magnitudes=(TEMP_ROOM,))
+        model.Temperature(name='Temp_Outer_Cure', createStepName='Step-Cure',
+                          region=reg_outer, distributionType=UNIFORM,
+                          magnitudes=(TEMP_ROOM,))
+        model.Temperature(name='Temp_Core_Cure', createStepName='Step-Cure',
+                          region=reg_core, distributionType=UNIFORM,
+                          magnitudes=(TEMP_ROOM,))
+        model.Temperature(name='Temp_AdhInner_Cure', createStepName='Step-Cure',
+                          region=reg_adh_inner, distributionType=UNIFORM,
+                          magnitudes=(TEMP_ROOM,))
+        model.Temperature(name='Temp_AdhOuter_Cure', createStepName='Step-Cure',
+                          region=reg_adh_outer, distributionType=UNIFORM,
+                          magnitudes=(TEMP_ROOM,))
+
+        # Step-Thermal: operational temperature (CTE mismatch)
+        model.Temperature(name='Temp_Inner_Thermal', createStepName='Step-Thermal',
                           region=reg_inner, distributionType=UNIFORM,
                           magnitudes=(TEMP_FINAL_INNER,))
-        model.Temperature(name='Temp_Core_Step1', createStepName='Step-1',
+        model.Temperature(name='Temp_Core_Thermal', createStepName='Step-Thermal',
                           region=reg_core, distributionType=UNIFORM,
                           magnitudes=(TEMP_FINAL_CORE,))
         # Adhesive: temperature between adjacent skin and core
-        model.Temperature(name='Temp_AdhInner_Step1', createStepName='Step-1',
+        model.Temperature(name='Temp_AdhInner_Thermal', createStepName='Step-Thermal',
                           region=reg_adh_inner, distributionType=UNIFORM,
                           magnitudes=(TEMP_FINAL_ADHESIVE,))
-        model.Temperature(name='Temp_AdhOuter_Step1', createStepName='Step-1',
+        model.Temperature(name='Temp_AdhOuter_Thermal', createStepName='Step-Thermal',
                           region=reg_adh_outer, distributionType=UNIFORM,
                           magnitudes=(TEMP_FINAL_ADHESIVE,))
 
@@ -1959,16 +2174,40 @@ def apply_thermal_load_with_adhesive(model, assembly,
                 model.Temperature(name='Temp_IC_Frame_%d' % i,
                                   createStepName='Initial',
                                   region=reg_f, distributionType=UNIFORM,
-                                  magnitudes=(TEMP_INITIAL,))
-                model.Temperature(name='Temp_Frame_%d_Step1' % i,
-                                  createStepName='Step-1',
+                                  magnitudes=(TEMP_CURE,))
+                model.Temperature(name='Temp_Frame_%d_Cure' % i,
+                                  createStepName='Step-Cure',
+                                  region=reg_f, distributionType=UNIFORM,
+                                  magnitudes=(TEMP_ROOM,))
+                model.Temperature(name='Temp_Frame_%d_Thermal' % i,
+                                  createStepName='Step-Thermal',
                                   region=reg_f, distributionType=UNIFORM,
                                   magnitudes=(TEMP_FINAL_INNER,))
 
-        print("Thermal load: outer=%.0fC, inner=%.0fC, core=%.0fC, "
-              "adhesive=%.0fC, frames=%.0fC" % (
+        # Stringer
+        if inst_stringer is not None and 'Set-All' in inst_stringer.sets:
+            reg_s = inst_stringer.sets['Set-All']
+            model.Temperature(name='Temp_IC_Stringer', createStepName='Initial',
+                              region=reg_s, distributionType=UNIFORM,
+                              magnitudes=(TEMP_CURE,))
+            model.Temperature(name='Temp_Stringer_Cure', createStepName='Step-Cure',
+                              region=reg_s, distributionType=UNIFORM,
+                              magnitudes=(TEMP_ROOM,))
+            # Operational: use outer skin temp at stringer midpoint
+            z_mid = (STRINGER_Z_START + STRINGER_Z_END) / 2.0
+            stringer_temp = TEMP_FINAL_OUTER  # ogive avg
+            model.Temperature(name='Temp_Stringer_Thermal',
+                              createStepName='Step-Thermal',
+                              region=reg_s, distributionType=UNIFORM,
+                              magnitudes=(stringer_temp,))
+            print("  Stringer temp: %.0fC" % stringer_temp)
+
+        print("Thermal load: cure=%.0fC->%.0fC (DT=%.0fC), "
+              "operational: outer=%.0fC, inner=%.0fC, core=%.0fC, "
+              "adhesive=%.0fC" % (
+                  TEMP_CURE, TEMP_ROOM, TEMP_ROOM - TEMP_CURE,
                   TEMP_FINAL_OUTER, TEMP_FINAL_INNER, TEMP_FINAL_CORE,
-                  TEMP_FINAL_ADHESIVE, TEMP_FINAL_INNER))
+                  TEMP_FINAL_ADHESIVE))
     except Exception as e:
         print("Warning: Thermal load via API: %s" % str(e)[:80])
         print("  -> patch_inp_thermal.py will inject thermal load into INP")
@@ -1979,7 +2218,7 @@ def apply_thermal_load_with_adhesive(model, assembly,
 # ==============================================================================
 
 def apply_mechanical_loads(model, assembly, inst_inner, inst_core, inst_outer):
-    """Apply mechanical loads in Step-2."""
+    """Apply mechanical loads in Step-Mechanical."""
     try:
         outer_faces = inst_outer.sets['Set-All'].faces
         print("  Outer skin: using Set-All (%d faces, VOID excluded)" % (
@@ -2018,7 +2257,7 @@ def apply_mechanical_loads(model, assembly, inst_inner, inst_core, inst_outer):
                     name='Surf-Aero-Zone-%d' % i)
                 model.Pressure(
                     name='Aero_Pressure_%d' % i,
-                    createStepName='Step-2',
+                    createStepName='Step-Mechanical',
                     region=surf,
                     distributionType=UNIFORM,
                     magnitude=p_mpa)
@@ -2052,7 +2291,7 @@ def apply_mechanical_loads(model, assembly, inst_inner, inst_core, inst_outer):
                 name='Surf-DiffPressure')
             model.Pressure(
                 name='Diff_Pressure',
-                createStepName='Step-2',
+                createStepName='Step-Mechanical',
                 region=surf_inner,
                 distributionType=UNIFORM,
                 magnitude=DIFF_PRESSURE)
@@ -2070,7 +2309,7 @@ def apply_mechanical_loads(model, assembly, inst_inner, inst_core, inst_outer):
     try:
         model.Gravity(
             name='Launch_Accel',
-            createStepName='Step-2',
+            createStepName='Step-Mechanical',
             comp2=-(LAUNCH_G * G_ACCEL),
             distributionType=UNIFORM,
             field='')
@@ -2078,6 +2317,27 @@ def apply_mechanical_loads(model, assembly, inst_inner, inst_core, inst_outer):
             LAUNCH_G, LAUNCH_G * G_ACCEL))
     except Exception as e:
         print("  Gravity warning: %s" % str(e)[:80])
+
+    # Acoustic pressure (RMS, 148 dB OASPL — pseudo-static overlay)
+    if ACOUSTIC_RMS_PRESSURE > 0:
+        try:
+            outer_faces = inst_outer.faces
+            if len(outer_faces) > 0:
+                pts = tuple((f.pointOn[0],) for f in outer_faces)
+                face_seq = inst_outer.faces.findAt(*pts)
+                surf_acoustic = assembly.Surface(
+                    side1Faces=face_seq, name='Surf-Acoustic')
+                model.Pressure(
+                    name='Acoustic_Pressure',
+                    createStepName='Step-Mechanical',
+                    region=surf_acoustic,
+                    distributionType=UNIFORM,
+                    magnitude=ACOUSTIC_RMS_PRESSURE)
+                print("  Acoustic (RMS): %.3f MPa (%.1f kPa, %d faces)" % (
+                    ACOUSTIC_RMS_PRESSURE, ACOUSTIC_RMS_PRESSURE * 1000,
+                    len(face_seq)))
+        except Exception as e:
+            print("  Acoustic pressure warning: %s" % str(e)[:80])
 
 
 # ==============================================================================
@@ -2226,12 +2486,73 @@ def _fix_coh3d8_orientation(inp_path):
 
         out_lines.append(line)
 
+    # Pass 3: fix negative-Jacobian elements in adhesive C3D8R blocks
+    # Identify element lines in adhesive instance blocks and flip if det(J) < 0
+    n_flipped = 0
+    current_inst_name = None
+    in_elem_block = False
+    is_adhesive_block = False
+
+    for i, line in enumerate(out_lines):
+        ls = line.strip()
+        upper = ls.upper()
+
+        if upper.startswith('*INSTANCE,'):
+            current_inst_name = None
+            for token in ls.split(','):  # original case to match pass-1 keys
+                token = token.strip()
+                if token.lower().startswith('name='):
+                    current_inst_name = token.split('=', 1)[1].strip()
+                    break
+            in_elem_block = False
+            is_adhesive_block = False
+
+        elif upper.startswith('*ELEMENT') and 'C3D8R' in upper:
+            in_elem_block = True
+            # Only fix adhesive instances
+            is_adhesive_block = (current_inst_name is not None and
+                                 'ADHESIVE' in current_inst_name.upper())
+
+        elif ls.startswith('*'):
+            in_elem_block = False
+            is_adhesive_block = False
+
+        elif in_elem_block and is_adhesive_block and current_inst_name:
+            parts = ls.split(',')
+            if len(parts) >= 9:
+                try:
+                    nids = [int(p.strip()) for p in parts[:9]]
+                    elem_id = nids[0]
+                    node_ids = nids[1:9]  # 8 nodes
+                    node_dict = instances.get(current_inst_name, {})
+                    coords = []
+                    for nid in node_ids:
+                        if nid in node_dict:
+                            coords.append(node_dict[nid])
+                        else:
+                            coords = []
+                            break
+                    if len(coords) == 8:
+                        det = _jac_det_hex8(coords)
+                        if det < 0:
+                            # Swap bottom (1-4) and top (5-8) faces
+                            flipped = (node_ids[4], node_ids[5],
+                                       node_ids[6], node_ids[7],
+                                       node_ids[0], node_ids[1],
+                                       node_ids[2], node_ids[3])
+                            out_lines[i] = '%d, %s\n' % (
+                                elem_id,
+                                ', '.join(str(n) for n in flipped))
+                            n_flipped += 1
+                except (ValueError, IndexError):
+                    pass
+
     with open(inp_path, 'w') as f:
         f.writelines(out_lines)
 
     print("COH3D8→C3D8R: %d element blocks, %d sections replaced, "
-          "MAT-ADHESIVE-SOLID %s"
-          % (n_replaced, n_section_replaced,
+          "%d elements flipped, MAT-ADHESIVE-SOLID %s"
+          % (n_replaced, n_section_replaced, n_flipped,
              "added" if mat_adhesive_solid_added else "NOT added"))
 
 
@@ -2279,7 +2600,7 @@ def create_and_run_job(model, job_name, no_run=False, project_root=None):
     cwd = os.path.dirname(inp_path) or '.'
     r = subprocess.call(
         ['abaqus', 'job=' + job_name, 'input=' + job_name + '.inp',
-         'cpus=4', 'memory=' + SOLVER_MEMORY],
+         'cpus=4', 'memory=' + SOLVER_MEMORY, 'double=both'],
         cwd=cwd)
     if r == 0:
         print("Job COMPLETED: %s.odb" % job_name)
@@ -2387,25 +2708,31 @@ def generate_sector12_model(job_name, defect_params=None,
         ]
         partition_defect_zone(parts_to_partition, defect_params)
 
-    # 5. Section assignment: 3-tier (skins/core) + adhesive
+    # 5. Section assignment: 3-tier (skins/core) + adhesive + doublers
     assign_sections_3tier(p_inner, p_core, p_outer, openings, defect_params)
     assign_adhesive_sections(p_adh_inner, p_adh_outer, defect_params,
                               openings, adh_t)
+    assign_doubler_zones(p_inner, p_outer)
 
     # 6. Ring frames
     frame_parts = create_ring_frame_parts(model, frame_z_positions)
 
-    # 7. Assembly (5 parts + frames)
+    # 6b. Ogive stringer
+    p_stringer, stringer_rotate = create_stringer_part(model)
+
+    # 7. Assembly (5 parts + frames + stringer)
     (a, inst_inner, inst_adh_inner, inst_core,
-     inst_adh_outer, inst_outer, frame_insts) = \
+     inst_adh_outer, inst_outer, frame_insts, inst_stringer) = \
         create_assembly_with_adhesive(
             model, p_inner, p_adh_inner, p_core, p_adh_outer,
-            p_outer, frame_parts)
+            p_outer, frame_parts,
+            stringer_part=p_stringer, stringer_rotate=stringer_rotate)
 
-    # 8. Tie constraints (4 adhesive + frame)
+    # 8. Tie constraints (4 adhesive + frame + stringer)
     create_cohesive_connections(
         model, a, inst_inner, inst_adh_inner, inst_core,
-        inst_adh_outer, inst_outer, frame_insts, adh_t)
+        inst_adh_outer, inst_outer, frame_insts, adh_t,
+        inst_stringer=inst_stringer)
 
     # 9. Boundary conditions (bottom fix)
     apply_boundary_conditions_with_adhesive(
@@ -2418,14 +2745,26 @@ def generate_sector12_model(job_name, defect_params=None,
         inst_adh_outer, inst_outer, frame_insts)
 
     # 10. Steps + field output (SDEG, STATUS added for CZM)
-    model.StaticStep(name='Step-1', previous='Initial',
+    #     3-step: Cure cooldown -> Thermal operational -> Mechanical (Max-Q)
+    model.StaticStep(name='Step-Cure', previous='Initial',
+                     description='Cure cooldown 175->20C (residual stress)',
+                     stabilizationMagnitude=5e-4,
+                     stabilizationMethod=DISSIPATED_ENERGY_FRACTION)
+    model.StaticStep(name='Step-Thermal', previous='Step-Cure',
                      description='Thermal load only (CTE mismatch)')
-    model.StaticStep(name='Step-2', previous='Step-1',
-                     description='Thermal + Mechanical (Max-Q)')
+    model.StaticStep(name='Step-Mechanical', previous='Step-Thermal',
+                     description='Thermal + Mechanical (Max-Q)',
+                     initialInc=0.5, maxNumInc=50,
+                     stabilizationMagnitude=2e-4,
+                     stabilizationMethod=DISSIPATED_ENERGY_FRACTION)
     model.fieldOutputRequests['F-Output-1'].setValues(
         variables=('S', 'U', 'RF', 'TEMP', 'NT', 'LE', 'SDEG', 'STATUS'))
     model.FieldOutputRequest(name='F-Output-2',
-                             createStepName='Step-2',
+                             createStepName='Step-Thermal',
+                             variables=('S', 'U', 'RF', 'TEMP', 'NT', 'LE',
+                                        'SDEG', 'STATUS'))
+    model.FieldOutputRequest(name='F-Output-3',
+                             createStepName='Step-Mechanical',
                              variables=('S', 'U', 'RF', 'TEMP', 'NT', 'LE',
                                         'SDEG', 'STATUS'))
 
@@ -2436,15 +2775,27 @@ def generate_sector12_model(job_name, defect_params=None,
         openings, defect_params,
         g_seed, OPENING_SEED, d_seed, f_seed, adh_t)
 
+    # 11b. Mesh stringer
+    if inst_stringer is not None:
+        try:
+            a.seedPartInstance(regions=(inst_stringer,), size=f_seed,
+                               deviationFactor=0.1)
+            a.generateMesh(regions=(inst_stringer,))
+            print("  Stringer mesh: %d nodes, %d elements" % (
+                len(inst_stringer.nodes), len(inst_stringer.elements)))
+        except Exception as e:
+            print("  Stringer mesh warning: %s" % str(e)[:80])
+
     # 12. Post-mesh BCs
     apply_post_mesh_bcs_with_adhesive(
         model, a, inst_inner, inst_adh_inner, inst_core,
         inst_adh_outer, inst_outer)
 
-    # 13. Thermal load (including adhesive)
+    # 13. Thermal load (including adhesive + stringer)
     apply_thermal_load_with_adhesive(
         model, a, inst_inner, inst_adh_inner, inst_core,
-        inst_adh_outer, inst_outer, frame_insts)
+        inst_adh_outer, inst_outer, frame_insts,
+        inst_stringer=inst_stringer)
 
     # 14. Mechanical loads
     apply_mechanical_loads(model, a, inst_inner, inst_core, inst_outer)
