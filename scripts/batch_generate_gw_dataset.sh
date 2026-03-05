@@ -12,11 +12,16 @@
 
 set -e
 
+# Run from project root (where doe_gw_fairing.json lives)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$PROJECT_ROOT"
+
 REMOTE=frontale04
 WORK_DIR=~/Payload2026/abaqus_work
 SRC_DIR=~/Payload2026/src
 SCRIPTS_DIR=~/Payload2026/scripts
-DOE_FILE=doe_gw_fairing.json
+DOE_FILE="$PROJECT_ROOT/doe_gw_fairing.json"
 CPUS=4
 MESH_SEED=5.0   # mm — λ/6 at 50kHz, good balance of accuracy and speed
 
@@ -28,6 +33,7 @@ ENV_CMD="env -i HOME=/home/nishioka USER=nishioka \
   LD_PRELOAD=/home/nishioka/libfake_x11.so"
 
 START_IDX=${2:-0}
+GENERATE_LIMIT=${3:-999999}   # 3rd arg: max defect samples for generate (default: all)
 
 # Parse DOE JSON
 get_n_samples() {
@@ -63,7 +69,8 @@ generate_models() {
     echo "---"
 
     # Defect samples
-    for ((i=START_IDX; i<n; i++)); do
+    n_limit=$((START_IDX + GENERATE_LIMIT))
+    for ((i=START_IDX; i<n && i<n_limit; i++)); do
         local job="Job-GW-Fair-$(printf '%04d' $i)"
         local defect=$(get_defect_json $i)
         echo "Generating [$i/$n]: $job (defect: $defect)"
@@ -161,5 +168,6 @@ case "${1:-all}" in
         run_jobs
         extract_all
         ;;
-    *) echo "Usage: $0 [generate|run|extract|all] [start_idx]" ;;
+    *) echo "Usage: $0 [generate|run|extract|all] [start_idx] [generate_limit]"
+       echo "  generate_limit: for generate only, max defect samples (e.g. 1 = Healthy + 0000)" ;;
 esac
