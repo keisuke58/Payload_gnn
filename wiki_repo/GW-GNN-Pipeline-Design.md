@@ -75,25 +75,31 @@ def build_gw_graph(csv_path, label, positions=None) -> Data
 ### 4.2 prepare_gw_ml_data.py
 
 ```python
-def collect_gw_samples(csv_dir, doe_path) -> [(csv_path, label), ...]
-def prepare_gw_dataset(input_dir, output_dir, doe_path, val_ratio=0.2)
+def collect_gw_samples(csv_dir, doe_path, include_augmented=True) -> [(csv_path, label), ...]
+def prepare_gw_dataset(input_dir, output_dir, doe_path, val_ratio=0.2, include_augmented=True)
 ```
 
 - サンプル収集: `*_sensors.csv` をスキャン
-- Healthy: `Job-GW-Fair-Healthy_sensors.csv`
+- Healthy: `Job-GW-Fair-Healthy_sensors.csv`, `Job-GW-Fair-Healthy-A*.csv`（augmentation）
 - Defect: `Job-GW-Fair-0000_sensors.csv` など
+- `--no_augmented`: Healthy-A* を除外
 
-### 4.3 train_gw.py (オプション)
+### 4.3 train_gw.py ✅ 実装済
 
-- 既存 `train.py` はノード分類（node-level）に特化
-- GW はグラフ分類（graph-level）→ `DataLoader` の `batch` で `Data` をバッチ化
-- 既存 GNN アーキテクチャで graph-level 読み出し可能（global readout）
+- グラフ分類（graph-level）: GNN encoder + `global_mean_pool` + MLP
+- クラスバランス: Focal Loss / `--class_weight` / `--weighted_sampler`
+- アーキテクチャ: GCN, GAT, GIN, SAGE
 
-## 5. 実装順序
+```bash
+python src/prepare_gw_ml_data.py --input abaqus_work/gw_fairing_dataset --output data/processed_gw_100
+python src/train_gw.py --data_dir data/processed_gw_100 --arch gat --epochs 200
+```
 
-1. `build_gw_graph.py`: CSV 読み込み + 時間特徴抽出 + グラフ構築
-2. `prepare_gw_ml_data.py`: データセットスキャン + train/val 保存
-3. `train.py` の graph-level 対応確認、または `train_gw.py` 新規
+## 5. 実装状況
+
+1. ✅ `build_gw_graph.py`: CSV 読み込み + 時間特徴抽出 + グラフ構築
+2. ✅ `prepare_gw_ml_data.py`: Healthy-A* 対応、train/val 保存
+3. ✅ `train_gw.py`: graph-level 2 値分類、クラスバランス対応
 
 ## 6. 参照
 
