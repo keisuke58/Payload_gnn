@@ -80,7 +80,7 @@ def collect_gw_samples(csv_dir, doe_path=None, include_augmented=True):
 
 
 def prepare_gw_dataset(input_dir, output_dir, doe_path=None, val_ratio=0.2, seed=42,
-                       include_augmented=True):
+                       include_augmented=True, feature_set='baseline'):
     """Process all samples, build graphs, split train/val, save."""
     input_dir = os.path.join(PROJECT_ROOT, input_dir)
     output_dir = os.path.join(PROJECT_ROOT, output_dir)
@@ -99,7 +99,7 @@ def prepare_gw_dataset(input_dir, output_dir, doe_path=None, val_ratio=0.2, seed
     all_data = []
     for csv_path, label in samples:
         try:
-            data = build_gw_graph(csv_path, label)
+            data = build_gw_graph(csv_path, label, feature_set=feature_set)
             if data is not None:
                 # graph-level label for train_gw.py
                 data.graph_y = data.y.squeeze(0) if data.y.dim() > 0 else data.y
@@ -134,20 +134,26 @@ def main():
                         help='Directory with *_sensors.csv')
     parser.add_argument('--doe', type=str, default='doe_gw_fairing.json',
                         help='DOE JSON for defect sample list')
+    parser.add_argument('--no_doe', action='store_true',
+                        help='Use fallback scan for defects (ignore doe file)')
     parser.add_argument('--output', type=str, default='data/processed_gw',
                         help='Output directory')
     parser.add_argument('--val_ratio', type=float, default=0.2)
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--no_augmented', action='store_true',
                         help='Exclude Healthy-A* augmented samples')
+    parser.add_argument('--feature_set', type=str, default='baseline',
+                        choices=['baseline', 'extended', 'full'],
+                        help='baseline=3, extended=10, full=15 feat')
     args = parser.parse_args()
 
     prepare_gw_dataset(
         args.input, args.output,
-        doe_path=args.doe,
+        doe_path=None if args.no_doe else args.doe,
         val_ratio=args.val_ratio,
         seed=args.seed,
         include_augmented=not args.no_augmented,
+        feature_set=args.feature_set,
     )
 
 

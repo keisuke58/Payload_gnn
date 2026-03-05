@@ -6,9 +6,10 @@
 # QAE license constraint: only 1 job at a time.
 #
 # Usage:
-#   bash scripts/batch_generate_gw_dataset.sh [generate|run|extract|all]
-#   bash scripts/batch_generate_gw_dataset.sh all     # full pipeline
-#   bash scripts/batch_generate_gw_dataset.sh run 10   # run from sample 10 onward (resume)
+#   bash scripts/batch_generate_gw_dataset.sh all     # 100センサで1回解析 → s10/s20/s30/s50 を抽出
+#   bash scripts/batch_generate_gw_dataset.sh subset  # 既存100センサCSVから抽出のみ
+#
+# 100センサで1回解析し、extract_gw_sensor_subset で 10/20/30/50 を抽出。再解析不要。
 
 set -e
 
@@ -18,7 +19,9 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_ROOT"
 
 REMOTE=frontale04
+N_SENSORS=100
 WORK_DIR=~/Payload2026/abaqus_work
+CSV_DIR="abaqus_work/gw_fairing_dataset"
 SRC_DIR=~/Payload2026/src
 SCRIPTS_DIR=~/Payload2026/scripts
 DOE_FILE="$PROJECT_ROOT/doe_gw_fairing.json"
@@ -34,6 +37,7 @@ ENV_CMD="env -i HOME=/home/nishioka USER=nishioka \
 
 START_IDX=${2:-0}
 GENERATE_LIMIT=${3:-999999}   # 3rd arg: max defect samples for generate (default: all)
+MIN_ODB_SIZE=500000           # 500KB — 1解析終了後の ODB 最小サイズ
 
 # Parse DOE JSON
 get_n_samples() {
@@ -55,6 +59,30 @@ get_freq() {
     python3 -c "import json; d=json.load(open('$DOE_FILE')); print(d['freq_khz'])"
 }
 
+# 1解析終了後の適切性チェック（ODB 存在・サイズ）
+check_odb() {
+    local job=$1
+    local out
+    out=$(LD_LIBRARY_PATH="" /usr/bin/ssh $REMOTE "
+        p=$WORK_DIR/$job.odb
+        if [ ! -f \"\$p\" ]; then echo MISSING; exit 0; fi
+        s=\$(stat -c%s \"\$p\" 2>/dev/null || echo 0)
+        if [ \"\$s\" -lt $MIN_ODB_SIZE ]; then echo SIZE:\$s; exit 0; fi
+        echo OK:\$s
+    " 2>/dev/null)
+    case "$out" in
+        OK:*)
+            echo "  Check OK: $job (${out#OK:} bytes)"
+            return 0 ;;
+        SIZE:*)
+            echo "  CHECK FAIL: $job ODB too small (${out#SIZE:} bytes)"
+            return 1 ;;
+        *)
+            echo "  CHECK FAIL: $job ODB missing"
+            return 1 ;;
+    esac
+}
+
 generate_models() {
     local n=$(get_n_samples)
     local freq=$(get_freq)
@@ -62,10 +90,10 @@ generate_models() {
 
     # Healthy baseline
     local job="Job-GW-Fair-Healthy"
-    echo "Generating: $job (healthy baseline)"
-    LD_LIBRARY_PATH="" /usr/bin/ssh $REMOTE "cd $WORK_DIR && \
+    echo "Generating: $job (healthy baseline, n_sensors=$N_SENSORS)"
+    LD_LIBRARY_PATH="" /usr/bin/ssh $REMOTE "mkdir -p $WORK_DIR && cd $WORK_DIR && \
         $ENV_CMD abaqus cae noGUI=$SRC_DIR/generate_gw_fairing.py \
-        -- --job $job --freq $freq --mesh_seed $MESH_SEED --no_run" 2>&1 | tail -3
+        -- --job $job --freq $freq --mesh_seed $MESH_SEED --n_sensors $N_SENSORS --no_run" 2>&1 | tail -3
     echo "---"
 
     # Defect samples
@@ -76,7 +104,7 @@ generate_models() {
         echo "Generating [$i/$n]: $job (defect: $defect)"
         LD_LIBRARY_PATH="" /usr/bin/ssh $REMOTE "cd $WORK_DIR && \
             $ENV_CMD abaqus cae noGUI=$SRC_DIR/generate_gw_fairing.py \
-            -- --job $job --freq $freq --mesh_seed $MESH_SEED --defect '$defect' --no_run" 2>&1 | tail -3
+            -- --job $job --freq $freq --mesh_seed $MESH_SEED --n_sensors $N_SENSORS --defect '$defect' --no_run" 2>&1 | tail -3
         echo "---"
     done
     echo "INP generation complete."
@@ -96,6 +124,7 @@ run_jobs() {
         LD_LIBRARY_PATH="" /usr/bin/ssh $REMOTE "cd $WORK_DIR && \
             $ENV_CMD abaqus job=$job input=$job.inp cpus=$CPUS interactive" 2>&1 | tail -3
         echo "Completed: $job"
+        check_odb "$job" || true
     fi
     echo "---"
 
@@ -112,6 +141,7 @@ run_jobs() {
         LD_LIBRARY_PATH="" /usr/bin/ssh $REMOTE "cd $WORK_DIR && \
             $ENV_CMD abaqus job=$job input=$job.inp cpus=$CPUS interactive" 2>&1 | tail -3
         echo "Completed: $job"
+        check_odb "$job" || true
         echo "---"
     done
     echo "All jobs complete."
@@ -143,31 +173,44 @@ extract_all() {
 
     # Copy CSVs to local
     echo "=== Copying CSVs to local ==="
-    local csv_dir="abaqus_work/gw_fairing_dataset"
-    mkdir -p "$csv_dir"
+    mkdir -p "$CSV_DIR"
 
     # Healthy
-    LD_LIBRARY_PATH="" /usr/bin/scp $REMOTE:$WORK_DIR/Job-GW-Fair-Healthy_sensors.csv "$csv_dir/" 2>/dev/null \
+    LD_LIBRARY_PATH="" /usr/bin/scp $REMOTE:$WORK_DIR/Job-GW-Fair-Healthy_sensors.csv "$CSV_DIR/" 2>/dev/null \
         && echo "  Got Healthy" || echo "  SKIP Healthy"
 
     # Defect samples
     for ((i=0; i<n; i++)); do
         local job="Job-GW-Fair-$(printf '%04d' $i)"
-        LD_LIBRARY_PATH="" /usr/bin/scp $REMOTE:$WORK_DIR/${job}_sensors.csv "$csv_dir/" 2>/dev/null \
+        LD_LIBRARY_PATH="" /usr/bin/scp $REMOTE:$WORK_DIR/${job}_sensors.csv "$CSV_DIR/" 2>/dev/null \
             && echo "  Got $job" || echo "  SKIP $job"
     done
-    echo "CSVs copied to $csv_dir/"
+    echo "CSVs copied to $CSV_DIR/"
+
+    # CSV 品質チェック
+    if command -v python3 >/dev/null 2>&1; then
+        python3 scripts/verify_gw_dataset_quality.py --data_dir "$CSV_DIR" --filter fairing 2>&1 | tail -15
+    fi
+}
+
+extract_subset() {
+    echo "=== Extracting sensor subsets (10, 20, 30, 50) ==="
+    python scripts/extract_gw_sensor_subset.py --input "$CSV_DIR" --output "$CSV_DIR" --k 10 20 30 50
+    echo "  -> $CSV_DIR/s10/, s20/, s30/, s50/"
 }
 
 case "${1:-all}" in
     generate) generate_models ;;
     run)      run_jobs ;;
     extract)  extract_all ;;
+    subset)   extract_subset ;;
     all)
         generate_models
         run_jobs
         extract_all
+        extract_subset
         ;;
-    *) echo "Usage: $0 [generate|run|extract|all] [start_idx] [generate_limit]"
-       echo "  generate_limit: for generate only, max defect samples (e.g. 1 = Healthy + 0000)" ;;
+    *) echo "Usage: $0 [generate|run|extract|subset|all] [start_idx] [generate_limit]"
+       echo "  all: 100センサで解析 → 10/20/30/50 を抽出（再解析不要）"
+       echo "  subset: 既存CSVから抽出のみ" ;;
 esac
