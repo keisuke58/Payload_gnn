@@ -7,7 +7,7 @@
 # Usage:
 #   nohup bash scripts/auto_gw_pipeline.sh > abaqus_work/logs/auto_pipeline.log 2>&1 &
 
-set -e
+set -o pipefail  # set -e 削除: SSH失敗でスクリプト全体が死ぬのを防止
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -50,11 +50,15 @@ s=d['samples'][$i]; p=s['defect_params']
 print(json.dumps({'z_center':p['z_center'],'theta_deg':p['theta_deg'],'radius':p['radius']}))")
 
         log "  Generate [$i/$N_SAMPLES]: $job"
-        LD_LIBRARY_PATH="" /usr/bin/ssh -o ConnectTimeout=30 -o ServerAliveInterval=60 frontale04 \
+        if LD_LIBRARY_PATH="" /usr/bin/ssh -o ConnectTimeout=30 -o ServerAliveInterval=120 \
+            -o ServerAliveCountMax=30 frontale04 \
             "cd $WORK_DIR && $ENV_CMD abaqus cae noGUI=~/Payload2026/src/generate_gw_fairing.py \
             -- --job $job --freq $freq --mesh_seed 5.0 --n_sensors 100 --defect '$defect' --no_run" \
-            2>&1 | tail -2
-        ((generated++))
+            2>&1 | tail -2; then
+            ((generated++))
+        else
+            log "  WARN: $job generation may have failed (exit $?), continuing..."
+        fi
     done
 
     log "Phase 1 complete: $generated new INPs generated"
@@ -176,13 +180,15 @@ phase3_extract() {
         fi
 
         log "  Extract: $job"
-        LD_LIBRARY_PATH="" /usr/bin/ssh -o ConnectTimeout=30 frontale04 \
+        if LD_LIBRARY_PATH="" /usr/bin/ssh -o ConnectTimeout=30 -o ServerAliveInterval=60 frontale04 \
             "cd $WORK_DIR && $ENV_CMD abaqus python ~/Payload2026/scripts/extract_gw_history.py $job.odb" \
-            2>&1 | tail -2
-
-        if [ -f "$WORK_DIR/${job}_sensors.csv" ]; then
-            cp "$WORK_DIR/${job}_sensors.csv" "$CSV_DIR/"
-            ((extracted++))
+            2>&1 | tail -2; then
+            if [ -f "$WORK_DIR/${job}_sensors.csv" ]; then
+                cp "$WORK_DIR/${job}_sensors.csv" "$CSV_DIR/"
+                ((extracted++))
+            fi
+        else
+            log "  WARN: $job extraction failed, continuing..."
         fi
     done
 
@@ -203,19 +209,28 @@ phase4_fno_gnn() {
     fi
 
     log "--- Step 4a: Train FNO ---"
-    bash scripts/pipeline_fno_gnn.sh train_fno
+    if ! bash scripts/pipeline_fno_gnn.sh train_fno; then
+        log "WARN: FNO training failed"
+        return 1
+    fi
 
     log "--- Step 4b: Generate 5000 synthetic waveforms ---"
-    bash scripts/pipeline_fno_gnn.sh generate 5000
+    if ! bash scripts/pipeline_fno_gnn.sh generate 5000; then
+        log "WARN: FNO generation failed"
+        return 1
+    fi
 
     log "--- Step 4c: Prepare GNN dataset ---"
-    bash scripts/pipeline_fno_gnn.sh prepare
+    if ! bash scripts/pipeline_fno_gnn.sh prepare; then
+        log "WARN: GNN data preparation failed"
+        return 1
+    fi
 
     log "--- Step 4d: Train GNN ---"
-    bash scripts/pipeline_fno_gnn.sh train_gnn
+    bash scripts/pipeline_fno_gnn.sh train_gnn || log "WARN: GNN training failed"
 
     log "Phase 4 complete."
-    bash scripts/pipeline_fno_gnn.sh status
+    bash scripts/pipeline_fno_gnn.sh status || true
 }
 
 # ==============================================================================
