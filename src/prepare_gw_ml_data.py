@@ -24,13 +24,14 @@ sys.path.insert(0, PROJECT_ROOT)
 from build_gw_graph import build_gw_graph
 
 
-def collect_gw_samples(csv_dir, doe_path=None):
+def collect_gw_samples(csv_dir, doe_path=None, include_augmented=True):
     """Collect (csv_path, label) pairs.
 
-    Healthy: Job-GW-Fair-Healthy_sensors.csv -> 0
+    Healthy: Job-GW-Fair-Healthy_sensors.csv, Job-GW-Fair-Healthy-A*.csv -> 0
     Defect: Job-GW-Fair-0000_sensors.csv etc -> 1
 
     doe_path: optional, for defect sample list
+    include_augmented: include Job-GW-Fair-Healthy-A*.csv (augmented healthy)
     """
     samples = []
     csv_dir = os.path.abspath(csv_dir)
@@ -38,11 +39,19 @@ def collect_gw_samples(csv_dir, doe_path=None):
     if not os.path.isdir(csv_dir):
         return samples
 
-    # Healthy: Job-GW-Fair-Healthy or Job-GW-Fair-Test-H*
+    # Healthy: Job-GW-Fair-Healthy, Job-GW-Fair-Healthy-A*, or Job-GW-Fair-Test-H*
     healthy_path = os.path.join(csv_dir, 'Job-GW-Fair-Healthy_sensors.csv')
     if os.path.exists(healthy_path):
         samples.append((healthy_path, 0))
-    else:
+
+    # Augmented healthy (Job-GW-Fair-Healthy-A000, A001, ...)
+    if include_augmented:
+        for f in sorted(os.listdir(csv_dir)):
+            if f.endswith('_sensors.csv') and 'Healthy-A' in f:
+                samples.append((os.path.join(csv_dir, f), 0))
+
+    # Fallback: Test-H* if no Healthy/Healthy-A
+    if not any(l == 0 for _, l in samples):
         for f in sorted(os.listdir(csv_dir)):
             if f.endswith('_sensors.csv') and 'Test-H' in f:
                 samples.append((os.path.join(csv_dir, f), 0))
@@ -70,7 +79,8 @@ def collect_gw_samples(csv_dir, doe_path=None):
     return samples
 
 
-def prepare_gw_dataset(input_dir, output_dir, doe_path=None, val_ratio=0.2, seed=42):
+def prepare_gw_dataset(input_dir, output_dir, doe_path=None, val_ratio=0.2, seed=42,
+                       include_augmented=True, feature_set='baseline'):
     """Process all samples, build graphs, split train/val, save."""
     input_dir = os.path.join(PROJECT_ROOT, input_dir)
     output_dir = os.path.join(PROJECT_ROOT, output_dir)
@@ -78,7 +88,7 @@ def prepare_gw_dataset(input_dir, output_dir, doe_path=None, val_ratio=0.2, seed
         doe_path = os.path.join(PROJECT_ROOT, doe_path)
     os.makedirs(output_dir, exist_ok=True)
 
-    samples = collect_gw_samples(input_dir, doe_path)
+    samples = collect_gw_samples(input_dir, doe_path, include_augmented=include_augmented)
     if not samples:
         print("No samples found in %s" % input_dir)
         return
@@ -89,8 +99,10 @@ def prepare_gw_dataset(input_dir, output_dir, doe_path=None, val_ratio=0.2, seed
     all_data = []
     for csv_path, label in samples:
         try:
-            data = build_gw_graph(csv_path, label)
+            data = build_gw_graph(csv_path, label, feature_set=feature_set)
             if data is not None:
+                # graph-level label for train_gw.py
+                data.graph_y = data.y.squeeze(0) if data.y.dim() > 0 else data.y
                 all_data.append(data)
         except Exception as e:
             print("  Skip %s: %s" % (os.path.basename(csv_path), str(e)[:60]))
@@ -122,17 +134,26 @@ def main():
                         help='Directory with *_sensors.csv')
     parser.add_argument('--doe', type=str, default='doe_gw_fairing.json',
                         help='DOE JSON for defect sample list')
+    parser.add_argument('--no_doe', action='store_true',
+                        help='Use fallback scan for defects (ignore doe file)')
     parser.add_argument('--output', type=str, default='data/processed_gw',
                         help='Output directory')
     parser.add_argument('--val_ratio', type=float, default=0.2)
     parser.add_argument('--seed', type=int, default=42)
+    parser.add_argument('--no_augmented', action='store_true',
+                        help='Exclude Healthy-A* augmented samples')
+    parser.add_argument('--feature_set', type=str, default='baseline',
+                        choices=['baseline', 'extended', 'full'],
+                        help='baseline=3, extended=10, full=15 feat')
     args = parser.parse_args()
 
     prepare_gw_dataset(
         args.input, args.output,
-        doe_path=args.doe,
+        doe_path=None if args.no_doe else args.doe,
         val_ratio=args.val_ratio,
         seed=args.seed,
+        include_augmented=not args.no_augmented,
+        feature_set=args.feature_set,
     )
 
 

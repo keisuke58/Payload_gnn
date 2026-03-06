@@ -81,7 +81,24 @@ python scripts/validate_defect_types.py --skip-dataset
 
 ---
 
-## 6. 関連
+## 6. 全欠陥タイプの可視化と検出難易度
+
+全 9 種の欠陥（debonding, fod, impact, delamination, crack, inner_debond, thermal_progression, acoustic_fatigue, core_damage）の概念可視化と、SHM における検出難易度の考察。
+
+```bash
+python scripts/visualize_all_defect_types.py
+```
+
+詳細: [docs/DEFECT_TYPES_VISUALIZATION_AND_DIFFICULTY.md](../docs/DEFECT_TYPES_VISUALIZATION_AND_DIFFICULTY.md)
+
+**検出難易度（要約）**:
+- **容易**: Debonding, FOD, Impact
+- **中程度**: Delamination, Core Damage, Crack
+- **困難**: Inner Debond, Thermal Progression, Acoustic Fatigue
+
+---
+
+## 7. 関連
 
 | ページ | 内容 |
 |--------|------|
@@ -90,3 +107,4 @@ python scripts/validate_defect_types.py --skip-dataset
 | [Defect-Physics-Validation](Defect-Physics-Validation) | 物理量検証・可視化 |
 | [Multi-Class-Roadmap](Multi-Class-Roadmap) | マルチクラス分類ロードマップ |
 | docs/DEFECT_MODELS_ACADEMIC.md | 学術的根拠・文献一覧 |
+| docs/DEFECT_TYPES_VISUALIZATION_AND_DIFFICULTY.md | 可視化・検出難易度考察 |
