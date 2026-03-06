@@ -29,6 +29,9 @@ generate_doe.py → generate_fairing_dataset.py (Abaqus CAE)
 - 日本語で会話する
 - まず1つ生成して確認してから丁寧に進める
 
+## Figures
+- 図・ラベルは英語で作成する（Fig. 1, Figure 1 等）
+
 ## Git / PR Rules
 - PR の body に "Generated with Claude Code" を書かない
 - コミットメッセージは日本語OK、Co-Authored-By は付ける
