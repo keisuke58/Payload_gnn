@@ -88,27 +88,121 @@ def load_sensor_csv(csv_path):
     return times, sensor_data, positions[:len(sensor_ids)]
 
 
-def extract_time_features(times, sensor_data):
+def _safe_fft_features(sig, dt):
+    """Spectral features. Returns (dom_freq, centroid, bandwidth, rolloff) all norm by Nyquist."""
+    if len(sig) < 4 or dt <= 0:
+        return 0.0, 0.0, 0.0, 0.0
+    n = len(sig)
+    fft = np.fft.rfft(sig)
+    mag = np.abs(fft)
+    freqs = np.fft.rfftfreq(n, dt)
+    total = np.sum(mag)
+    if total < 1e-12:
+        return 0.0, 0.0, 0.0, 0.0
+    dominant_idx = np.argmax(mag[1:]) + 1
+    dominant_freq = freqs[dominant_idx]
+    centroid = np.sum(freqs * mag) / total
+    bandwidth = np.sqrt(np.sum(((freqs - centroid) ** 2) * mag) / (total + 1e-12))
+    # Rolloff: freq below which 85% of energy
+    cum = np.cumsum(mag)
+    thresh = 0.85 * cum[-1]
+    rolloff_idx = np.searchsorted(cum, thresh)
+    rolloff_idx = min(rolloff_idx, len(freqs) - 1)
+    rolloff = freqs[rolloff_idx]
+    nyq = 0.5 / dt if dt > 0 else 1.0
+    return (float(dominant_freq / nyq) if nyq > 0 else 0.0,
+            float(centroid / nyq) if nyq > 0 else 0.0,
+            float(bandwidth / nyq) if nyq > 0 else 0.0,
+            float(rolloff / nyq) if nyq > 0 else 0.0)
+
+
+def _hilbert_envelope_max(sig):
+    """Hilbert envelope max. Returns 0 if too short."""
+    if len(sig) < 4:
+        return 0.0
+    from scipy.signal import hilbert
+    try:
+        analytic = hilbert(sig)
+        envelope = np.abs(analytic)
+        return float(np.max(envelope))
+    except Exception:
+        return 0.0
+
+
+def _safe_skew_kurt(sig):
+    """Skewness and excess kurtosis. Returns (0,0) if std too small."""
+    if len(sig) < 4:
+        return 0.0, 0.0
+    std = np.std(sig)
+    if std < 1e-12:
+        return 0.0, 0.0
+    mean = np.mean(sig)
+    z = (sig - mean) / std
+    skew = np.mean(z ** 3)
+    kurt = np.mean(z ** 4) - 3.0  # excess
+    return float(np.clip(skew, -10, 10)), float(np.clip(kurt, -10, 10))
+
+
+def extract_time_features(times, sensor_data, feature_set='baseline'):
     """Extract per-sensor features from time series.
 
+    Args:
+        times: (n_steps,) array
+        sensor_data: dict {sensor_id: (n_steps,) array}
+        feature_set: 'baseline' (3), 'extended' (10), or 'full' (15)
+
     Returns (n_sensors, n_features) array.
-    Features: max_abs, rms, peak_time_norm
+
+    Baseline: max_abs, rms, peak_time_norm
+    Extended: + mean, std, peak_to_peak, energy, zcr, dom_freq, spec_centroid
+    Full: + envelope_max, skewness, kurtosis, spectral_bandwidth
     """
     sensor_ids = sorted(sensor_data.keys())
     features = []
     t_max = times[-1] if len(times) > 0 else 1.0
+    dt = (times[1] - times[0]) if len(times) > 1 else 1e-6
+
+    n_baseline = 3
+    n_extended = 7   # extended adds 7
+    n_full_extra = 5  # full adds 5 more: envelope, skew, kurt, bandwidth
 
     for sid in sensor_ids:
         sig = sensor_data[sid]
         if len(sig) == 0:
-            features.append([0.0, 0.0, 0.0])
+            n = n_baseline
+            if feature_set == 'extended':
+                n = n_baseline + n_extended
+            elif feature_set == 'full':
+                n = n_baseline + n_extended + n_full_extra
+            features.append([0.0] * n)
             continue
+
+        # Baseline
         max_abs = np.max(np.abs(sig))
         rms = np.sqrt(np.mean(sig ** 2))
         peak_idx = np.argmax(np.abs(sig))
         peak_time = times[peak_idx] if peak_idx < len(times) else 0.0
         peak_time_norm = peak_time / t_max if t_max > 0 else 0.0
-        features.append([max_abs, rms, peak_time_norm])
+        row = [max_abs, rms, peak_time_norm]
+
+        if feature_set in ('extended', 'full'):
+            mean = np.mean(sig)
+            std = np.std(sig)
+            std = std if std > 1e-12 else 1e-12
+            peak_to_peak = np.ptp(sig)
+            energy_raw = np.sum(sig ** 2) * dt if dt > 0 else np.sum(sig ** 2)
+            energy = np.log1p(energy_raw)
+            zero_crossings = np.sum(np.abs(np.diff(np.sign(sig)))) / 2
+            zcr = zero_crossings / (len(sig) - 1) if len(sig) > 1 else 0.0
+            dom_freq, spec_cent, spec_bw, spec_rolloff = _safe_fft_features(sig, dt)
+            row.extend([mean, std, peak_to_peak, energy, zcr, dom_freq, spec_cent])
+
+        if feature_set == 'full':
+            envelope_max = _hilbert_envelope_max(sig)
+            skew, kurt = _safe_skew_kurt(sig)
+            row.extend([envelope_max, skew, kurt, spec_bw, spec_rolloff])
+
+        features.append(row)
 
     return np.array(features, dtype=np.float32)
 
@@ -130,7 +224,7 @@ def build_edge_index(n_sensors, positions, connectivity='full'):
     return torch.zeros((2, 0), dtype=torch.long)
 
 
-def build_gw_graph(csv_path, label, positions=None, connectivity='full'):
+def build_gw_graph(csv_path, label, positions=None, connectivity='full', feature_set='baseline'):
     """Build PyG Data from sensor CSV.
 
     Args:
@@ -138,6 +232,7 @@ def build_gw_graph(csv_path, label, positions=None, connectivity='full'):
         label: 0=healthy, 1=defect
         positions: optional override (arc_mm or x_mm)
         connectivity: 'full' or 'knn'
+        feature_set: 'baseline' (3), 'extended' (10), or 'full' (15)
 
     Returns:
         Data(x, edge_index, y, pos)
@@ -147,7 +242,7 @@ def build_gw_graph(csv_path, label, positions=None, connectivity='full'):
         return None
 
     pos_use = positions if positions is not None else pos_from_csv
-    features = extract_time_features(times, sensor_data)
+    features = extract_time_features(times, sensor_data, feature_set=feature_set)
     n_sensors = features.shape[0]
 
     # Normalize positions for pos attribute
@@ -176,13 +271,16 @@ def main():
     parser.add_argument('--output', type=str, default='gw_graph.pt')
     parser.add_argument('--connectivity', type=str, default='full',
                         choices=['full', 'knn'])
+    parser.add_argument('--feature_set', type=str, default='baseline',
+                        choices=['baseline', 'extended', 'full'])
     args = parser.parse_args()
 
     if not args.csv or not os.path.exists(args.csv):
         print("ERROR: CSV not found: %s" % args.csv)
         return 1
 
-    data = build_gw_graph(args.csv, args.label, connectivity=args.connectivity)
+    data = build_gw_graph(args.csv, args.label, connectivity=args.connectivity,
+                          feature_set=args.feature_set)
     if data is None:
         print("ERROR: Failed to build graph")
         return 1
