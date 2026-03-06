@@ -12,7 +12,7 @@
 #   bash scripts/pipeline_fno_gnn.sh train_gnn      # Step 4: GNN 学習
 #   bash scripts/pipeline_fno_gnn.sh all             # 全ステップ実行
 
-set -e
+set -o pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
