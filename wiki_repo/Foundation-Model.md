@@ -283,8 +283,9 @@ Val Loss ∝ P^{-β}  (P = パラメータ数)
 
 | コンポーネント | ファイル | 状態 | 結果 |
 |---------------|---------|------|------|
-| Chronos-Bolt (GW異常検知) | `src/chronos_shm.py` | 完了 | 100% defect detection (2/2) |
-| AnomalyGFM (グラフ異常検知) | `src/anomalygfm_shm.py` | 完了 | AUROC=0.54 (zero-shot, ドメイン外) |
+| Chronos-Bolt (GW異常検知) | `src/chronos_shm.py` | 完了 | 100% detection (102件, FP=4) |
+| AnomalyGFM (グラフ異常検知) | `src/anomalygfm_shm.py` | 完了 | AUROC=0.75 (fine-tuned) |
+| **GPN (Bayesian GNN)** | `src/gpn_shm.py` | **完了** | **AUROC=0.999, AUPRC=0.956** |
 | MeshGraphNet (FEMサロゲート) | `src/physicsnemo_surrogate.py` | 学習中 | vancouver02 GPU |
 | 静的-動的ハイブリッド融合 | `src/fuse_static_dynamic.py` | 完了 | 34→66 dim (PCA 99.8% variance) |
 | Chronos埋め込み抽出 | `src/extract_chronos_embeddings.py` | 完了 | 102 samples processed |
@@ -300,7 +301,7 @@ Val Loss ∝ P^{-β}  (P = パラメータ数)
 
 | 優先度 | 手法 | 論文 | インパクト |
 |--------|------|------|-----------|
-| P1 | Graph Posterior Network (GPN) | Stadler+, NeurIPS 2021 | ベイズ不確実性 + OOD検知 |
+| ~~P1~~ | ~~Graph Posterior Network (GPN)~~ | Stadler+, NeurIPS 2021 | **実装済み: AUROC=0.999** |
 | P2 | CWT特徴量融合 | Xu+, SHM 2025 | Lamb波の周波数特徴をGNNに追加 |
 | P3 | BNN推論層 | Cho+, 2025 | サロゲートモデルの信頼区間 |
 | P4 | 物理エッジ重み | TPF-GNet, 2026 | 学習可能な剛性・減衰 |
