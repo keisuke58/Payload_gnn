@@ -183,6 +183,10 @@ def train_dann(args):
     tgt_val = torch.load(os.path.join(args.target_dir, 'val.pt'),
                          weights_only=False)
 
+    # Binarize labels (multiclass → binary: 0=healthy, >0=defect)
+    for d in src_train + src_val + tgt_train + tgt_val:
+        d.y = (d.y > 0).long()
+
     # Normalize all data with source stats
     if norm_stats is not None:
         x_mean = norm_stats['mean'].to(device)
@@ -427,6 +431,10 @@ def train_baseline(args):
     # Load target
     tgt_val = torch.load(os.path.join(args.target_dir, 'val.pt'),
                          weights_only=False)
+
+    # Binarize labels
+    for d in src_train + src_val + tgt_val:
+        d.y = (d.y > 0).long()
 
     # Normalize
     if norm_stats is not None:
