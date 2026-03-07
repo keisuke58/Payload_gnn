@@ -37,12 +37,12 @@ ELEM_XY = 2.0   # mm
 
 # Impact parameters
 IMP_R = 6.35            # impact zone radius (mm)
-PEAK_PRESSURE = 50.0    # MPa (distributed over impact zone)
+PEAK_PRESSURE = 10.0    # MPa (conservative — avoids DGD nonconvergence)
 PULSE_DURATION = 0.0005 # s (0.5 ms half-sine)
 
 # Analysis
 TIME_PERIOD = 0.001     # s (1 ms total — pulse + response)
-MASS_SCALING = 25       # factor (sqrt(25)=5x speedup)
+MASS_SCALING = 4        # factor (sqrt(4)=2x speedup, minimal)
 
 # CompDam feature flags:
 #   1xxxxx = matrix damage (CDM), 2=cohesive

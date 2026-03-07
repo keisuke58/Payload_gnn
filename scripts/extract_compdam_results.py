@@ -28,64 +28,44 @@ def extract_damage(odb_path):
     step = odb.steps['Impact']
     last_frame = step.frames[-1]
 
-    # SDV indices (1-based): CDM_d2=1, CDM_d1T=18, CDM_d1C=19, CDM_STATUS=11
-    # Also CDM_FIm=9 (failure index)
+    # SDV field names — Abaqus uses named labels from *Depvar
     sdv_keys = {
-        'CDM_d2': 'SDV1',
-        'CDM_FIm': 'SDV9',
-        'CDM_STATUS': 'SDV11',
-        'CDM_FIfT': 'SDV14',
-        'CDM_FIfC': 'SDV17',
-        'CDM_d1T': 'SDV18',
-        'CDM_d1C': 'SDV19',
+        'CDM_d2': 'SDV_CDM_D2',
+        'CDM_FIm': 'SDV_CDM_FIM',
+        'CDM_STATUS': 'SDV_CDM_STATUS',
+        'CDM_FIfT': 'SDV_CDM_FIFT',
+        'CDM_FIfC': 'SDV_CDM_FIFC',
+        'CDM_d1T': 'SDV_CDM_D1T',
+        'CDM_d1C': 'SDV_CDM_D1C',
     }
 
-    # Stress components
-    stress_field = last_frame.fieldOutputs.get('S', None)
+    # List available field outputs
+    available = list(last_frame.fieldOutputs.keys())
+    print("  Available fields: {}".format(', '.join(available[:20])))
 
-    results = []
-
-    for sdv_name, sdv_label in sdv_keys.items():
-        field = last_frame.fieldOutputs.get(sdv_label, None)
-        if field is None:
-            print("WARNING: {} not found in ODB".format(sdv_label))
-            continue
-
-        for val in field.values:
-            elem_label = val.elementLabel
-            instance = val.instance.name if val.instance else ''
-
-            # Find existing row or create new
-            found = False
-            for r in results:
-                if r['elem'] == elem_label and r['instance'] == instance:
-                    r[sdv_name] = val.data
-                    found = True
-                    break
-            if not found:
-                row = {'elem': elem_label, 'instance': instance, sdv_name: val.data}
-                # Get element centroid from integration point position
-                if hasattr(val, 'position'):
-                    pass  # will get from stress field
-                results.append(row)
-
-    # More efficient: collect all SDVs per element in one pass
-    # Re-do with better approach
+    # Collect SDVs per element
     results = {}
     for sdv_name, sdv_label in sdv_keys.items():
-        field = last_frame.fieldOutputs.get(sdv_label, None)
-        if field is None:
+        if sdv_label not in last_frame.fieldOutputs:
+            print("  WARNING: {} not found".format(sdv_label))
             continue
+        field = last_frame.fieldOutputs[sdv_label]
         for val in field.values:
-            key = (val.instance.name if val.instance else '', val.elementLabel)
+            inst = val.instance.name if val.instance else ''
+            key = (inst, val.elementLabel)
             if key not in results:
-                results[key] = {'instance': key[0], 'elem': key[1]}
-            results[key][sdv_name] = float(val.data) if hasattr(val.data, '__float__') else val.data
+                results[key] = {'instance': inst, 'elem': val.elementLabel}
+            try:
+                results[key][sdv_name] = float(val.data)
+            except (TypeError, AttributeError):
+                results[key][sdv_name] = val.data
 
-    # Also extract stress S11 for stiffness estimation
-    if stress_field:
+    # Extract stress S11 for stiffness estimation
+    if 'S' in last_frame.fieldOutputs:
+        stress_field = last_frame.fieldOutputs['S']
         for val in stress_field.values:
-            key = (val.instance.name if val.instance else '', val.elementLabel)
+            inst = val.instance.name if val.instance else ''
+            key = (inst, val.elementLabel)
             if key in results:
                 results[key]['S11'] = float(val.data[0])
                 results[key]['S22'] = float(val.data[1])
