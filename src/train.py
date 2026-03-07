@@ -237,8 +237,33 @@ DEFECT_TYPE_NAMES = [
 ]
 
 
+def optimize_binary_threshold(probs_defect, targets_binary):
+    """Find optimal threshold for binary (healthy vs defect) F1.
+
+    Args:
+        probs_defect: (N,) P(defect) scores
+        targets_binary: (N,) 0=healthy, 1=defect
+
+    Returns:
+        best_f1, best_threshold, best_precision, best_recall
+    """
+    best_f1, best_t, best_p, best_r = 0.0, 0.5, 0.0, 0.0
+    for t in np.arange(0.01, 1.0, 0.01):
+        preds = (probs_defect > t).astype(int)
+        f1 = f1_score(targets_binary, preds, zero_division=0)
+        if f1 > best_f1:
+            best_f1 = f1
+            best_t = t
+            best_p = precision_score(targets_binary, preds, zero_division=0)
+            best_r = recall_score(targets_binary, preds, zero_division=0)
+    return float(best_f1), float(best_t), float(best_p), float(best_r)
+
+
 def compute_metrics(logits, targets, num_classes=2):
-    """Compute classification metrics (binary or multi-class)."""
+    """Compute classification metrics (binary or multi-class).
+
+    Always includes threshold-optimized binary F1 (healthy vs any defect).
+    """
     preds = logits.argmax(dim=1).cpu().numpy()
     targets_np = targets.cpu().numpy()
 
@@ -279,6 +304,17 @@ def compute_metrics(logits, targets, num_classes=2):
         for c in range(min(len(f1_per), num_classes)):
             name = DEFECT_TYPE_NAMES[c] if c < len(DEFECT_TYPE_NAMES) else 'class_%d' % c
             result['f1_%s' % name] = float(f1_per[c])
+
+    # Threshold-optimized binary F1 (healthy vs any defect)
+    probs_all = F.softmax(logits, dim=1).detach().cpu().numpy()
+    probs_defect = 1.0 - probs_all[:, 0]  # P(any defect)
+    targets_bin = (targets_np > 0).astype(int)
+    if targets_bin.sum() > 0:
+        opt_f1, opt_t, opt_p, opt_r = optimize_binary_threshold(probs_defect, targets_bin)
+        result['opt_f1'] = opt_f1
+        result['opt_threshold'] = opt_t
+        result['opt_precision'] = opt_p
+        result['opt_recall'] = opt_r
 
     return result
 
@@ -645,7 +681,8 @@ def train(args, train_data, val_data, fold=None):
         with open(log_path, 'w', newline='') as f:
             writer = csv_module.writer(f)
             writer.writerow(['epoch', 'train_loss', 'train_f1', 'train_acc',
-                             'val_loss', 'val_f1', 'val_acc', 'val_auc', 'lr'])
+                             'val_loss', 'val_f1', 'val_acc', 'val_auc', 'lr',
+                             'val_opt_f1', 'val_opt_threshold'])
         # TensorBoard
         tb_writer = SummaryWriter(log_dir=run_dir)
         tb_writer.add_text('config', json.dumps(vars(args), indent=2))
@@ -699,7 +736,9 @@ def train(args, train_data, val_data, fold=None):
                                  '%.4f' % train_m['accuracy'],
                                  '%.6f' % val_m['loss'], '%.4f' % val_m['f1'],
                                  '%.4f' % val_m['accuracy'], '%.4f' % val_m['auc'],
-                                 '%.2e' % lr])
+                                 '%.2e' % lr,
+                                 '%.4f' % val_m.get('opt_f1', 0.0),
+                                 '%.3f' % val_m.get('opt_threshold', 0.5)])
 
             # Log TensorBoard
             if tb_writer is not None:
@@ -710,6 +749,9 @@ def train(args, train_data, val_data, fold=None):
                 tb_writer.add_scalar('val/precision', val_m['precision'], epoch)
                 tb_writer.add_scalar('val/recall', val_m['recall'], epoch)
                 tb_writer.add_scalar('lr', lr, epoch)
+                if 'opt_f1' in val_m:
+                    tb_writer.add_scalar('val/opt_f1', val_m['opt_f1'], epoch)
+                    tb_writer.add_scalar('val/opt_threshold', val_m['opt_threshold'], epoch)
                 # Physics-informed loss components
                 for pk in ('physics_smooth', 'physics_stress', 'physics_connected'):
                     if pk in train_m:
@@ -722,10 +764,13 @@ def train(args, train_data, val_data, fold=None):
                             tb_writer.add_scalar('val_f1_class/%s' % name, val_m[key], epoch)
 
             if epoch % args.log_every == 0 or epoch == 1:
+                opt_str = ""
+                if 'opt_f1' in val_m:
+                    opt_str = " | OptF1=%.4f(t=%.2f)" % (val_m['opt_f1'], val_m['opt_threshold'])
                 msg = ("  Epoch %3d/%d | Train F1=%.4f Loss=%.4f | "
-                       "Val F1=%.4f AUC=%.4f Loss=%.4f | LR=%.2e | %.1fs" %
+                       "Val F1=%.4f AUC=%.4f%s Loss=%.4f | LR=%.2e | %.1fs" %
                        (epoch, args.epochs, train_m['f1'], train_m['loss'],
-                        val_m['f1'], val_m['auc'], val_m['loss'], lr, elapsed))
+                        val_m['f1'], val_m['auc'], opt_str, val_m['loss'], lr, elapsed))
                 # Per-class F1 for multi-class
                 if num_classes > 2:
                     parts = []
@@ -736,9 +781,10 @@ def train(args, train_data, val_data, fold=None):
                     msg += '\n    Per-class: ' + ' | '.join(parts)
                 print(msg)
 
-            # Checkpoint best
-            if val_m['f1'] > best_val_f1:
-                best_val_f1 = val_m['f1']
+            # Checkpoint best (use opt_f1 if available, else f1)
+            current_f1 = val_m.get('opt_f1', val_m['f1'])
+            if current_f1 > best_val_f1:
+                best_val_f1 = current_f1
                 patience_counter = 0
                 save_dict = {
                     'epoch': epoch,
@@ -761,8 +807,9 @@ def train(args, train_data, val_data, fold=None):
                 break
         else:
             # Non-main ranks: track patience for synchronized early stopping
-            if val_m['f1'] > best_val_f1:
-                best_val_f1 = val_m['f1']
+            current_f1 = val_m.get('opt_f1', val_m['f1'])
+            if current_f1 > best_val_f1:
+                best_val_f1 = current_f1
                 patience_counter = 0
             else:
                 patience_counter += 1
@@ -770,7 +817,7 @@ def train(args, train_data, val_data, fold=None):
                 break
 
     if is_main:
-        print("  Best Val F1: %.4f" % best_val_f1)
+        print("  Best Val OptF1: %.4f" % best_val_f1)
 
         # Load best model and print final per-class metrics
         if num_classes > 2:
