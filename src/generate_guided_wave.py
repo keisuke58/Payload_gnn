@@ -190,6 +190,79 @@ def create_sections(model):
         name='Section-Core', material='AL_HONEYCOMB', thickness=None)
 
 
+def create_defect_materials_gw(model, defect_params):
+    """Create defect-type materials for GW (no CTE — dynamic only)."""
+    defect_type = defect_params.get('defect_type', 'debonding')
+
+    if defect_type == 'fod':
+        sf = defect_params.get('stiffness_factor', 10.0)
+        mat = model.Material(name='AL_HONEYCOMB_FOD')
+        mat.Elastic(type=ENGINEERING_CONSTANTS, table=((
+            E_CORE_1 * sf, E_CORE_2 * sf, E_CORE_3 * sf,
+            NU_CORE_12, NU_CORE_13, NU_CORE_23,
+            G_CORE_12 * sf, G_CORE_13 * sf, G_CORE_23 * sf
+        ), ))
+        mat.Density(table=((200e-12, ), ))
+    elif defect_type == 'impact':
+        dr = defect_params.get('damage_ratio', 0.3)
+        mat_skin = model.Material(name='CFRP_IMPACT_DAMAGED')
+        mat_skin.Elastic(type=LAMINA, table=((
+            E1 * 0.7, E2 * dr, NU12,
+            G12 * dr, G13 * dr, G23 * dr
+        ), ))
+        mat_skin.Density(table=((CFRP_DENSITY, ), ))
+
+        mat_core = model.Material(name='AL_HONEYCOMB_CRUSHED')
+        mat_core.Elastic(type=ENGINEERING_CONSTANTS, table=((
+            E_CORE_1 * 0.5, E_CORE_2 * 0.5, E_CORE_3 * 0.1,
+            NU_CORE_12, NU_CORE_13, NU_CORE_23,
+            G_CORE_12 * 0.5, G_CORE_13 * 0.1, G_CORE_23 * 0.1
+        ), ))
+        mat_core.Density(table=((CORE_DENSITY, ), ))
+    elif defect_type == 'delamination':
+        depth = defect_params.get('delam_depth', 0.5)
+        shear_red = max(0.05, 1.0 - depth)
+        mat = model.Material(name='CFRP_DELAMINATED')
+        mat.Elastic(type=LAMINA, table=((
+            E1 * 0.9, E2 * (0.3 + 0.5 * (1 - depth)), NU12,
+            G12 * shear_red, G13 * shear_red, G23 * shear_red
+        ), ))
+        mat.Density(table=((CFRP_DENSITY, ), ))
+    else:
+        return
+    print("Defect materials created: type=%s" % defect_type)
+
+
+def create_defect_sections_gw(model, defect_params):
+    """Create sections for defect-zone (FOD, Impact, Delamination)."""
+    defect_type = defect_params.get('defect_type', 'debonding')
+    angles = [45.0, 0.0, -45.0, 90.0, 90.0, -45.0, 0.0, 45.0]
+
+    if defect_type == 'fod':
+        model.HomogeneousSolidSection(
+            name='Section-Core-FOD', material='AL_HONEYCOMB_FOD', thickness=None)
+    elif defect_type == 'impact':
+        entries = [section.SectionLayer(
+            thickness=FACE_T / 8.0, orientAngle=ang, material='CFRP_IMPACT_DAMAGED')
+            for ang in angles]
+        model.CompositeShellSection(
+            name='Section-CFRP-Impact', preIntegrate=OFF,
+            idealization=NO_IDEALIZATION, layup=entries, symmetric=OFF,
+            thicknessType=UNIFORM, poissonDefinition=DEFAULT,
+            temperature=GRADIENT, integrationRule=SIMPSON)
+        model.HomogeneousSolidSection(
+            name='Section-Core-Crushed', material='AL_HONEYCOMB_CRUSHED', thickness=None)
+    elif defect_type == 'delamination':
+        entries = [section.SectionLayer(
+            thickness=FACE_T / 8.0, orientAngle=ang, material='CFRP_DELAMINATED')
+            for ang in angles]
+        model.CompositeShellSection(
+            name='Section-CFRP-Delam', preIntegrate=OFF,
+            idealization=NO_IDEALIZATION, layup=entries, symmetric=OFF,
+            thicknessType=UNIFORM, poissonDefinition=DEFAULT,
+            temperature=GRADIENT, integrationRule=SIMPSON)
+
+
 # ==============================================================================
 # GEOMETRY
 # ==============================================================================
@@ -411,6 +484,48 @@ def assign_sections_curved(p_inner, p_core, p_outer):
           "Cartesian for skins")
 
 
+def assign_defect_sections_flat(p_core, p_outer, defect_params):
+    """Assign defect-type sections to defect zone (FOD, Impact, Delamination)."""
+    defect_type = defect_params.get('defect_type', 'debonding')
+    if defect_type == 'debonding' or defect_type == 'inner_debond':
+        return
+
+    # Core defect cells (centroid in defect zone)
+    core_defect_cells = []
+    for c in p_core.cells:
+        try:
+            pt = c.getCentroid()
+            if _point_in_defect(pt[0], pt[1], defect_params):
+                core_defect_cells.append(c)
+        except Exception:
+            pass
+
+    # Outer skin defect faces
+    outer_defect_faces = []
+    for f in p_outer.faces:
+        pt = f.pointOn[0]
+        if _point_in_defect(pt[0], pt[1], defect_params):
+            outer_defect_faces.append(f)
+
+    if defect_type == 'fod' and core_defect_cells:
+        region = p_core.Set(cells=core_defect_cells, name='Set-Defect-Core')
+        p_core.SectionAssignment(region=region, sectionName='Section-Core-FOD')
+        print("  FOD: %d core cells -> Section-Core-FOD" % len(core_defect_cells))
+    elif defect_type == 'impact':
+        if core_defect_cells:
+            region = p_core.Set(cells=core_defect_cells, name='Set-Defect-Core')
+            p_core.SectionAssignment(region=region, sectionName='Section-Core-Crushed')
+            print("  Impact: %d core cells -> Section-Core-Crushed" % len(core_defect_cells))
+        if outer_defect_faces:
+            region = p_outer.Set(faces=outer_defect_faces, name='Set-Defect-OuterSkin')
+            p_outer.SectionAssignment(region=region, sectionName='Section-CFRP-Impact')
+            print("  Impact: %d outer faces -> Section-CFRP-Impact" % len(outer_defect_faces))
+    elif defect_type == 'delamination' and outer_defect_faces:
+        region = p_outer.Set(faces=outer_defect_faces, name='Set-Defect-OuterSkin')
+        p_outer.SectionAssignment(region=region, sectionName='Section-CFRP-Delam')
+        print("  Delamination: %d outer faces -> Section-CFRP-Delam" % len(outer_defect_faces))
+
+
 def assign_sections(p_inner, p_core, p_outer):
     """Assign sections to all parts with MaterialOrientation."""
     # Inner skin
@@ -472,22 +587,32 @@ def create_tie_constraints(model, assembly, inst_inner, inst_core, inst_outer,
                            defect_params=None):
     """Create Tie constraints between skins and core.
 
-    Tie 1: Inner skin (Z=0) <-> Core bottom face (Z=0) — always full
+    Tie 1: Inner skin (Z=0) <-> Core bottom face (Z=0)
+           If defect_type=inner_debond: excludes defect zone
     Tie 2: Core top face (Z=CORE_T) <-> Outer skin (Z=CORE_T)
-           If defect_params: excludes defect zone (debonding)
+           If defect_type=debonding: excludes defect zone
 
-    Debonding is modeled by removing Tie in the defect region,
-    allowing the wave to scatter at the debonding boundary.
+    debonding/inner_debond: Tie removal (wave scatters).
+    fod/impact/delamination: Full Tie (material change only).
     """
-    # --- Tie 1: Inner skin <-> Core bottom (always full, no defect) ---
+    # --- Tie 1: Inner skin <-> Core bottom ---
+    # inner_debond: exclude defect zone. Others: full Tie.
+    tie1_exclude_defect = (defect_params and
+                          defect_params.get('defect_type') == 'inner_debond')
     surf_inner = assembly.Surface(
         side1Faces=inst_inner.faces, name='Surf-InnerSkin')
 
-    core_bot_pts = []
+    core_bot_healthy_pts = []
+    core_bot_defect_pts = []
     for f in inst_core.faces:
         pt = f.pointOn[0]
         if abs(pt[2]) < 0.1:
-            core_bot_pts.append((pt,))
+            if tie1_exclude_defect and _point_in_defect(pt[0], pt[1], defect_params):
+                core_bot_defect_pts.append((pt,))
+            else:
+                core_bot_healthy_pts.append((pt,))
+    core_bot_pts = core_bot_healthy_pts if tie1_exclude_defect else \
+        core_bot_healthy_pts + core_bot_defect_pts
     if core_bot_pts:
         core_bot_seq = inst_core.faces.findAt(*core_bot_pts)
         surf_core_bot = assembly.Surface(
@@ -496,18 +621,22 @@ def create_tie_constraints(model, assembly, inst_inner, inst_core, inst_outer,
                   main=surf_core_bot, secondary=surf_inner,
                   positionToleranceMethod=COMPUTED, adjust=ON,
                   tieRotations=ON, thickness=ON)
-        print("Tie 1: InnerSkin <-> Core bottom (%d faces)" % len(core_bot_pts))
+        print("Tie 1: InnerSkin <-> Core bottom (%d faces)%s" % (
+            len(core_bot_pts), " (excl inner_debond zone)" if tie1_exclude_defect else ""))
     else:
         print("WARNING: No core bottom faces found for Tie 1")
 
     # --- Tie 2: Outer skin <-> Core top ---
-    # Collect core top faces and outer skin faces, excluding defect zone
+    # debonding: exclude defect zone. fod/impact/delamination: full Tie.
+    # Default to debonding when defect_params exists but defect_type not specified
+    tie2_exclude_defect = (defect_params and
+                           defect_params.get('defect_type', 'debonding') == 'debonding')
     core_top_healthy_pts = []
     core_top_defect_pts = []
     for f in inst_core.faces:
         pt = f.pointOn[0]
         if abs(pt[2] - CORE_T) < 0.1:
-            if defect_params and _point_in_defect(pt[0], pt[1], defect_params):
+            if tie2_exclude_defect and _point_in_defect(pt[0], pt[1], defect_params):
                 core_top_defect_pts.append((pt,))
             else:
                 core_top_healthy_pts.append((pt,))
@@ -516,7 +645,7 @@ def create_tie_constraints(model, assembly, inst_inner, inst_core, inst_outer,
     outer_defect_pts = []
     for f in inst_outer.faces:
         pt = f.pointOn[0]
-        if defect_params and _point_in_defect(pt[0], pt[1], defect_params):
+        if tie2_exclude_defect and _point_in_defect(pt[0], pt[1], defect_params):
             outer_defect_pts.append((pt,))
         else:
             outer_healthy_pts.append((pt,))
@@ -535,7 +664,7 @@ def create_tie_constraints(model, assembly, inst_inner, inst_core, inst_outer,
                   tieRotations=ON, thickness=ON)
         print("Tie 2: Core top <-> OuterSkin HEALTHY (%d + %d faces)" % (
             len(core_top_healthy_pts), len(outer_healthy_pts)))
-    elif not defect_params:
+    elif not tie2_exclude_defect:
         # No defect: tie all
         if core_top_healthy_pts:
             core_top_seq = inst_core.faces.findAt(*core_top_healthy_pts)
@@ -552,13 +681,13 @@ def create_tie_constraints(model, assembly, inst_inner, inst_core, inst_outer,
     else:
         print("WARNING: No healthy faces for Tie 2")
 
-    # Report defect exclusion
-    if defect_params:
+    # Report defect exclusion (debonding / inner_debond)
+    if tie2_exclude_defect or tie1_exclude_defect:
         n_core_def = len(core_top_defect_pts)
         n_outer_def = len(outer_defect_pts)
-        print("Debonding: %d core top + %d outer skin faces UNTIED" % (
+        print("Tie exclusion: %d core top + %d outer skin faces UNTIED" % (
             n_core_def, n_outer_def))
-        if n_core_def == 0 and n_outer_def == 0:
+        if tie2_exclude_defect and n_core_def == 0 and n_outer_def == 0:
             print("WARNING: No faces found in defect zone — check defect params")
 
 
@@ -1113,12 +1242,15 @@ def generate_model(job_name, freq_khz=DEFAULT_FREQ_KHZ, n_cycles=DEFAULT_CYCLES,
         mesh_seed, CP_ESTIMATE / freq_hz * 1000.0))
     print("  Time: %.3e s (%.3f ms)" % (time_period, time_period * 1e3))
     if defect_params:
+        dtype = defect_params.get('defect_type', 'debonding')
         if geometry == 'flat':
-            print("  Defect: DEBONDING at (%.0f, %.0f) r=%.0f mm" % (
+            print("  Defect: %s at (%.0f, %.0f) r=%.0f mm" % (
+                dtype.upper(),
                 defect_params['x_center'], defect_params['y_center'],
                 defect_params['radius']))
         else:
-            print("  Defect: DEBONDING at y=%.0f theta=%.1f deg r=%.0f mm" % (
+            print("  Defect: %s at y=%.0f theta=%.1f deg r=%.0f mm" % (
+                dtype.upper(),
                 defect_params['y_center'], defect_params['theta_deg'],
                 defect_params['radius']))
     else:
@@ -1131,6 +1263,9 @@ def generate_model(job_name, freq_khz=DEFAULT_FREQ_KHZ, n_cycles=DEFAULT_CYCLES,
     # 1. Materials & Sections
     create_materials(model)
     create_sections(model)
+    if defect_params and defect_params.get('defect_type') in ('fod', 'impact', 'delamination'):
+        create_defect_materials_gw(model, defect_params)
+        create_defect_sections_gw(model, defect_params)
 
     if geometry == 'flat':
         # 2. Parts
@@ -1143,6 +1278,8 @@ def generate_model(job_name, freq_khz=DEFAULT_FREQ_KHZ, n_cycles=DEFAULT_CYCLES,
 
         # 4. Assign sections
         assign_sections(p_inner, p_core, p_outer)
+        if defect_params and defect_params.get('defect_type') in ('fod', 'impact', 'delamination'):
+            assign_defect_sections_flat(p_core, p_outer, defect_params)
 
         # 5. Assembly
         a, inst_inner, inst_core, inst_outer = create_assembly(
@@ -1251,6 +1388,7 @@ if __name__ == '__main__':
                         help='Analysis time period in seconds (auto)')
     parser.add_argument('--defect', type=str, default=None,
                         help='Defect JSON. Flat: {"x_center":80,"y_center":0,"radius":25}. '
+                             'Add "defect_type":"fod"|"impact"|"delamination"|"inner_debond" for other defects. '
                              'Curved: {"y_center":150,"theta_deg":5,"radius":25}')
     parser.add_argument('--no_run', action='store_true',
                         help='Write INP only, do not run')

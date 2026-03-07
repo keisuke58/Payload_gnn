@@ -14,8 +14,11 @@ python scripts/visualize_all_defect_types.py
 
 出力: `wiki_repo/images/defects/`
 
-- `defect_*_comparison.png` — 各欠陥の Healthy / Defective / Residual 3 パネル
-- `defect_types_overview.png` — 全 9 種の Residual シグネチャ一覧
+- `defect_*_comparison.png` — 各欠陥の Healthy / Defective / Residual 3 パネル（2D contour）
+- `defect_*_3d.png` — 各欠陥の 3D 円筒フェアリング上のシグネチャ（画像風）
+- `defect_*_animation.gif` — 各欠陥の時間変化（概念アニメーション、中心から広がる）
+- `defect_types_overview.png` — 全 9 種の Residual シグネチャ一覧（2D）
+- `defect_types_overview_3d.png` — 全 9 種の 3D 一覧
 
 ### 1.2 欠陥タイプ一覧
 
@@ -100,13 +103,27 @@ Debonding  FOD  Impact  Delam  Crack  Core  Inner  Thermal  Acoustic
 
 ## 4. 可視化画像
 
-### 4.1 一覧図
+### 4.1 2D 一覧
 
 ![Defect Types Overview](../wiki_repo/images/defects/defect_types_overview.png)
 
-### 4.2 個別比較（例: Debonding）
+### 4.2 3D 一覧（円筒フェアリング上に欠陥シグネチャをマッピング）
 
-![Debonding](../wiki_repo/images/defects/defect_debonding_comparison.png)
+![Defect Types 3D Overview](../wiki_repo/images/defects/defect_types_overview_3d.png)
+
+### 4.3 個別 3D（例）
+
+| Debonding | FOD | Impact |
+|-----------|-----|--------|
+| ![Debonding 3D](../wiki_repo/images/defects/defect_debonding_3d.png) | ![FOD 3D](../wiki_repo/images/defects/defect_fod_3d.png) | ![Impact 3D](../wiki_repo/images/defects/defect_impact_3d.png) |
+
+### 4.4 動画（概念アニメーション）
+
+各欠陥のシグネチャが中心から広がる時間変化を GIF で表示。GW の波面アニメーションと同様の「変化」を概念的に表現。
+
+| Debonding | FOD | Impact |
+|-----------|-----|--------|
+| ![Debonding GIF](../wiki_repo/images/defects/defect_debonding_animation.gif) | ![FOD GIF](../wiki_repo/images/defects/defect_fod_animation.gif) | ![Impact GIF](../wiki_repo/images/defects/defect_impact_animation.gif) |
 
 ---
 
