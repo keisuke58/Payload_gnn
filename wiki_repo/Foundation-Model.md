@@ -279,7 +279,36 @@ Val Loss ∝ P^{-β}  (P = パラメータ数)
 
 ---
 
-## 10. 参考文献
+## 10. 実装済み Foundation Model コンポーネント (2026-03)
+
+| コンポーネント | ファイル | 状態 | 結果 |
+|---------------|---------|------|------|
+| Chronos-Bolt (GW異常検知) | `src/chronos_shm.py` | 完了 | 100% defect detection (2/2) |
+| AnomalyGFM (グラフ異常検知) | `src/anomalygfm_shm.py` | 完了 | AUROC=0.54 (zero-shot, ドメイン外) |
+| MeshGraphNet (FEMサロゲート) | `src/physicsnemo_surrogate.py` | 学習中 | vancouver02 GPU |
+| 静的-動的ハイブリッド融合 | `src/fuse_static_dynamic.py` | 完了 | 34→66 dim (PCA 99.8% variance) |
+| Chronos埋め込み抽出 | `src/extract_chronos_embeddings.py` | 完了 | 102 samples processed |
+| 統合実行スクリプト | `scripts/run_all_fm.sh` | 完了 | — |
+
+---
+
+## 11. 最新文献調査 (2024–2026)
+
+→ **[Advanced SHM Literature Survey (2024–2026)](Advanced-SHM-Literature-2024-2026)**
+
+### 次期実装候補（文献調査より）
+
+| 優先度 | 手法 | 論文 | インパクト |
+|--------|------|------|-----------|
+| P1 | Graph Posterior Network (GPN) | Stadler+, NeurIPS 2021 | ベイズ不確実性 + OOD検知 |
+| P2 | CWT特徴量融合 | Xu+, SHM 2025 | Lamb波の周波数特徴をGNNに追加 |
+| P3 | BNN推論層 | Cho+, 2025 | サロゲートモデルの信頼区間 |
+| P4 | 物理エッジ重み | TPF-GNet, 2026 | 学習可能な剛性・減衰 |
+| P5 | Transformer MAE | Benfenati+, 2024 | 事前学習のバックボーン強化 |
+
+---
+
+## 12. 参考文献
 
 | 論文 | 関連 |
 |------|------|
@@ -288,3 +317,8 @@ Val Loss ∝ P^{-β}  (P = パラメータ数)
 | Rampášek et al. (2022) GPS | Graph Transformer のベース |
 | He et al. (2022) GraphMAE | Masked Graph Autoencoder |
 | Kaplan et al. (2020) Scaling Laws | Neural Scaling Law の原論文 |
+| [Benfenati et al. (2024)](https://arxiv.org/abs/2404.02944) | Foundation Models for SHM |
+| [Stadler et al. (2021)](https://arxiv.org/abs/2110.14012) | Graph Posterior Network (Bayesian GNN) |
+| [Xu et al. (2025)](https://journals.sagepub.com/doi/10.1177/14759217241311942) | CFRP Deep Transfer Learning (CWT + Lamb Wave) |
+| [Cho et al. (2025)](https://arxiv.org/abs/2512.03115) | BNN for Digital Twin SHM |
+| [Song et al. (2026)](https://journals.sagepub.com/doi/10.1177/14759217241305050) | Physics-Guided NN for Lamb Wave |

@@ -15,7 +15,7 @@
 | **欠陥設計** | [欠陥生成・ラベリング](Defect-Generation-and-Labeling) · [拡張欠陥タイプ](Extended-Defect-Types) · [欠陥タイプ検証](Defect-Types-Validation) · [欠陥物理量検証](Defect-Physics-Validation) · [発生確率・割合](Defect-Occurrence-Probability-and-Dataset-Ratio) · [メッシュ欠陥](MESH_DEFECTS) |
 | **GNN 学習・結果** | [アーキテクチャ](Architecture) · [ML戦略](ML-Strategy) · [二値分類](Binary-Classification) · [解析結果](Analysis-Results) · [**論文用図表 (27枚)**](Paper-Figures) |
 | **解釈性・高度手法** | [XAIロードマップ](XAI-Roadmap) · [2段階スクリーニング](Two-Stage-Screening) · [Augmentation+物理損失](Augmentation-and-Physics-Loss) · [不確実性定量化](Uncertainty-Quantification) · [マルチクラス](Multi-Class-Roadmap) |
-| **先端技術** | [最先端ML](Cutting-Edge-ML) · [**PRAD (Physics-Residual AD)**](Physics-Residual-Anomaly-Detection) |
+| **先端技術** | [最先端ML](Cutting-Edge-ML) · [**PRAD (Physics-Residual AD)**](Physics-Residual-Anomaly-Detection) · [**文献調査 2024–2026**](Advanced-SHM-Literature-2024-2026) |
 | **研究計画** | [**2年目標 (World-Class)**](2-Year-Goals) · [ロードマップ](Roadmap) · [**Roadmap-2028**](Roadmap-2028) · [ベンチマーク目標](Benchmark-Targets) · [文献レビュー](Literature-Review) · [投稿先](Publication-Venues) · [研究レポート](Research-Report) · [理想vs実装](Ideal-vs-Implementation) · [想定Q&A](Anticipated-QA) |
 | **次世代技術** | [**Physics Foundation Model**](Foundation-Model) · [**自律損傷管理 (ADM)**](Autonomous-Damage-Management) · [量子コンピューティング](Quantum-Integration) |
 | **リファレンス** | [英単語集](Vocabulary) · [外部データセット調査](Dataset-Survey) · [データセット比較](Dataset-Comparison) · [**外部リソース (OSS/公開データ)**](External-Resources) · [GitHub Issues](https://github.com/keisuke58/Payload_gnn/issues) |
