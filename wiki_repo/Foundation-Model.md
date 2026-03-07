@@ -292,6 +292,22 @@ Val Loss ∝ P^{-β}  (P = パラメータ数)
 | 静的-動的ハイブリッド融合 | `src/fuse_static_dynamic.py` | 完了 | 34→66 dim (PCA 99.8% variance) |
 | Chronos埋め込み抽出 | `src/extract_chronos_embeddings.py` | 完了 | 102 samples processed |
 | 統合実行スクリプト | `scripts/run_all_fm.sh` | 完了 | — |
+| **Cross-Structure汎化テスト** | `src/cross_structure_eval.py` | **完了** | 下記参照 |
+
+### Cross-Structure Generalization Results (Fairing → CompDam Flat Plate)
+
+| Setting | AUROC | Notes |
+|---------|:-----:|-------|
+| Zero-shot | 0.24 | Transfer fails; epistemic uncertainty ~998 (OOD correctly detected) |
+| 5-shot | **0.74** | Dramatic improvement with just 5 labeled nodes |
+| 20-shot | **0.75** | Marginal gain over 5-shot |
+| 50-shot | **0.78** | Steady improvement |
+
+**Key findings:**
+- Direct zero-shot transfer across different structures/defect types fails
+- GPN epistemic uncertainty correctly identifies OOD data (~998 vs ~0.01 in-domain)
+- Few-shot fine-tuning recovers significant performance (0.24 → 0.78)
+- **Motivates Foundation Model pre-training** for true cross-structure generalization
 
 ---
 
