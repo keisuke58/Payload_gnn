@@ -2,7 +2,7 @@
 
 # Structural Foundation Model (SFM) — Phase 3 詳細設計
 
-> 最終更新: 2026-03-07
+> 最終更新: 2026-03-08
 > **構造力学版の汎用基盤モデル — 未知の構造体にゼロショットで損傷検出**
 
 ---
@@ -286,7 +286,9 @@ Val Loss ∝ P^{-β}  (P = パラメータ数)
 | Chronos-Bolt (GW異常検知) | `src/chronos_shm.py` | 完了 | 100% detection (102件, FP=4) |
 | AnomalyGFM (グラフ異常検知) | `src/anomalygfm_shm.py` | 完了 | AUROC=0.75 (fine-tuned) |
 | **GPN (Bayesian GNN)** | `src/gpn_shm.py` | **完了** | **AUROC=0.999, AUPRC=0.956** |
-| MeshGraphNet (FEMサロゲート) | `src/physicsnemo_surrogate.py` | 学習中 | vancouver02 GPU |
+| MeshGraphNet (FEMサロゲート) | `src/physicsnemo_surrogate.py` | **完了** | R²=0.993–0.999 (推論テスト) |
+| **サロゲートデータ拡張** | `scripts/augment_with_surrogate.py` | **完了** | 500件合成, 品質検証済み |
+| **GPN + 拡張データ** | `src/gpn_shm.py` | **完了** | **AUROC=0.998, AUPRC=0.951** (1:1比率) |
 | 静的-動的ハイブリッド融合 | `src/fuse_static_dynamic.py` | 完了 | 34→66 dim (PCA 99.8% variance) |
 | Chronos埋め込み抽出 | `src/extract_chronos_embeddings.py` | 完了 | 102 samples processed |
 | 統合実行スクリプト | `scripts/run_all_fm.sh` | 完了 | — |
@@ -304,7 +306,7 @@ Val Loss ∝ P^{-β}  (P = パラメータ数)
 | ~~P1~~ | ~~Graph Posterior Network (GPN)~~ | Stadler+, NeurIPS 2021 | **実装済み: AUROC=0.999** |
 | P2 | CWT特徴量融合 | Xu+, SHM 2025 | Lamb波の周波数特徴をGNNに追加 |
 | P3 | BNN推論層 | Cho+, 2025 | サロゲートモデルの信頼区間 |
-| P4 | 物理エッジ重み | TPF-GNet, 2026 | 学習可能な剛性・減衰 |
+| ~~P4~~ | ~~物理エッジ重み~~ | TPF-GNet, 2026 | **実装済み: PhysicsGPN AUROC=0.997** |
 | P5 | Transformer MAE | Benfenati+, 2024 | 事前学習のバックボーン強化 |
 
 ---
