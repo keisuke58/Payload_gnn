@@ -53,4 +53,28 @@ CUDA_VISIBLE_DEVICES=1 PYTHONUNBUFFERED=1 $PYBIN src/prad/domain_adapt.py \
     --device cuda
 
 echo ""
+echo "=========================================="
+echo "Exp 5: DANN — Thermal700 → CZM+Thermal200 (harder cross-domain)"
+echo "=========================================="
+CUDA_VISIBLE_DEVICES=1 PYTHONUNBUFFERED=1 $PYBIN src/prad/domain_adapt.py \
+    --source_dir data/processed_s12_thermal_700v2_5class \
+    --target_dir data/processed_s12_czm_thermal_200_binary \
+    --arch sage --hidden 128 --num_layers 4 \
+    --epochs 100 --lr 5e-4 --lambda_domain 0.1 \
+    --run_baseline \
+    --device cuda
+
+echo ""
+echo "=========================================="
+echo "Exp 6: DANN + MAE — Thermal700 → CZM+Thermal200"
+echo "=========================================="
+CUDA_VISIBLE_DEVICES=1 PYTHONUNBUFFERED=1 $PYBIN src/prad/domain_adapt.py \
+    --source_dir data/processed_s12_thermal_700v2_5class \
+    --target_dir data/processed_s12_czm_thermal_200_binary \
+    --arch sage --hidden 128 --num_layers 4 \
+    --epochs 100 --lr 5e-4 --lambda_domain 0.1 \
+    --pretrained $MAE_CKPT \
+    --device cuda
+
+echo ""
 echo "=== All experiments complete ==="
