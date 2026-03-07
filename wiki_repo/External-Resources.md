@@ -3,9 +3,9 @@
 # External Resources — Open-Source Tools & Public Datasets
 
 > **GNN-SHM プロジェクトに活用可能なオープンソースツール・公開データセットの調査結果**
-> 最終更新: 2026-03-07
+> 最終更新: 2026-03-08
 
-関連ページ: [Literature-Review](Literature-Review) · [Dataset-Survey](Dataset-Survey) · [Dataset-Comparison](Dataset-Comparison) · [Guided-Wave-Simulation](Guided-Wave-Simulation)
+関連ページ: [Literature-Review](Literature-Review) · [Dataset-Survey](Dataset-Survey) · [Dataset-Comparison](Dataset-Comparison) · [Guided-Wave-Simulation](Guided-Wave-Simulation) · [Cross-Domain-Transfer](Cross-Domain-Transfer)
 
 ## 導入ステータス
 
@@ -334,7 +334,70 @@ abaqus job=tests/test_matrix_tension double=both
 
 ---
 
-## 7. GitHub SHM コミュニティ
+## 7. Cross-Domain GNN ベンチマーク (2026-03-08)
+
+### 7.1 外部データセット GNN 評価
+
+スクリプト: `scripts/benchmark_gnn_cross_domain.py`
+
+DINS-SHM / CONCEPT の時系列データを **sliding window 特徴抽出 → k-NN グラフ構築** で PyG グラフに変換し、GNN (SAGE) で損傷検出を評価。
+
+| 評価 | Train | Test | AUROC | F1 |
+|------|-------|------|-------|-----|
+| **In-domain** | DINS-SHM | DINS-SHM | 0.990 | 0.914 |
+| **In-domain** | CONCEPT | CONCEPT | 0.707 | 0.830 |
+| **Cross-domain** | DINS-SHM | CONCEPT | 0.483 | 0.763 |
+| **Cross-domain** | CONCEPT | DINS-SHM | 0.547 | 0.400 |
+
+**知見:** In-domain では高精度だが、cross-domain はほぼランダム → **Domain Adaptation が必須**
+
+### 7.2 Domain-Adversarial Neural Network (DANN)
+
+スクリプト: `src/prad/domain_adapt.py`
+
+Gradient Reversal Layer (GRL) + Domain Discriminator でドメイン不変特徴を学習。
+
+**手法:**
+```
+GNN Encoder (共有) ──┬── Task Head (欠陥分類)
+                     └── GRL → Domain Discriminator (ドメイン識別)
+```
+
+- GRL: 逆伝播時に勾配の符号を反転 → encoder がドメイン判別に役立つ特徴を "忘れる"
+- Lambda annealing: sigmoid スケジュール (0→1, epoch 進行に応じて強化)
+
+**結果 (CZM+Thermal 200 → CZM 100):**
+
+| 手法 | Source AUROC | Target AUROC | 改善幅 |
+|------|-------------|-------------|--------|
+| **Baseline (適応なし)** | 0.9996 | 0.6861 | — |
+| **DANN** | 0.9992 | **0.9996** | **+45.6%** |
+
+**DANN により target AUROC が 0.686 → 0.999 に劇的改善。** Source 性能を維持しつつ、cross-domain transfer が大幅に向上。
+
+### 7.3 GPS Graph Transformer MAE 事前学習
+
+スクリプト: `src/prad/train_gtmae.py`
+
+GPS (General Powerful Scalable) Graph Transformer を PIGraphMAE encoder として使用し、self-supervised pre-training を実施。
+
+**GPS アーキテクチャ:**
+- Local: GINConv (構造メッセージパッシング)
+- Global: Multi-Head Self-Attention (長距離依存)
+- 692K parameters (hidden=128, 4 layers, 4 heads)
+
+**事前学習結果 (vancouver02, RTX 4090):**
+
+| Epoch | Val Loss | Cosine Similarity |
+|-------|----------|-------------------|
+| 13 | 0.0040 | 0.9964 |
+| 17 | 0.0037 | 0.9967 |
+
+cos_sim > 0.996 でノード特徴をほぼ完璧に復元。Fine-tuning 結果は追って更新。
+
+---
+
+## 8. GitHub SHM コミュニティ
 
 | トピック | URL | リポジトリ数 |
 |---------|-----|------------|
