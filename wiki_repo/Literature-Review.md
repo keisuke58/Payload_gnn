@@ -90,6 +90,18 @@ Based on the review above, our research introduces the following unique contribu
 3.  **Physics-Informed Anisotropy**: We incorporate the **Fiber Orientation Vector** at each node to account for the direction-dependent wave velocity in CFRP, which standard isotropic GNNs fail to capture.
 4.  **Systematic Benchmark**: We provide the first direct comparison of **UV-Mapping (2D CNN)** vs. **Manifold Learning (GNN / Point Transformer)** for defect detection on complex aerospace shells.
 
+## 6. Advanced Techniques (2024–2026)
+
+For the latest literature on Bayesian GNN, Foundation Models for SHM, Physics-Informed GNN, and Deep Transfer Learning for CFRP, see:
+
+→ **[Advanced SHM Literature Survey (2024–2026)](Advanced-SHM-Literature-2024-2026)**
+
+Key highlights:
+- **Graph Posterior Network (GPN)**: Bayesian uncertainty for node classification (NeurIPS 2021, [code available](https://github.com/stadlmax/Graph-Posterior-Network))
+- **Foundation Models for SHM**: Transformer MAE achieves 99.9% anomaly detection accuracy ([arXiv:2404.02944](https://arxiv.org/abs/2404.02944))
+- **Deep Transfer Learning for CFRP**: CWT + cross-workpiece transfer for delamination detection ([DOI:10.1177/14759217241311942](https://journals.sagepub.com/doi/10.1177/14759217241311942))
+- **Physics-Informed GNN**: Learnable stiffness/damping edge weights for energy flow modeling
+
 ## Action Plan for Research
 1.  **Validation**: Use OGW Dataset 1 (Flat Plate) to validate the "Wave-to-Graph" conversion pipeline.
 2.  **Extension**: Use OGW Stringer Dataset to test debonding detection.
