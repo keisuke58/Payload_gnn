@@ -172,6 +172,83 @@ class SAGEModel(BaseGNN):
 # =========================================================================
 # Factory
 # =========================================================================
+# =========================================================================
+# GPS Graph Transformer
+# =========================================================================
+try:
+    from torch_geometric.nn import GPSConv
+
+    class GPSTransformerModel(nn.Module):
+        """GPS (General Powerful Scalable) Graph Transformer.
+
+        Each layer combines:
+        - Local MPNN (GINConv) for structural message passing
+        - Global Multi-Head Self-Attention for long-range dependencies
+        - Feed-Forward Network (inside GPSConv)
+
+        Compatible with BaseGNN interface (encode/forward).
+        """
+
+        def __init__(self, in_channels, hidden_channels=128, num_classes=2,
+                     num_layers=4, dropout=0.1, heads=4,
+                     attn_type='multihead', use_residual=False):
+            super().__init__()
+            self.dropout = dropout
+
+            # Project input features to hidden dimension
+            self.input_proj = nn.Sequential(
+                nn.Linear(in_channels, hidden_channels),
+                nn.ReLU(),
+                nn.Linear(hidden_channels, hidden_channels),
+            )
+
+            # GPS layers: local GIN + global attention
+            self.convs = nn.ModuleList()
+            for _ in range(num_layers):
+                local_nn = nn.Sequential(
+                    nn.Linear(hidden_channels, hidden_channels),
+                    nn.ReLU(),
+                    nn.Linear(hidden_channels, hidden_channels),
+                )
+                gps_layer = GPSConv(
+                    hidden_channels,
+                    GINConv(local_nn),
+                    heads=heads,
+                    dropout=dropout,
+                    attn_type=attn_type,
+                )
+                self.convs.append(gps_layer)
+
+            # Classification head
+            self.head = nn.Sequential(
+                nn.Linear(hidden_channels, hidden_channels // 2),
+                nn.ReLU(),
+                nn.Dropout(dropout),
+                nn.Linear(hidden_channels // 2, num_classes),
+            )
+
+        def encode(self, x, edge_index, edge_attr=None, batch=None):
+            """Encode graph to node embeddings.
+
+            If batch is None, assumes single graph (all nodes batch=0).
+            """
+            if batch is None:
+                batch = torch.zeros(x.size(0), dtype=torch.long,
+                                    device=x.device)
+            x = self.input_proj(x)
+            for conv in self.convs:
+                x = conv(x, edge_index, batch)
+            return x
+
+        def forward(self, x, edge_index, edge_attr=None, batch=None):
+            h = self.encode(x, edge_index, edge_attr, batch)
+            return self.head(h)
+
+    _GPS_AVAILABLE = True
+except ImportError:
+    _GPS_AVAILABLE = False
+
+
 MODEL_REGISTRY = {
     'gcn': GCNModel,
     'gat': GATModel,
@@ -179,13 +256,17 @@ MODEL_REGISTRY = {
     'sage': SAGEModel,
 }
 
+if _GPS_AVAILABLE:
+    MODEL_REGISTRY['gps'] = GPSTransformerModel
+
 
 def build_model(arch, in_channels, edge_attr_dim=0, **kwargs):
     """
     Build a GNN model by name.
 
     Args:
-        arch: one of 'gcn', 'gat', 'gin', 'sage', 'quantum', 'classical_graph'
+        arch: one of 'gcn', 'gat', 'gin', 'sage', 'gps',
+              'quantum', 'classical_graph'
         in_channels: number of node input features
         edge_attr_dim: number of edge attributes (used by GAT)
         **kwargs: forwarded to model constructor
@@ -194,10 +275,16 @@ def build_model(arch, in_channels, edge_attr_dim=0, **kwargs):
     if arch in ('quantum', 'classical_graph'):
         from models_quantum import build_quantum_model
         return build_quantum_model(arch, in_channels, edge_attr_dim, **kwargs)
+    if arch == 'gps' and not _GPS_AVAILABLE:
+        raise ImportError("GPSConv not available. Requires PyG >= 2.3.0")
     if arch not in MODEL_REGISTRY:
         raise ValueError("Unknown architecture '%s'. Choose from: %s" %
                          (arch, list(MODEL_REGISTRY.keys())))
     cls = MODEL_REGISTRY[arch]
     if arch == 'gat':
         return cls(in_channels, edge_attr_dim=edge_attr_dim, **kwargs)
+    # GPS: filter out edge_attr_dim from kwargs (handled internally)
+    if arch == 'gps':
+        kwargs.pop('use_residual', None)  # GPS handles residuals internally
+        return cls(in_channels, **kwargs)
     return cls(in_channels, **kwargs)

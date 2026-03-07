@@ -117,7 +117,7 @@ def main():
     parser.add_argument('--data_dir',
                         default='data/processed_s12_mixed_400')
     parser.add_argument('--encoder_arch', default='sage',
-                        choices=['gcn', 'gat', 'gin', 'sage'])
+                        choices=['gcn', 'gat', 'gin', 'sage', 'gps'])
     parser.add_argument('--hidden', type=int, default=128)
     parser.add_argument('--num_layers', type=int, default=4)
     parser.add_argument('--dropout', type=float, default=0.1)
