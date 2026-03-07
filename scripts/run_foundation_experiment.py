@@ -85,6 +85,8 @@ def main():
 
     parser.add_argument('--skip_pretrain', action='store_true',
                         help='Skip pre-training if encoder already exists')
+    parser.add_argument('--encoder_path', type=str, default=None,
+                        help='Path to existing pre-trained encoder (skip pre-training)')
     args = parser.parse_args()
 
     os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu)
@@ -135,42 +137,56 @@ def main():
             n, len(sub_train), len(sub_val), sub_dir))
 
     # ================================================================
-    # Step 1: Pre-train on ALL data
+    # Step 1: Pre-train on ALL data (or use existing encoder)
     # ================================================================
-    pretrain_dir = os.path.join(exp_dir, 'pretrain')
-    encoder_path = os.path.join(pretrain_dir, 'best_encoder.pt')
+    python_exe = sys.executable  # use same python as this script
 
-    if args.skip_pretrain and os.path.exists(encoder_path):
-        print("\n\n>>> Step 1: SKIP (encoder exists: %s)" % encoder_path)
+    if args.encoder_path:
+        encoder_path = (os.path.join(PROJECT_ROOT, args.encoder_path)
+                        if not os.path.isabs(args.encoder_path) else args.encoder_path)
+        print("\n\n>>> Step 1: SKIP (using provided encoder: %s)" % encoder_path)
     else:
-        print("\n\n>>> Step 1: Self-supervised pre-training on ALL %d+%d graphs..." % (
-            len(train_data), len(val_data)))
+        pretrain_dir = os.path.join(exp_dir, 'pretrain')
+        encoder_path = None
 
-        cmd = (
-            "python src/pretrain_foundation.py"
-            " --data_dir %s"
-            " --output_dir %s"
-            " --arch %s --hidden %d --layers %d"
-            " --mask_ratio %.2f"
-            " --epochs %d"
-            " --batch_size 4"
-            " --patience 20"
-        ) % (args.data_dir, pretrain_dir, args.arch, args.hidden, args.layers,
-             args.mask_ratio, args.pretrain_epochs)
-        run_cmd(cmd, "Pre-train (mask_ratio=%.0f%%)" % (args.mask_ratio * 100))
+        # Check for existing encoder in pretrain_dir
+        if args.skip_pretrain:
+            for d in sorted(os.listdir(pretrain_dir), reverse=True) if os.path.isdir(pretrain_dir) else []:
+                candidate = os.path.join(pretrain_dir, d, 'best_encoder.pt')
+                if os.path.exists(candidate):
+                    encoder_path = candidate
+                    break
 
-        # Find the actual run directory (pretrain_gat_YYYYMMDD_HHMMSS)
-        subdirs = sorted([d for d in os.listdir(pretrain_dir)
-                          if d.startswith('pretrain_')],
-                         key=lambda x: os.path.getmtime(os.path.join(pretrain_dir, x)))
-        if subdirs:
-            actual_dir = os.path.join(pretrain_dir, subdirs[-1])
-            encoder_path = os.path.join(actual_dir, 'best_encoder.pt')
-            print("Encoder: %s" % encoder_path)
+        if encoder_path:
+            print("\n\n>>> Step 1: SKIP (encoder exists: %s)" % encoder_path)
+        else:
+            print("\n\n>>> Step 1: Self-supervised pre-training on ALL %d+%d graphs..." % (
+                len(train_data), len(val_data)))
 
-    if not os.path.exists(encoder_path):
-        print("[ERROR] Encoder not found: %s" % encoder_path)
+            cmd = (
+                "%s src/pretrain_foundation.py"
+                " --data_dir %s"
+                " --output_dir %s"
+                " --arch %s --hidden %d --layers %d"
+                " --mask_ratio %.2f"
+                " --epochs %d"
+                " --batch_size 4"
+                " --patience 20"
+            ) % (python_exe, args.data_dir, pretrain_dir, args.arch, args.hidden,
+                 args.layers, args.mask_ratio, args.pretrain_epochs)
+            run_cmd(cmd, "Pre-train (mask_ratio=%.0f%%)" % (args.mask_ratio * 100))
+
+            # Find the actual run directory (pretrain_gat_YYYYMMDD_HHMMSS)
+            for d in sorted(os.listdir(pretrain_dir), reverse=True):
+                candidate = os.path.join(pretrain_dir, d, 'best_encoder.pt')
+                if os.path.exists(candidate):
+                    encoder_path = candidate
+                    break
+
+    if not encoder_path or not os.path.exists(encoder_path):
+        print("[ERROR] Encoder not found!")
         sys.exit(1)
+    print("Encoder: %s" % encoder_path)
 
     # ================================================================
     # Step 2: Fine-tune vs From-Scratch for each train size
@@ -185,7 +201,7 @@ def main():
         scratch_output = os.path.join(exp_dir, 'scratch_n%d' % n)
         os.makedirs(scratch_output, exist_ok=True)
         cmd_scratch = (
-            "python src/train.py"
+            "%s src/train.py"
             " --data_dir %s"
             " --output_dir %s"
             " --arch %s --hidden %d --layers %d"
@@ -193,15 +209,15 @@ def main():
             " --batch_size 4"
             " --loss focal --focal_gamma 2.0"
             " --patience 30"
-        ) % (sub_dir, scratch_output, args.arch, args.hidden, args.layers,
-             args.finetune_epochs)
+        ) % (python_exe, sub_dir, scratch_output, args.arch, args.hidden,
+             args.layers, args.finetune_epochs)
         run_cmd(cmd_scratch, "From-scratch n=%d" % n)
 
         # --- (b) Fine-tune from pre-trained ---
         finetune_output = os.path.join(exp_dir, 'finetune_n%d' % n)
         os.makedirs(finetune_output, exist_ok=True)
         cmd_finetune = (
-            "python src/train.py"
+            "%s src/train.py"
             " --data_dir %s"
             " --output_dir %s"
             " --arch %s --hidden %d --layers %d"
@@ -211,8 +227,8 @@ def main():
             " --batch_size 4"
             " --loss focal --focal_gamma 2.0"
             " --patience 30"
-        ) % (sub_dir, finetune_output, args.arch, args.hidden, args.layers,
-             encoder_path, args.finetune_epochs)
+        ) % (python_exe, sub_dir, finetune_output, args.arch, args.hidden,
+             args.layers, encoder_path, args.finetune_epochs)
         run_cmd(cmd_finetune, "Fine-tune n=%d (freeze 2 layers)" % n)
 
         # Collect results
