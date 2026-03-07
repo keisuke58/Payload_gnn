@@ -149,6 +149,71 @@ class APPNPPropagation(nn.Module):
         return h
 
 
+# ── Physics Edge Weight ──────────────────────────────────────────────
+
+
+class PhysicsEdgeMLP(nn.Module):
+    """Learnable physics-informed edge weights from edge features.
+
+    Maps edge attributes (dx, dy, dz, distance, curvature_diff)
+    to scalar weights representing equivalent stiffness/damping.
+    """
+
+    def __init__(self, edge_dim: int = 5, hidden_dim: int = 32):
+        super().__init__()
+        self.mlp = nn.Sequential(
+            nn.Linear(edge_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, 1),
+        )
+
+    def forward(self, edge_attr: torch.Tensor) -> torch.Tensor:
+        """Returns positive scalar weight per edge. Shape: [E]."""
+        return F.softplus(self.mlp(edge_attr).squeeze(-1))
+
+
+class PhysicsAPPNPPropagation(nn.Module):
+    """APPNP with physics-informed edge weights.
+
+    Instead of symmetric normalization D^{-1/2}AD^{-1/2},
+    uses learned edge weights: w_ij / sum_j(w_ij).
+    """
+
+    def __init__(self, K: int = 10, alpha: float = 0.1):
+        super().__init__()
+        self.K = K
+        self.alpha = alpha
+
+    def forward(
+        self,
+        x: torch.Tensor,
+        edge_index: torch.Tensor,
+        edge_weight: torch.Tensor,
+        n_nodes: int | None = None,
+    ) -> torch.Tensor:
+        if n_nodes is None:
+            n_nodes = x.shape[0]
+
+        row, col = edge_index
+        # Row-normalize: w_ij / sum_j(w_ij)
+        deg_w = torch.zeros(n_nodes, device=x.device)
+        deg_w.scatter_add_(0, row, edge_weight)
+        norm = edge_weight / (deg_w[row] + 1e-10)
+
+        h = x
+        for _ in range(self.K):
+            msg = x.new_zeros(n_nodes, x.shape[-1])
+            msg.scatter_add_(
+                0,
+                row.unsqueeze(-1).expand_as(h[col]),
+                norm.unsqueeze(-1) * h[col],
+            )
+            h = (1 - self.alpha) * msg + self.alpha * x
+        return h
+
+
 # ── GPN Model ────────────────────────────────────────────────────────
 
 
@@ -261,6 +326,125 @@ class GPNModel(nn.Module):
         return out
 
 
+class PhysicsGPNModel(nn.Module):
+    """Physics-Informed GPN with learnable edge weights.
+
+    Replaces standard APPNP normalization with physics-informed edge
+    weights derived from edge attributes (stiffness/damping analogy).
+    """
+
+    def __init__(
+        self,
+        n_features: int,
+        n_classes: int = 2,
+        dim_hidden: int = 64,
+        dim_latent: int = 16,
+        radial_layers: int = 10,
+        appnp_K: int = 10,
+        appnp_alpha: float = 0.1,
+        beta_prior: float = 1e-3,
+        edge_dim: int = 5,
+        edge_hidden: int = 32,
+    ):
+        super().__init__()
+        self.n_classes = n_classes
+        self.dim_latent = dim_latent
+        self.beta_prior = beta_prior
+
+        # MLP Encoder
+        self.encoder = nn.Sequential(
+            nn.Linear(n_features, dim_hidden),
+            nn.BatchNorm1d(dim_hidden),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            nn.Linear(dim_hidden, dim_hidden),
+            nn.BatchNorm1d(dim_hidden),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            nn.Linear(dim_hidden, dim_latent),
+        )
+
+        # Normalizing Flow
+        self.flow = BatchedRadialFlow(dim_latent, n_classes, radial_layers)
+
+        # Physics edge weight
+        self.edge_mlp = PhysicsEdgeMLP(edge_dim, edge_hidden)
+
+        # Physics-aware APPNP
+        self.propagation = PhysicsAPPNPPropagation(K=appnp_K, alpha=appnp_alpha)
+
+        # Evidence scaling
+        self.log_scale = 0.5 * dim_latent * math.log(4 * math.pi)
+
+    def forward(
+        self,
+        x: torch.Tensor,
+        edge_index: torch.Tensor,
+        edge_attr: torch.Tensor | None = None,
+    ) -> dict[str, torch.Tensor]:
+        N = x.shape[0]
+
+        # 1. Encode
+        z = self.encoder(x)
+
+        # 2. Flow
+        log_q = self.flow.log_prob(z)
+
+        # 3. Evidence
+        scaled_log_q = log_q + self.log_scale
+        beta_ft = scaled_log_q.clamp(-30.0, 30.0).exp()
+
+        # 4. Physics-informed APPNP
+        # Add self-loops with unit edge features
+        self_loops = torch.arange(N, device=x.device).unsqueeze(0).repeat(2, 1)
+        edge_index_sl = torch.cat([edge_index, self_loops], dim=1)
+
+        if edge_attr is not None:
+            # Self-loop edge features: zero displacement, small distance
+            self_loop_attr = torch.zeros(N, edge_attr.shape[1], device=x.device)
+            edge_attr_sl = torch.cat([edge_attr, self_loop_attr], dim=0)
+            edge_weight = self.edge_mlp(edge_attr_sl)
+        else:
+            # Fallback: uniform weights
+            edge_weight = torch.ones(edge_index_sl.shape[1], device=x.device)
+
+        beta_agg = self.propagation(beta_ft, edge_index_sl, edge_weight, N)
+
+        # 5. Dirichlet posterior
+        alpha = self.beta_prior + beta_agg.clamp(min=0)
+        alpha_sum = alpha.sum(dim=-1)
+        probs = alpha / alpha_sum.unsqueeze(-1)
+
+        return {
+            "alpha": alpha,
+            "probs": probs,
+            "z": z,
+            "beta_ft": beta_ft,
+            "log_q": log_q,
+            "edge_weight": edge_weight,
+        }
+
+    def predict_with_uncertainty(
+        self,
+        x: torch.Tensor,
+        edge_index: torch.Tensor,
+        edge_attr: torch.Tensor | None = None,
+    ) -> dict[str, torch.Tensor]:
+        out = self.forward(x, edge_index, edge_attr)
+        alpha = out["alpha"]
+        alpha_sum = alpha.sum(dim=-1)
+        probs = out["probs"]
+
+        epistemic = self.n_classes / alpha_sum
+        aleatoric = -(probs * (probs + 1e-10).log()).sum(dim=-1)
+        total = epistemic + aleatoric
+
+        out["epistemic_uncertainty"] = epistemic
+        out["aleatoric_uncertainty"] = aleatoric
+        out["total_uncertainty"] = total
+        return out
+
+
 # ── Loss Functions ────────────────────────────────────────────────────
 
 
@@ -315,6 +499,8 @@ def subsample_graph(
     import torch_geometric.data as gd
 
     N = data.x.shape[0]
+    has_edge_attr = hasattr(data, "edge_attr") and data.edge_attr is not None
+
     if N <= max_nodes:
         # Still binarize labels
         new_data = gd.Data(
@@ -323,6 +509,8 @@ def subsample_graph(
             y=(data.y > 0).long(),
             pos=data.pos if data.pos is not None else None,
         )
+        if has_edge_attr:
+            new_data.edge_attr = data.edge_attr
         return new_data
 
     labels = (data.y > 0).long()
@@ -355,6 +543,8 @@ def subsample_graph(
         y=labels[keep_idx],
         pos=data.pos[keep_idx] if data.pos is not None else None,
     )
+    if has_edge_attr:
+        new_data.edge_attr = data.edge_attr[edge_mask]
     return new_data
 
 
@@ -383,6 +573,7 @@ def train_gpn(
     max_train: int = 50,
     max_val: int = 20,
     beta_reg: float = 1e-4,
+    physics: bool = False,
 ):
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -397,19 +588,35 @@ def train_gpn(
     flush_print(f"Train: {len(train_data)} graphs, Val: {len(val_data)} graphs")
 
     n_features = train_data[0].x.shape[0] if len(train_data) == 0 else train_data[0].x.shape[1]
+    edge_dim = train_data[0].edge_attr.shape[1] if hasattr(train_data[0], "edge_attr") and train_data[0].edge_attr is not None else 5
 
-    model = GPNModel(
-        n_features=n_features,
-        n_classes=2,
-        dim_hidden=dim_hidden,
-        dim_latent=dim_latent,
-        radial_layers=radial_layers,
-        appnp_K=appnp_K,
-        appnp_alpha=appnp_alpha,
-    ).to(device)
+    if physics:
+        flush_print("Using PhysicsGPN (learnable edge weights)")
+        model = PhysicsGPNModel(
+            n_features=n_features,
+            n_classes=2,
+            dim_hidden=dim_hidden,
+            dim_latent=dim_latent,
+            radial_layers=radial_layers,
+            appnp_K=appnp_K,
+            appnp_alpha=appnp_alpha,
+            edge_dim=edge_dim,
+        ).to(device)
+    else:
+        model = GPNModel(
+            n_features=n_features,
+            n_classes=2,
+            dim_hidden=dim_hidden,
+            dim_latent=dim_latent,
+            radial_layers=radial_layers,
+            appnp_K=appnp_K,
+            appnp_alpha=appnp_alpha,
+        ).to(device)
 
     # Separate optimizers for encoder and flow (different learning rates)
     encoder_params = list(model.encoder.parameters()) + list(model.propagation.parameters())
+    if physics:
+        encoder_params += list(model.edge_mlp.parameters())
     flow_params = list(model.flow.parameters())
 
     opt_encoder = torch.optim.Adam(encoder_params, lr=lr, weight_decay=1e-4)
@@ -417,8 +624,10 @@ def train_gpn(
 
     best_val_auroc = 0.0
     history = []
+    model_tag = "PhysicsGPN" if physics else "GPN"
+    ckpt_name = "best_physics_gpn.pt" if physics else "best_gpn.pt"
 
-    flush_print(f"Model: {sum(p.numel() for p in model.parameters()):,} params")
+    flush_print(f"Model [{model_tag}]: {sum(p.numel() for p in model.parameters()):,} params")
     flush_print(f"Training for {epochs} epochs (warmup={warmup_epochs})...")
 
     for epoch in range(1, epochs + 1):
@@ -432,8 +641,12 @@ def train_gpn(
             x = sub.x.to(device)
             ei = sub.edge_index.to(device)
             y = sub.y.to(device)
+            ea = sub.edge_attr.to(device) if hasattr(sub, "edge_attr") and sub.edge_attr is not None else None
 
-            out = model(x, ei)
+            if physics:
+                out = model(x, ei, ea)
+            else:
+                out = model(x, ei)
 
             if epoch <= warmup_epochs:
                 # Warmup: train flow only with NLL
@@ -459,7 +672,7 @@ def train_gpn(
 
         # Validation
         if epoch % 5 == 0 or epoch <= 3:
-            val_auroc, val_auprc = evaluate_gpn(model, val_data, device, max_nodes)
+            val_auroc, val_auprc = evaluate_gpn(model, val_data, device, max_nodes, physics=physics)
             dt = time.time() - t0
             phase = "warmup" if epoch <= warmup_epochs else "full"
             flush_print(
@@ -482,6 +695,7 @@ def train_gpn(
                         "epoch": epoch,
                         "val_auroc": val_auroc,
                         "val_auprc": val_auprc,
+                        "physics": physics,
                         "config": {
                             "n_features": n_features,
                             "dim_hidden": dim_hidden,
@@ -489,9 +703,10 @@ def train_gpn(
                             "radial_layers": radial_layers,
                             "appnp_K": appnp_K,
                             "appnp_alpha": appnp_alpha,
+                            "edge_dim": edge_dim if physics else 0,
                         },
                     },
-                    output_dir / "best_gpn.pt",
+                    output_dir / ckpt_name,
                 )
                 flush_print(f"  → Best model saved (AUROC={val_auroc:.4f})")
 
@@ -503,10 +718,11 @@ def train_gpn(
 
 
 def evaluate_gpn(
-    model: GPNModel,
+    model: nn.Module,
     data_list: list,
     device: str,
     max_nodes: int = 4000,
+    physics: bool = False,
 ) -> tuple[float, float]:
     """Evaluate GPN on a list of graphs. Returns (AUROC, AUPRC)."""
     from sklearn.metrics import average_precision_score, roc_auc_score
@@ -521,8 +737,12 @@ def evaluate_gpn(
             x = sub.x.to(device)
             ei = sub.edge_index.to(device)
             y = sub.y
+            ea = sub.edge_attr.to(device) if physics and hasattr(sub, "edge_attr") and sub.edge_attr is not None else None
 
-            out = model.predict_with_uncertainty(x, ei)
+            if physics:
+                out = model.predict_with_uncertainty(x, ei, ea)
+            else:
+                out = model.predict_with_uncertainty(x, ei)
             probs = out["probs"][:, 1].cpu().numpy()
             labels = y.numpy()
 
@@ -562,18 +782,33 @@ def infer_with_uncertainty(
     # Load model
     ckpt = torch.load(checkpoint_path, weights_only=False, map_location=device)
     config = ckpt["config"]
-    model = GPNModel(
-        n_features=config["n_features"],
-        n_classes=2,
-        dim_hidden=config["dim_hidden"],
-        dim_latent=config["dim_latent"],
-        radial_layers=config["radial_layers"],
-        appnp_K=config["appnp_K"],
-        appnp_alpha=config["appnp_alpha"],
-    ).to(device)
+    is_physics = ckpt.get("physics", False)
+
+    if is_physics:
+        model = PhysicsGPNModel(
+            n_features=config["n_features"],
+            n_classes=2,
+            dim_hidden=config["dim_hidden"],
+            dim_latent=config["dim_latent"],
+            radial_layers=config["radial_layers"],
+            appnp_K=config["appnp_K"],
+            appnp_alpha=config["appnp_alpha"],
+            edge_dim=config.get("edge_dim", 5),
+        ).to(device)
+    else:
+        model = GPNModel(
+            n_features=config["n_features"],
+            n_classes=2,
+            dim_hidden=config["dim_hidden"],
+            dim_latent=config["dim_latent"],
+            radial_layers=config["radial_layers"],
+            appnp_K=config["appnp_K"],
+            appnp_alpha=config["appnp_alpha"],
+        ).to(device)
     model.load_state_dict(ckpt["model_state_dict"])
     model.eval()
-    print(f"Loaded model from {checkpoint_path} (epoch {ckpt['epoch']})")
+    tag = "PhysicsGPN" if is_physics else "GPN"
+    print(f"Loaded {tag} from {checkpoint_path} (epoch {ckpt['epoch']})")
 
     # Load validation data
     val_data = torch.load(data_dir / "val.pt", weights_only=False, map_location="cpu")
@@ -590,8 +825,12 @@ def infer_with_uncertainty(
             x = sub.x.to(device)
             ei = sub.edge_index.to(device)
             y = sub.y.numpy()
+            ea = sub.edge_attr.to(device) if is_physics and hasattr(sub, "edge_attr") and sub.edge_attr is not None else None
 
-            out = model.predict_with_uncertainty(x, ei)
+            if is_physics:
+                out = model.predict_with_uncertainty(x, ei, ea)
+            else:
+                out = model.predict_with_uncertainty(x, ei)
 
             probs = out["probs"][:, 1].cpu().numpy()
             epistemic = out["epistemic_uncertainty"].cpu().numpy()
@@ -635,7 +874,7 @@ def infer_with_uncertainty(
     )
     ax.set_xlabel("Defect Probability")
     ax.set_ylabel("Density")
-    ax.set_title(f"GPN Predictions (AUROC={auroc:.3f})")
+    ax.set_title(f"{tag} Predictions (AUROC={auroc:.3f})")
     ax.legend()
 
     # Panel 2: Epistemic uncertainty by class
@@ -658,9 +897,15 @@ def infer_with_uncertainty(
     data0 = val_data[0]
     sub0 = subsample_graph(data0, max_nodes=max_nodes, seed=0)
     with torch.no_grad():
-        out0 = model.predict_with_uncertainty(
-            sub0.x.to(device), sub0.edge_index.to(device)
-        )
+        if is_physics:
+            ea0 = sub0.edge_attr.to(device) if hasattr(sub0, "edge_attr") and sub0.edge_attr is not None else None
+            out0 = model.predict_with_uncertainty(
+                sub0.x.to(device), sub0.edge_index.to(device), ea0
+            )
+        else:
+            out0 = model.predict_with_uncertainty(
+                sub0.x.to(device), sub0.edge_index.to(device)
+            )
     pos = sub0.pos.numpy() if sub0.pos is not None else sub0.x[:, :3].numpy()
     probs0 = out0["probs"][:, 1].cpu().numpy()
     sc = ax.scatter(
@@ -680,7 +925,8 @@ def infer_with_uncertainty(
     ax.set_ylabel("Y (m)")
 
     plt.tight_layout()
-    fig_path = output_dir / "gpn_results.png"
+    fig_name = "physics_gpn_results.png" if is_physics else "gpn_results.png"
+    fig_path = output_dir / fig_name
     fig.savefig(fig_path, dpi=150)
     print(f"Saved: {fig_path}")
     plt.close()
@@ -693,9 +939,10 @@ def infer_with_uncertainty(
         "n_defect_total": int(all_labels.sum()),
         "per_sample": results,
     }
-    with open(output_dir / "gpn_metrics.json", "w") as f:
+    metrics_name = "physics_gpn_metrics.json" if is_physics else "gpn_metrics.json"
+    with open(output_dir / metrics_name, "w") as f:
         json.dump(metrics, f, indent=2)
-    print(f"Saved: {output_dir / 'gpn_metrics.json'}")
+    print(f"Saved: {output_dir / metrics_name}")
 
 
 # ── Main ──────────────────────────────────────────────────────────────
@@ -721,6 +968,8 @@ def main():
     parser.add_argument(
         "--device", default="cuda" if torch.cuda.is_available() else "cpu",
     )
+    parser.add_argument("--physics", action="store_true",
+                        help="Use Physics-Informed GPN with learnable edge weights")
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--warmup_epochs", type=int, default=10)
     parser.add_argument("--dim_hidden", type=int, default=64)
@@ -750,9 +999,11 @@ def main():
             max_nodes=args.max_nodes,
             max_train=args.max_train,
             max_val=args.max_val,
+            physics=args.physics,
         )
     elif args.mode == "eval":
-        ckpt_path = args.checkpoint or (args.output_dir / "best_gpn.pt")
+        default_ckpt = "best_physics_gpn.pt" if args.physics else "best_gpn.pt"
+        ckpt_path = args.checkpoint or (args.output_dir / default_ckpt)
         infer_with_uncertainty(
             checkpoint_path=ckpt_path,
             data_dir=args.data_dir,
