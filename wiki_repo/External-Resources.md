@@ -175,11 +175,45 @@ abaqus make library=for/CompDam_DGD.for
 abaqus job=tests/test_matrix_tension double=both
 ```
 
-**検証結果 (2026-03-07):**
+**検証結果 (2026-03-07 ~ 03-08):**
 - ✅ Abaqus 2024 + Intel Fortran 2021.9.0 でコンパイル成功
-- ✅ `test_C3D8R_elastic_fiberTension` テスト正常完了 (`THE ANALYSIS HAS COMPLETED SUCCESSFULLY`)
-- ⚠️ `double=both` (倍精度) 必須
+- ✅ `test_C3D8R_elastic_fiberTension` テスト正常完了
+- ⚠️ `double=both` (倍精度) 必須, プリコンパイルライブラリ使用推奨
 - 📂 配置先: `external/CompDam_DGD/`
+
+**Scenario B — 小規模平板検証 (2026-03-08):**
+
+100x100mm CFRP/Al-HC サンドイッチ平板 (C3D8R, 52,500要素) で衝撃荷重シミュレーション実施。
+
+| 項目 | 内容 |
+|------|------|
+| **モデル** | [45/0/-45/90]s x2 skins, Al-HC core 10mm, IM7-8552 |
+| **荷重** | 圧力パルス 10 MPa, 0.5ms 半正弦波 |
+| **解析** | Abaqus/Explicit 1ms, Mass Scaling x4, 103分 (1CPU) |
+| **CompDam** | Feature flags 111101 (matrix+shear NL+fiber T/C+friction) |
+
+**主要知見:**
+
+| 損傷モード | CompDam 結果 | プロジェクト経験値 |
+|-----------|-------------|------------------|
+| **マトリクス損傷 (CDM_d2)** | 二値的: d2=0 (健全) or d2=1 (完全損傷) | E2 x 0.3 (連続低下) |
+| **繊維損傷 (CDM_d1T/d1C)** | 0.0 (衝撃では繊維無損傷) | E1 x 0.7 (保守的) |
+| **損傷分布** | 荷重面側スキンのみ, -45°層が最大 | 全層均一仮定 |
+| **内側スキン** | 無損傷 (コア緩衝) | — |
+
+**校正への示唆:**
+- CompDam は衝撃がマトリクス支配損傷であることを物理的に確認 → プロジェクトの E1 x 0.7 は保守的（実際は E1 低下なし）
+- CDM_d2 の二値性 vs プロジェクトの連続スミアリング → ネット効果は等価（損傷域平均で比較）
+- -45°層集中損傷 → 層別損傷モデルの改良根拠
+
+**生成図:**
+
+| Fig | 内容 |
+|-----|------|
+| ![Damage Map](images/compdam_validation/01_damage_map_per_ply.png) | Fig C1: 各層のマトリクス損傷分布 |
+| ![Fiber Damage](images/compdam_validation/02_fiber_damage_outer_skin.png) | Fig C2: 外側スキン繊維損傷 |
+| ![Stiffness](images/compdam_validation/03_stiffness_comparison.png) | Fig C3: 剛性低下比較 |
+| ![Through-thickness](images/compdam_validation/04_through_thickness_damage.png) | Fig C4: 板厚方向損傷プロファイル |
 
 ---
 
