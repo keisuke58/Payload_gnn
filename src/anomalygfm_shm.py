@@ -5,11 +5,17 @@ Zero-shot / few-shot graph anomaly detection using the KDD2025 AnomalyGFM
 pre-trained model. Converts PyG graphs from our pipeline to the expected
 format, runs inference, and outputs per-node anomaly scores.
 
-For large graphs (N > 5000 nodes), uses batch processing to avoid OOM.
+Modes:
+    zero-shot:  Random init → inference (baseline)
+    finetune:   Train on labeled train.pt → inference on val.pt
+    infer:      Load fine-tuned checkpoint → inference
+
+For large graphs (N > 5000 nodes), uses node subsampling during training.
 
 Usage:
     python src/anomalygfm_shm.py --data_dir data/processed_s12_thermal_500
-    python src/anomalygfm_shm.py --data_dir data/processed_hybrid --device cuda
+    python src/anomalygfm_shm.py --mode finetune --data_dir data/processed_s12_thermal_500
+    python src/anomalygfm_shm.py --mode infer --checkpoint results/anomalygfm_shm/best_model.pt
 """
 
 from __future__ import annotations
@@ -164,7 +170,223 @@ def normalize_features(features: np.ndarray) -> np.ndarray:
     return (features / rowsum).astype(np.float32)
 
 
-# ── Inference ────────────────────────────────────────────────────────
+# ── Node subsampling for large graphs ─────────────────────────────────
+
+
+def subsample_graph(data, max_nodes: int = 3000, seed: int = 0):
+    """Subsample nodes from a large graph, keeping ALL defect nodes.
+
+    Returns a new PyG-like data object with subsampled nodes and
+    re-indexed edges.
+    """
+    N = data.x.shape[0]
+    if N <= max_nodes:
+        return data
+
+    labels = data.y.numpy() if hasattr(data, "y") else np.zeros(N)
+    defect_idx = np.where(labels > 0)[0]
+    normal_idx = np.where(labels == 0)[0]
+
+    n_normal = max_nodes - len(defect_idx)
+    if n_normal < 0:
+        n_normal = max_nodes
+
+    rng = np.random.RandomState(seed)
+    sampled_normal = rng.choice(normal_idx, size=min(n_normal, len(normal_idx)),
+                                replace=False)
+    keep_idx = np.sort(np.concatenate([defect_idx, sampled_normal]))
+
+    # Remap
+    old_to_new = -np.ones(N, dtype=np.int64)
+    old_to_new[keep_idx] = np.arange(len(keep_idx))
+
+    # Filter edges
+    edge_index = data.edge_index.numpy()
+    src, dst = edge_index[0], edge_index[1]
+    mask = (old_to_new[src] >= 0) & (old_to_new[dst] >= 0)
+    new_src = old_to_new[src[mask]]
+    new_dst = old_to_new[dst[mask]]
+
+    import copy
+    sub = copy.copy(data)
+    sub.x = data.x[keep_idx]
+    sub.y = data.y[keep_idx] if hasattr(data, "y") else torch.zeros(len(keep_idx))
+    sub.edge_index = torch.tensor(np.stack([new_src, new_dst]), dtype=torch.long)
+    if hasattr(data, "pos") and data.pos is not None:
+        sub.pos = data.pos[keep_idx]
+    if hasattr(data, "edge_attr") and data.edge_attr is not None:
+        sub.edge_attr = data.edge_attr[mask]
+    return sub
+
+
+# ── Fine-tuning ──────────────────────────────────────────────────────
+
+
+def finetune_anomalygfm(
+    train_data: list,
+    val_data: list,
+    output_dir: Path,
+    device: str = "cuda",
+    n_emb: int = 128,
+    epochs: int = 50,
+    lr: float = 1e-3,
+    max_nodes: int = 3000,
+    max_train_samples: int = 30,
+    max_val_samples: int = 10,
+):
+    """Fine-tune AnomalyGFM on labeled graph data.
+
+    Loss: BCE on per-node anomaly scores vs binary defect labels.
+    Node subsampling to handle 15K-node graphs.
+    """
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    train_sub = train_data[:max_train_samples]
+    val_sub = val_data[:max_val_samples]
+
+    D = train_sub[0].x.shape[1]
+    model = AnomalyGFMModel(n_in=D, n_internal=16, n_emb=n_emb).to(device)
+
+    # Learnable prompts instead of random
+    normal_prompt = nn.Parameter(torch.randn(n_emb, device=device) * 0.1)
+    abnormal_prompt = nn.Parameter(torch.randn(n_emb, device=device) * 0.1)
+
+    optimizer = torch.optim.Adam(
+        list(model.parameters()) + [normal_prompt, abnormal_prompt],
+        lr=lr, weight_decay=1e-5,
+    )
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
+
+    best_val_auroc = 0.0
+    patience_counter = 0
+
+    print(f"Fine-tuning: {len(train_sub)} train, {len(val_sub)} val, "
+          f"n_emb={n_emb}, max_nodes={max_nodes}")
+
+    for epoch in range(1, epochs + 1):
+        # ── Train ──
+        model.train()
+        epoch_loss = 0.0
+        n_graphs = 0
+
+        for i, data in enumerate(train_sub):
+            sub = subsample_graph(data, max_nodes=max_nodes, seed=epoch * 100 + i)
+            features, adj_sparse, labels = pyg_to_dense(sub)
+            feat_norm = normalize_features(features)
+            adj_norm = normalize_adj(adj_sparse)
+
+            feat_t = torch.FloatTensor(feat_norm[None]).to(device)
+            adj_t = torch.FloatTensor(adj_norm[None]).to(device)
+            raw_adj_t = torch.FloatTensor(adj_sparse.toarray()).to(device)
+            labels_t = torch.FloatTensor(labels).to(device)
+
+            optimizer.zero_grad()
+            scores, _ = model(feat_t, adj_t, raw_adj_t,
+                              normal_prompt, abnormal_prompt)
+
+            # Normalize scores to [0, 1] for BCE
+            scores_norm = (scores - scores.min()) / (scores.max() - scores.min() + 1e-8)
+
+            # Focal-style weighting for class imbalance
+            n_pos = labels_t.sum().clamp(min=1)
+            n_neg = (1 - labels_t).sum().clamp(min=1)
+            pos_weight = n_neg / n_pos
+
+            loss = F.binary_cross_entropy(
+                scores_norm, labels_t,
+                weight=labels_t * pos_weight + (1 - labels_t),
+            )
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            optimizer.step()
+
+            epoch_loss += loss.item()
+            n_graphs += 1
+
+        scheduler.step()
+        avg_loss = epoch_loss / max(n_graphs, 1)
+
+        # ── Validate ──
+        if epoch % 5 == 0 or epoch == 1:
+            val_results = run_anomalygfm_with_model(
+                model, val_sub, normal_prompt, abnormal_prompt,
+                device=device, max_nodes=20000,
+            )
+            metrics = evaluate_results(val_results)
+            auroc = metrics.get("auroc", 0.0)
+            auprc = metrics.get("auprc", 0.0)
+
+            print(f"  Epoch {epoch:3d}/{epochs} | Loss={avg_loss:.4f} | "
+                  f"Val AUROC={auroc:.4f} | AUPRC={auprc:.4f}")
+
+            if auroc > best_val_auroc:
+                best_val_auroc = auroc
+                patience_counter = 0
+                torch.save({
+                    "model_state_dict": model.state_dict(),
+                    "normal_prompt": normal_prompt.data,
+                    "abnormal_prompt": abnormal_prompt.data,
+                    "n_in": D,
+                    "n_emb": n_emb,
+                    "epoch": epoch,
+                    "auroc": auroc,
+                    "auprc": auprc,
+                }, output_dir / "best_model.pt")
+            else:
+                patience_counter += 5
+                if patience_counter >= 25:
+                    print(f"  Early stopping at epoch {epoch}")
+                    break
+
+    print(f"\nBest Val AUROC: {best_val_auroc:.4f}")
+    print(f"Saved: {output_dir / 'best_model.pt'}")
+    return best_val_auroc
+
+
+@torch.no_grad()
+def run_anomalygfm_with_model(
+    model: nn.Module,
+    data_list: list,
+    normal_prompt: torch.Tensor,
+    abnormal_prompt: torch.Tensor,
+    device: str = "cuda",
+    max_nodes: int = 20000,
+) -> list[dict]:
+    """Run inference with a trained model and learned prompts."""
+    model.eval()
+    results = []
+
+    for i, data in enumerate(data_list):
+        N = data.x.shape[0]
+        D = data.x.shape[1]
+
+        if N > max_nodes:
+            results.append(None)
+            continue
+
+        features, adj_sparse, labels = pyg_to_dense(data)
+        feat_norm = normalize_features(features)
+        adj_norm = normalize_adj(adj_sparse)
+
+        feat_t = torch.FloatTensor(feat_norm[None]).to(device)
+        adj_t = torch.FloatTensor(adj_norm[None]).to(device)
+        raw_adj_t = torch.FloatTensor(adj_sparse.toarray()).to(device)
+
+        scores, _ = model(feat_t, adj_t, raw_adj_t,
+                          normal_prompt, abnormal_prompt)
+
+        n_defect = int(labels.sum())
+        results.append({
+            "scores": scores.cpu().numpy(),
+            "labels": labels,
+            "n_nodes": N,
+            "n_defect": n_defect,
+        })
+
+    return results
+
+
+# ── Inference (zero-shot) ────────────────────────────────────────────
 
 
 @torch.no_grad()
@@ -312,17 +534,29 @@ def visualize_scores(
 
 def main():
     parser = argparse.ArgumentParser(
-        description="AnomalyGFM zero-shot SHM anomaly detection"
+        description="AnomalyGFM SHM anomaly detection (zero-shot / fine-tune)"
     )
+    parser.add_argument("--mode", choices=["zero-shot", "finetune", "infer"],
+                        default="zero-shot")
     parser.add_argument("--data_dir", type=str,
                         default="data/processed_s12_thermal_500")
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--n_runs", type=int, default=10,
-                        help="Number of random prompt runs to average")
-    parser.add_argument("--n_emb", type=int, default=400)
+                        help="Number of random prompt runs to average (zero-shot)")
+    parser.add_argument("--n_emb", type=int, default=128,
+                        help="Embedding dimension (128 for finetune, 400 for zero-shot)")
     parser.add_argument("--max_samples", type=int, default=50,
                         help="Max graphs to process (for speed)")
     parser.add_argument("--out_dir", type=str, default="results/anomalygfm_shm")
+    parser.add_argument("--checkpoint", type=str, default=None,
+                        help="Checkpoint path for infer mode")
+    # Fine-tune args
+    parser.add_argument("--epochs", type=int, default=50)
+    parser.add_argument("--lr", type=float, default=1e-3)
+    parser.add_argument("--max_nodes", type=int, default=3000,
+                        help="Max nodes per subsampled graph (training)")
+    parser.add_argument("--max_train", type=int, default=30)
+    parser.add_argument("--max_val", type=int, default=10)
     args = parser.parse_args()
 
     data_dir = PROJECT_ROOT / args.data_dir
@@ -331,30 +565,79 @@ def main():
 
     # Load data
     print(f"Loading graphs from {data_dir}...")
-    val_data = torch.load(data_dir / "val.pt", weights_only=False)
 
-    # Optional: normalize features
-    norm_path = data_dir / "norm_stats.pt"
-    if norm_path.exists():
-        norm = torch.load(norm_path, weights_only=False)
-        x_mean, x_std = norm["mean"], norm["std"]
-        for d in val_data:
-            d.x = (d.x - x_mean) / x_std
+    if args.mode == "finetune":
+        train_data = torch.load(data_dir / "train.pt", weights_only=False)
+        val_data = torch.load(data_dir / "val.pt", weights_only=False)
+        print(f"Train: {len(train_data)}, Val: {len(val_data)}")
 
-    data_subset = val_data[: args.max_samples]
-    print(f"Processing {len(data_subset)} graphs "
-          f"(features={data_subset[0].x.shape[1]}d, "
-          f"nodes~{data_subset[0].x.shape[0]})")
+        finetune_anomalygfm(
+            train_data, val_data, out_dir,
+            device=args.device, n_emb=args.n_emb,
+            epochs=args.epochs, lr=args.lr,
+            max_nodes=args.max_nodes,
+            max_train_samples=args.max_train,
+            max_val_samples=args.max_val,
+        )
 
-    # Run AnomalyGFM
-    results = run_anomalygfm(
-        data_subset, device=args.device,
-        n_runs=args.n_runs, n_emb=args.n_emb,
-    )
+        # Run final evaluation on full val set
+        print("\n── Final Evaluation (full val set) ──")
+        ckpt = torch.load(out_dir / "best_model.pt", map_location=args.device,
+                          weights_only=False)
+        model = AnomalyGFMModel(
+            n_in=ckpt["n_in"], n_internal=16, n_emb=ckpt["n_emb"]
+        ).to(args.device)
+        model.load_state_dict(ckpt["model_state_dict"])
+        np_t = ckpt["normal_prompt"].to(args.device)
+        ap_t = ckpt["abnormal_prompt"].to(args.device)
+
+        val_subset = val_data[:args.max_samples]
+        results = run_anomalygfm_with_model(
+            model, val_subset, np_t, ap_t, device=args.device,
+        )
+
+    elif args.mode == "infer":
+        ckpt_path = args.checkpoint or str(out_dir / "best_model.pt")
+        ckpt = torch.load(ckpt_path, map_location=args.device, weights_only=False)
+        model = AnomalyGFMModel(
+            n_in=ckpt["n_in"], n_internal=16, n_emb=ckpt["n_emb"]
+        ).to(args.device)
+        model.load_state_dict(ckpt["model_state_dict"])
+        np_t = ckpt["normal_prompt"].to(args.device)
+        ap_t = ckpt["abnormal_prompt"].to(args.device)
+
+        val_data = torch.load(data_dir / "val.pt", weights_only=False)
+        val_subset = val_data[:args.max_samples]
+        print(f"Inference: {len(val_subset)} graphs, checkpoint: {ckpt_path}")
+
+        results = run_anomalygfm_with_model(
+            model, val_subset, np_t, ap_t, device=args.device,
+        )
+
+    else:  # zero-shot
+        val_data = torch.load(data_dir / "val.pt", weights_only=False)
+
+        norm_path = data_dir / "norm_stats.pt"
+        if norm_path.exists():
+            norm = torch.load(norm_path, weights_only=False)
+            x_mean, x_std = norm["mean"], norm["std"]
+            for d in val_data:
+                d.x = (d.x - x_mean) / x_std
+
+        val_subset = val_data[:args.max_samples]
+        print(f"Processing {len(val_subset)} graphs "
+              f"(features={val_subset[0].x.shape[1]}d, "
+              f"nodes~{val_subset[0].x.shape[0]})")
+
+        results = run_anomalygfm(
+            val_subset, device=args.device,
+            n_runs=args.n_runs, n_emb=args.n_emb,
+        )
 
     # Evaluate
     metrics = evaluate_results(results)
-    print(f"\n── AnomalyGFM Zero-shot Results ──")
+    mode_label = args.mode.replace("-", " ").title()
+    print(f"\n── AnomalyGFM {mode_label} Results ──")
     print(f"  AUROC: {metrics.get('auroc', 0):.4f}")
     print(f"  AUPRC: {metrics.get('auprc', 0):.4f}")
     print(f"  Nodes: {metrics.get('n_nodes', 0)} "
@@ -362,19 +645,21 @@ def main():
           f"normal={metrics.get('n_normal', 0)})")
 
     # Visualize first sample with defects
+    suffix = "finetuned" if args.mode != "zero-shot" else "zeroshot"
     for i, r in enumerate(results):
         if r and r["n_defect"] > 0:
-            vis_path = out_dir / f"anomalygfm_scores_sample{i}.png"
-            visualize_scores(data_subset[i], r["scores"], r["labels"],
-                             vis_path, f"Sample {i}")
+            vis_path = out_dir / f"anomalygfm_scores_{suffix}_sample{i}.png"
+            visualize_scores(val_subset[i], r["scores"], r["labels"],
+                             vis_path, f"{mode_label} Sample {i}")
             print(f"Saved: {vis_path}")
             break
 
     # Save metrics
     import json
-    with open(out_dir / "metrics.json", "w") as f:
+    metrics["mode"] = args.mode
+    with open(out_dir / f"metrics_{suffix}.json", "w") as f:
         json.dump(metrics, f, indent=2)
-    print(f"Metrics saved: {out_dir / 'metrics.json'}")
+    print(f"Metrics saved: {out_dir / f'metrics_{suffix}.json'}")
 
 
 if __name__ == "__main__":
