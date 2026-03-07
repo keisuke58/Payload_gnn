@@ -66,6 +66,7 @@ class PIGraphMAE(nn.Module):
         self.lambda_physics = lambda_physics
 
         # Encoder: reuse existing GNN architecture (encoder part only)
+        self.encoder_arch = encoder_arch
         edge_attr_dim = EDGE_ATTR_DIM if encoder_arch == 'gat' else 0
         self.encoder = build_model(
             encoder_arch, in_channels=in_channels,
