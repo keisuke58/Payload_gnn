@@ -223,6 +223,22 @@ def train_dann(args):
         edge_attr_dim=edge_attr_dim,
     ).to(device)
 
+    # Load MAE pretrained encoder weights if provided
+    if hasattr(args, 'pretrained') and args.pretrained:
+        print("  Loading MAE pretrained: %s" % args.pretrained)
+        ckpt = torch.load(args.pretrained, weights_only=False,
+                          map_location=device)
+        if 'encoder_state_dict' in ckpt:
+            enc_state = ckpt['encoder_state_dict']
+        else:
+            enc_state = {k.replace('encoder.', ''): v
+                         for k, v in ckpt['model_state_dict'].items()
+                         if k.startswith('encoder.')}
+        missing, unexpected = model.encoder.load_state_dict(
+            enc_state, strict=False)
+        print("  Loaded %d keys (missing=%d, unexpected=%d)" % (
+            len(enc_state), len(missing), len(unexpected)))
+
     n_params = sum(p.numel() for p in model.parameters())
     print("  DANN-%s parameters: %d (%.1fK)" % (args.arch.upper(),
                                                   n_params, n_params / 1000))
@@ -536,6 +552,8 @@ def main():
     parser.add_argument('--device', default='cuda' if torch.cuda.is_available()
                         else 'cpu')
     parser.add_argument('--checkpoint_dir', default='checkpoints')
+    parser.add_argument('--pretrained', default='',
+                        help='Path to MAE pretrained encoder checkpoint')
     parser.add_argument('--run_baseline', action='store_true',
                         help='Also run baseline (no adaptation) for comparison')
 
