@@ -9,11 +9,15 @@ extract_gw_history.py 出力
   ↓
 {job_name}_sensors.csv  (time_s, sensor_0_Ur, sensor_1_Ur, ...)
   ↓
+collect_gw_csv.sh      (ODB→CSV抽出 + gw_fairing_dataset/ 収集)
+  ↓                     ↓ (--manifest)
+  ↓                 manifest_gw_all.json
+  ↓
 build_gw_graph.py      (CSV → PyG Data)
   ↓
-prepare_gw_ml_data.py  (データセットスキャン → train/val split)
+prepare_gw_ml_data.py  (データセットスキャン → train/val/test split)
   ↓
-train.py               (既存 GNN 学習、または GW 専用 train_gw.py)
+train_gw_stgnn.py      (ST-GNN 学習、または train_gw.py)
 ```
 
 ## 2. 入力形式
@@ -25,7 +29,7 @@ train.py               (既存 GNN 学習、または GW 専用 train_gw.py)
   - 1行目: `time_s,sensor_0_Ur,sensor_1_Ur,...`
   - 2行目: `# x_mm` または `# arc_mm` + 位置値
   - 3行目以降: 時刻歴データ
-- **センサ数**: 最大10（欠損あり得る: メッシュ境界等でスキップ）
+- **センサ数**: 100（10×10 グリッド）、旧モデルは 9〜10
 
 ### 2.2 ラベル
 
@@ -76,13 +80,42 @@ def build_gw_graph(csv_path, label, positions=None) -> Data
 
 ```python
 def collect_gw_samples(csv_dir, doe_path, include_augmented=True) -> [(csv_path, label), ...]
-def prepare_gw_dataset(input_dir, output_dir, doe_path, val_ratio=0.2, include_augmented=True)
+def load_manifest(manifest_path) -> [(csv_path, label, split_or_None), ...]
+def prepare_gw_dataset(input_dir, output_dir, doe_path, manifest_path,
+                       val_ratio=0.2, test_ratio=0.0, ...)
 ```
 
 - サンプル収集: `*_sensors.csv` をスキャン
-- Healthy: `Job-GW-Fair-Healthy_sensors.csv`, `Job-GW-Fair-Healthy-A*.csv`（augmentation）
-- Defect: `Job-GW-Fair-0000_sensors.csv` など
+- Healthy: `Job-GW-Fair-Healthy_sensors.csv`, `Healthy-A*.csv`, `Valid-H*`, `Test-H*`
+- Defect: `Job-GW-Fair-0000` 等 DOE + `Valid-Debond*`, `*mm-Test` 等の非標準名
 - `--no_augmented`: Healthy-A* を除外
+- **`--manifest`**: 任意 CSV+ラベルの JSON リストで指定、`"split": "test"` で強制スプリット
+- **`--test_ratio`**: train/val/test 3分割（デフォルト 0 = 従来 2分割）
+- 出力: `train.pt`, `val.pt`, `test.pt`（test_ratio > 0 or manifest で test 指定時）, `split_info.json`
+
+```bash
+# DOE-based（従来）
+python src/prepare_gw_ml_data.py --doe doe_gw_fairing.json --output data/processed_gw_100
+
+# Manifest-based（新ジョブ対応）
+python src/prepare_gw_ml_data.py --manifest manifest_gw_all.json --output data/processed_gw_new
+
+# Test split 付き
+python src/prepare_gw_ml_data.py --no_doe --test_ratio 0.1 --output data/processed_gw_split3
+```
+
+### 4.2b collect_gw_csv.sh
+
+完了済み ODB → CSV 抽出 → `gw_fairing_dataset/` 収集のユーティリティ。
+
+```bash
+bash scripts/collect_gw_csv.sh              # ローカル ODB のみ
+bash scripts/collect_gw_csv.sh --remote     # frontale01/02/04 も走査
+bash scripts/collect_gw_csv.sh --status     # 状態確認のみ（抽出しない）
+bash scripts/collect_gw_csv.sh --manifest   # manifest_gw_all.json も生成
+```
+
+- `--manifest` 生成時、`Valid-*` / `Test-*` は自動で `"split": "test"` 指定
 
 ### 4.3 train_gw.py ✅ 実装済
 
@@ -155,13 +188,31 @@ bash scripts/launch_stgnn_pipeline.sh status      # 進捗確認
 ## 6. 実装状況
 
 1. ✅ `build_gw_graph.py`: CSV 読み込み + 時間特徴抽出 + グラフ構築
-2. ✅ `prepare_gw_ml_data.py`: Healthy-A* 対応、train/val 保存
+2. ✅ `prepare_gw_ml_data.py`: manifest 対応、train/val/test 3分割、非標準ジョブ名自動検出
 3. ✅ `train_gw.py`: graph-level 2 値分類、手動特徴量ベース
-4. ✅ `train_gw_stgnn.py`: ST-GNN (1D-CNN + GAT) + DI baseline
+4. ✅ `train_gw_stgnn.py`: ST-GNN (1D-CNN + GAT) + DI baseline + manifest 対応
 5. ✅ `launch_stgnn_pipeline.sh`: 抽出→転送→学習自動化
+6. ✅ `collect_gw_csv.sh`: ODB→CSV 収集 + manifest 自動生成
 
-## 7. 参照
+## 7. Manifest JSON フォーマット
+
+```json
+{
+  "samples": [
+    {"csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-0000_sensors.csv", "label": 1},
+    {"csv": "abaqus_work/gw_fairing_dataset/Job-GW-Valid-Healthy_sensors.csv", "label": 0, "split": "test"},
+    {"csv": "abaqus_work/gw_fairing_dataset/Job-GW-Valid-Debond30_sensors.csv", "label": 1, "split": "test"}
+  ]
+}
+```
+
+- `csv`: 絶対パス or プロジェクトルート相対
+- `label`: 0=healthy, 1=defect
+- `split`: (optional) `"train"` / `"val"` / `"test"` — 強制スプリット指定
+
+## 8. 参照
 
 - `scripts/extract_gw_history.py`: 出力形式
 - `scripts/verify_gw_extract.py`: 整合性検証
+- `scripts/collect_gw_csv.sh`: ODB→CSV 一括収集
 - `src/build_graph.py`: 既存 FEM グラフ構築（参考）
