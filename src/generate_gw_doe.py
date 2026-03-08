@@ -35,10 +35,31 @@ Z_MARGIN = 100.0        # mm, avoid top/bottom edges
 THETA_MARGIN = 3.0      # deg, avoid symmetry BC edges
 
 # Size tiers for defect radius (mm)
-SIZE_TIERS = [
+# Default: micro-defect regime (10-30mm) for challenging benchmark
+SIZE_TIERS_MICRO = [
+    ('Micro',  10.0, 15.0, 0.30),   # Near/below detection limit (~λ/10–λ/7)
+    ('Small',  15.0, 22.0, 0.40),   # Marginal detection (~λ/7–λ/5)
+    ('Medium', 22.0, 30.0, 0.30),   # Moderate (~λ/5–λ/3)
+]
+
+# Original tiers (kept for reference / --tier_preset original)
+SIZE_TIERS_ORIGINAL = [
     ('Small',  20.0, 40.0, 0.30),   # Near detection limit
     ('Medium', 40.0, 60.0, 0.45),   # Typical BVID scale
     ('Large',  60.0, 80.0, 0.25),   # Clearly detectable
+]
+
+SIZE_TIERS = SIZE_TIERS_MICRO  # default
+
+# Defect types with weights (matching static model's 7 types)
+DEFECT_TYPES = [
+    ('debonding', 0.25),
+    ('fod', 0.10),
+    ('impact', 0.15),
+    ('delamination', 0.15),
+    ('inner_debond', 0.10),
+    ('thermal_progression', 0.10),
+    ('acoustic_fatigue', 0.15),
 ]
 
 # Openings to exclude (same as generate_gw_fairing.py OPENINGS_PHASE1)
@@ -65,7 +86,8 @@ def _defect_overlaps_opening(z_center, theta_deg, radius, openings):
 
 
 def generate_gw_doe(n_samples, seed=42, freq_khz=None,
-                    z_min=None, z_max=None, sector_angle=None):
+                    z_min=None, z_max=None, sector_angle=None,
+                    size_tiers=None, multi_defect=False):
     """Generate DOE for guided wave fairing dataset.
 
     Args:
@@ -87,6 +109,8 @@ def generate_gw_doe(n_samples, seed=42, freq_khz=None,
         z_max = DEFAULT_Z_MAX
     if sector_angle is None:
         sector_angle = DEFAULT_SECTOR_ANGLE
+    if size_tiers is None:
+        size_tiers = SIZE_TIERS
 
     rng = np.random.RandomState(seed)
 
@@ -102,8 +126,8 @@ def generate_gw_doe(n_samples, seed=42, freq_khz=None,
     # Size-stratified radius sampling
     tier_assignments = []
     remaining = n_samples
-    for i, (name, r_min, r_max, frac) in enumerate(SIZE_TIERS):
-        if i == len(SIZE_TIERS) - 1:
+    for i, (name, r_min, r_max, frac) in enumerate(size_tiers):
+        if i == len(size_tiers) - 1:
             n_tier = remaining
         else:
             n_tier = max(0, int(n_samples * frac))
@@ -140,15 +164,21 @@ def generate_gw_doe(n_samples, seed=42, freq_khz=None,
             if _defect_overlaps_opening(z_c, t_c, radius, OPENINGS):
                 continue
 
+            defect_p = {
+                'z_center': round(float(z_c), 1),
+                'theta_deg': round(float(t_c), 2),
+                'radius': radius,
+            }
+            if multi_defect:
+                dt_names = [d[0] for d in DEFECT_TYPES]
+                dt_weights = np.array([d[1] for d in DEFECT_TYPES])
+                dt_weights /= dt_weights.sum()
+                defect_p['defect_type'] = rng.choice(dt_names, p=dt_weights)
             samples.append({
                 'id': idx,
                 'job_name': 'Job-GW-Fair-%04d' % idx,
                 'size_tier': tier_name,
-                'defect_params': {
-                    'z_center': round(float(z_c), 1),
-                    'theta_deg': round(float(t_c), 2),
-                    'radius': radius,
-                },
+                'defect_params': defect_p,
             })
         attempt += 1
 
@@ -158,15 +188,21 @@ def generate_gw_doe(n_samples, seed=42, freq_khz=None,
         tier_name, radius = tier_assignments[idx]
         z_c = rng.uniform(z_lo + radius, z_hi - radius)
         t_c = rng.uniform(theta_lo, theta_hi)
+        defect_p = {
+            'z_center': round(float(z_c), 1),
+            'theta_deg': round(float(t_c), 2),
+            'radius': radius,
+        }
+        if multi_defect:
+            dt_names = [d[0] for d in DEFECT_TYPES]
+            dt_weights = np.array([d[1] for d in DEFECT_TYPES])
+            dt_weights /= dt_weights.sum()
+            defect_p['defect_type'] = rng.choice(dt_names, p=dt_weights)
         samples.append({
             'id': idx,
             'job_name': 'Job-GW-Fair-%04d' % idx,
             'size_tier': tier_name,
-            'defect_params': {
-                'z_center': round(float(z_c), 1),
-                'theta_deg': round(float(t_c), 2),
-                'radius': radius,
-            },
+            'defect_params': defect_p,
         })
 
     # Tier counts
@@ -186,7 +222,7 @@ def generate_gw_doe(n_samples, seed=42, freq_khz=None,
             'theta_deg': [theta_lo, theta_hi],
             'radius_tiers': [
                 {'name': t[0], 'min': t[1], 'max': t[2], 'frac': t[3]}
-                for t in SIZE_TIERS
+                for t in size_tiers
             ],
         },
         'tier_counts': tier_counts,
@@ -211,10 +247,16 @@ def main():
                         help='Barrel z_max in mm (default: 2500)')
     parser.add_argument('--sector_angle', type=float, default=DEFAULT_SECTOR_ANGLE,
                         help='Sector angle in degrees (default: 30)')
+    parser.add_argument('--tier_preset', type=str, default='micro',
+                        choices=['micro', 'original'],
+                        help='Size tier preset: micro (10-30mm) or original (20-80mm)')
+    parser.add_argument('--multi_defect', action='store_true',
+                        help='Assign random defect types (7 types)')
     parser.add_argument('--output', type=str, default='doe_gw_fairing.json',
                         help='Output JSON path (default: doe_gw_fairing.json)')
     args = parser.parse_args()
 
+    tiers = SIZE_TIERS_ORIGINAL if args.tier_preset == 'original' else SIZE_TIERS_MICRO
     doe = generate_gw_doe(
         n_samples=args.n_samples,
         seed=args.seed,
@@ -222,6 +264,8 @@ def main():
         z_min=args.z_min,
         z_max=args.z_max,
         sector_angle=args.sector_angle,
+        size_tiers=tiers,
+        multi_defect=args.multi_defect,
     )
 
     with open(args.output, 'w') as f:
