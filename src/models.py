@@ -170,6 +170,127 @@ class SAGEModel(BaseGNN):
 
 
 # =========================================================================
+# LGSTA — Local-Global Spatiotemporal Attention (LGSTA-GNN inspired)
+# =========================================================================
+class LocalGlobalAttentionGNN(nn.Module):
+    """Local-Global Dual Attention GNN for node-level classification.
+
+    Inspired by LGSTA-GNN (Buildings, 2025):
+    - Local branch: GAT layers capture neighborhood structure
+    - Global branch: Multi-head self-attention over all nodes for long-range dependencies
+    - Fusion: Gated combination of local and global representations
+
+    Designed for fairing defect detection where both local anomalies
+    (debonding region) and global mode shapes matter.
+    """
+
+    def __init__(self, in_channels, hidden_channels=128, num_classes=2,
+                 num_layers=4, dropout=0.1, heads=4, edge_attr_dim=0,
+                 global_heads=4, use_residual=True):
+        super().__init__()
+        self.dropout = dropout
+
+        # Input projection
+        self.input_proj = nn.Linear(in_channels, hidden_channels)
+
+        # Local branch: GAT layers
+        self.local_convs = nn.ModuleList()
+        self.local_norms = nn.ModuleList()
+        self.local_skip_projs = nn.ModuleList()
+        self.edge_attr_dim = edge_attr_dim
+
+        in_dim = hidden_channels
+        for i in range(num_layers):
+            is_last = (i == num_layers - 1)
+            h = 1 if is_last else heads
+            concat = not is_last
+            out_c = hidden_channels
+            self.local_convs.append(GATConv(
+                in_dim, out_c, heads=h, concat=concat, dropout=dropout,
+                edge_dim=edge_attr_dim if edge_attr_dim > 0 else None,
+            ))
+            out_dim = out_c * h if concat else out_c
+            self.local_norms.append(BatchNorm(out_dim))
+            if in_dim != out_dim:
+                self.local_skip_projs.append(nn.Linear(in_dim, out_dim))
+            else:
+                self.local_skip_projs.append(nn.Identity())
+            in_dim = out_dim
+        self._local_final_dim = in_dim
+
+        # Global branch: Transformer-style self-attention (lightweight)
+        self.global_attn = nn.MultiheadAttention(
+            hidden_channels, global_heads, dropout=dropout, batch_first=True)
+        self.global_norm = nn.LayerNorm(hidden_channels)
+        self.global_ffn = nn.Sequential(
+            nn.Linear(hidden_channels, hidden_channels * 2),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_channels * 2, hidden_channels),
+        )
+        self.global_ffn_norm = nn.LayerNorm(hidden_channels)
+
+        # Fusion gate: learnable combination of local + global
+        self.gate = nn.Sequential(
+            nn.Linear(hidden_channels * 2, hidden_channels),
+            nn.Sigmoid(),
+        )
+
+        # Head
+        self.head = nn.Sequential(
+            nn.Linear(hidden_channels, hidden_channels // 2),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_channels // 2, num_classes),
+        )
+
+    def forward(self, x, edge_index, edge_attr=None, batch=None):
+        h = self.input_proj(x)  # (N, hidden)
+
+        # === Local branch (GAT) ===
+        h_local = h
+        for conv, norm, skip in zip(self.local_convs, self.local_norms, self.local_skip_projs):
+            residual = h_local
+            if self.edge_attr_dim > 0 and edge_attr is not None:
+                h_local = conv(h_local, edge_index, edge_attr=edge_attr)
+            else:
+                h_local = conv(h_local, edge_index)
+            h_local = norm(h_local)
+            h_local = F.relu(h_local)
+            h_local = F.dropout(h_local, p=self.dropout, training=self.training)
+            h_local = h_local + skip(residual)
+        # Project back to hidden_channels for fusion
+        if self._local_final_dim != h.shape[-1]:
+            if not hasattr(self, '_local_out_proj'):
+                self._local_out_proj = nn.Linear(
+                    self._local_final_dim, h.shape[-1])
+            h_local = self._local_out_proj(h_local)
+
+        # === Global branch (Self-Attention) ===
+        # Process per-graph for batched data
+        if batch is None:
+            batch = torch.zeros(x.size(0), dtype=torch.long, device=x.device)
+
+        # Attention over all nodes (per graph in batch)
+        unique_graphs = batch.unique()
+        h_global = torch.zeros_like(h)
+        for g_id in unique_graphs:
+            mask = (batch == g_id)
+            h_g = h[mask].unsqueeze(0)  # (1, N_g, hidden)
+            attn_out, _ = self.global_attn(h_g, h_g, h_g)
+            h_g = self.global_norm(h_g + attn_out)
+            ffn_out = self.global_ffn(h_g)
+            h_g = self.global_ffn_norm(h_g + ffn_out)
+            h_global[mask] = h_g.squeeze(0)
+
+        # === Gated Fusion ===
+        gate = self.gate(torch.cat([h_local, h_global], dim=-1))
+        h_fused = gate * h_local + (1.0 - gate) * h_global
+
+        return self.head(h_fused)
+
+
+# =========================================================================
 # Factory
 # =========================================================================
 # =========================================================================
@@ -254,6 +375,7 @@ MODEL_REGISTRY = {
     'gat': GATModel,
     'gin': GINModel,
     'sage': SAGEModel,
+    'lgsta': LocalGlobalAttentionGNN,
 }
 
 if _GPS_AVAILABLE:
@@ -281,7 +403,7 @@ def build_model(arch, in_channels, edge_attr_dim=0, **kwargs):
         raise ValueError("Unknown architecture '%s'. Choose from: %s" %
                          (arch, list(MODEL_REGISTRY.keys())))
     cls = MODEL_REGISTRY[arch]
-    if arch == 'gat':
+    if arch in ('gat', 'lgsta'):
         return cls(in_channels, edge_attr_dim=edge_attr_dim, **kwargs)
     # GPS: filter out edge_attr_dim from kwargs (handled internally)
     if arch == 'gps':

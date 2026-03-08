@@ -247,7 +247,38 @@ def estimate_curvature(coords, normals, adj):
 # =========================================================================
 # Edge construction
 # =========================================================================
-def build_edges(coords, adj, normals):
+def compute_strain_energy_density(df_nodes):
+    """Compute strain energy density (SED) per node from stress-strain fields.
+
+    SED = 0.5 * (σ₁₁·ε₁₁ + σ₂₂·ε₂₂ + 2·σ₁₂·ε₁₂)
+    Falls back to von Mises proxy if strain data unavailable.
+
+    Returns: (N,) ndarray of SED values (non-negative).
+    """
+    has_strain = all(c in df_nodes.columns for c in ['le11', 'le22', 'le12'])
+    has_stress = all(c in df_nodes.columns for c in ['s11', 's22', 's12'])
+
+    if has_strain and has_stress:
+        s11 = df_nodes['s11'].values.astype(np.float64)
+        s22 = df_nodes['s22'].values.astype(np.float64)
+        s12 = df_nodes['s12'].values.astype(np.float64)
+        e11 = df_nodes['le11'].values.astype(np.float64)
+        e22 = df_nodes['le22'].values.astype(np.float64)
+        e12 = df_nodes['le12'].values.astype(np.float64)
+        sed = 0.5 * np.abs(s11 * e11 + s22 * e22 + 2.0 * s12 * e12)
+    else:
+        # Fallback: use von Mises stress squared as proxy
+        for col in ['smises', 'dspss']:
+            if col in df_nodes.columns:
+                vm = df_nodes[col].values.astype(np.float64)
+                sed = vm ** 2
+                break
+        else:
+            return None
+    return sed
+
+
+def build_edges(coords, adj, normals, sed=None):
     """
     Build edge_index and edge attributes.
 
@@ -255,6 +286,13 @@ def build_edges(coords, adj, normals):
       - Relative position (dx, dy, dz): 3
       - Euclidean distance: 1
       - Relative normal angle (arccos of dot product): 1
+      - Physics-informed edge weight (PIGMind-style): 1  [if SED available]
+
+    The physics-informed weight encodes strain energy similarity:
+      w_ij = exp(-|SED_i - SED_j| / σ)
+    where σ = median(|SED_i - SED_j|) over all edges.
+    Edges connecting nodes with similar energy states get higher weight,
+    amplifying the graph signal in physically coherent regions.
     """
     edges_src, edges_dst = [], []
     edge_attrs = []
@@ -275,6 +313,17 @@ def build_edges(coords, adj, normals):
 
     edge_index = torch.tensor([edges_src, edges_dst], dtype=torch.long)
     edge_attr = torch.tensor(np.array(edge_attrs), dtype=torch.float)
+
+    # PIGMind-style physics-informed edge weight
+    if sed is not None:
+        src = edge_index[0].numpy()
+        dst = edge_index[1].numpy()
+        sed_diff = np.abs(sed[src] - sed[dst])
+        sigma = np.median(sed_diff) + 1e-12
+        physics_weight = np.exp(-sed_diff / sigma)
+        physics_weight_t = torch.tensor(
+            physics_weight, dtype=torch.float).unsqueeze(1)
+        edge_attr = torch.cat([edge_attr, physics_weight_t], dim=1)
 
     return edge_index, edge_attr
 
@@ -356,9 +405,16 @@ def build_curvature_graph(df_nodes, df_elems, compute_geodesic=True, verbose=Tru
     print("  Curvature — H: [%.4f, %.4f]  K: [%.6f, %.6f]" %
           (H.min(), H.max(), K.min(), K.max()))
 
+    # Strain energy density for physics-informed edge weights (PIGMind-style)
+    sed = compute_strain_energy_density(df_nodes)
+    if sed is not None:
+        log("  Computed strain energy density (SED) for physics-informed edges")
+    else:
+        log("  SED not available — skipping physics-informed edge weights")
+
     # Edges
-    edge_index, edge_attr = build_edges(coords, adj, normals)
-    print("  Edges: %d" % edge_index.shape[1])
+    edge_index, edge_attr = build_edges(coords, adj, normals, sed=sed)
+    print("  Edges: %d (edge_attr dim: %d)" % (edge_index.shape[1], edge_attr.shape[1]))
 
     # Geodesic distances (optional, can be slow for large meshes)
     if compute_geodesic and n_nodes < 100000:
