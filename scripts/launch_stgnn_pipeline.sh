@@ -44,7 +44,7 @@ do_extract() {
     # Healthy
     local job="Job-GW-Fair-Healthy"
     if [ -f "$WORK_DIR/$job.odb" ] && [ ! -f "$CSV_DIR/${job}_sensors.csv" ]; then
-        if grep -q "THE ANALYSIS HAS BEEN COMPLETED" "$WORK_DIR/$job.sta" 2>/dev/null; then
+        if grep -q "COMPLETED SUCCESSFULLY" "$WORK_DIR/$job.sta" 2>/dev/null; then
             echo "  Extracting: $job"
             LD_LIBRARY_PATH="" /usr/bin/ssh $EXTRACT_HOST "cd $WORK_DIR && \
                 $ENV_CMD abaqus python $SCRIPTS_DIR/extract_gw_history.py $job.odb" 2>&1 | tail -2
@@ -67,7 +67,7 @@ do_extract() {
         if [ ! -f "$WORK_DIR/$job.odb" ]; then
             continue
         fi
-        if ! grep -q "THE ANALYSIS HAS BEEN COMPLETED" "$WORK_DIR/$job.sta" 2>/dev/null; then
+        if ! grep -q "COMPLETED SUCCESSFULLY" "$WORK_DIR/$job.sta" 2>/dev/null; then
             echo "  SKIP $job (not completed)"
             ((skipped++))
             continue
@@ -142,14 +142,14 @@ do_status() {
     local n_completed=0
     for ((i=0; i<N_SAMPLES; i++)); do
         local job=$(printf "Job-GW-Fair-%04d" $i)
-        if grep -q "THE ANALYSIS HAS BEEN COMPLETED" "$WORK_DIR/$job.sta" 2>/dev/null; then
+        if grep -q "COMPLETED SUCCESSFULLY" "$WORK_DIR/$job.sta" 2>/dev/null; then
             ((n_completed++))
         fi
     done
     echo "Completed ODBs: $n_completed / $N_SAMPLES"
 
     # Healthy status
-    if grep -q "THE ANALYSIS HAS BEEN COMPLETED" "$WORK_DIR/Job-GW-Fair-Healthy.sta" 2>/dev/null; then
+    if grep -q "COMPLETED SUCCESSFULLY" "$WORK_DIR/Job-GW-Fair-Healthy.sta" 2>/dev/null; then
         echo "Healthy ODB: COMPLETED"
     else
         local pct=$(tail -1 "$WORK_DIR/Job-GW-Fair-Healthy.sta" 2>/dev/null | awk '{print $2}')

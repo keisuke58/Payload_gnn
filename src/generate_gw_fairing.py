@@ -58,18 +58,30 @@ CFRP_G12 = 5000.0
 CFRP_G13 = 5000.0
 CFRP_G23 = 3000.0
 CFRP_DENSITY = 1600e-12  # tonne/mm^3
+CFRP_CTE_1 = -0.3e-6    # /°C, fiber direction (negative — carbon fiber)
+CFRP_CTE_2 = 28e-6      # /°C, transverse (matrix-dominated)
 
 # Al-Honeycomb 5052 (cylindrical CSYS: 1=R, 2=theta, 3=axial)
 E_CORE_1 = 1000.0     # MPa (radial / through-thickness)
-E_CORE_2 = 1.0        # theta
-E_CORE_3 = 1.0        # axial
+E_CORE_2 = 10.0       # theta (cell wall bending, not pure membrane)
+E_CORE_3 = 10.0       # axial
 NU_CORE_12 = 0.001
 NU_CORE_13 = 0.001
 NU_CORE_23 = 0.001
 G_CORE_12 = 400.0     # R-theta shear
 G_CORE_13 = 240.0     # R-axial shear
-G_CORE_23 = 1.0       # theta-axial
+G_CORE_23 = 5.0       # theta-axial (updated for wave propagation)
 CORE_DENSITY = 50e-12
+CORE_CTE = 23e-6         # /°C, aluminum
+
+# Thermal field — ground inspection scenario
+# Reference: cure temperature ~180°C → cooling to ambient induces
+#   residual thermal stress from CTE mismatch (CFRP α₁=-0.3e-6 vs Al 23e-6)
+# Inspection: outdoor at launch site (e.g. Tanegashima summer, solar exposure)
+TEMP_REF = 180.0          # °C, stress-free state (autoclave cure temperature)
+TEMP_OUTER = 40.0         # °C, outer skin (solar exposure at launch site)
+TEMP_INNER = 25.0         # °C, inner skin (shaded, near ambient)
+TEMP_CORE = 32.0          # °C, average through core
 
 # Frame (Al-7075)
 FRAME_E = 71700.0
@@ -101,8 +113,22 @@ DEFAULT_CYCLES = 5
 CP_ESTIMATE = 1550.0      # m/s, A0 mode phase velocity estimate
 FORCE_MAGNITUDE = 1.0     # N, concentrated force
 FIELD_OUTPUT_INTERVAL = 1e-6  # 1 microsecond
-SENSOR_SPACING = 30.0     # mm between sensors
+SENSOR_SPACING = 20.0     # mm between sensors (< λ/2 ≈ 15.5mm at 50kHz)
 DEFAULT_N_SENSORS = 10    # 5 circumferential + 5 axial
+
+# Group velocity — A0 mode wave packet speed (dispersion: vg < vp)
+# At 50 kHz in CFRP sandwich: vg ≈ 0.7 × vp (Lamb wave dispersion)
+# Used for time period calculation (wave packet travel time)
+VG_ESTIMATE = 1100.0          # m/s, A0 group velocity at 50kHz
+
+# Absorbing Boundary Layer (ABL) — attenuates waves near sector edges
+# Prevents artificial reflections from symmetry BCs at θ=0 and θ=sector_angle
+ABL_WIDTH_DEG = 2.0           # degrees per edge (~91mm arc at R=2600mm)
+ABL_BETA_FACTOR = 100.0       # Rayleigh β multiplier in ABL zone
+
+# Moisture absorption — epoxy absorbs ~2% water (tropical launch site)
+# Reduces matrix-dominated stiffness (E2, G12, G13, G23) by ~8%
+MOISTURE_FACTOR_DEFAULT = 0.92  # 1.0 = dry, 0.92 = 2% moisture
 
 # ==============================================================================
 # CONSTANTS — Openings (filtered to sector range at runtime)
@@ -205,15 +231,35 @@ def find_nearest_node(instance, target_x, target_y, target_z):
 # MATERIALS & SECTIONS
 # ==============================================================================
 
-def create_materials(model):
-    """Create all materials (no CTE — dynamic analysis only)."""
+def create_materials(model, include_thermal=True, moisture_factor=1.0):
+    """Create all materials with thermal expansion and Rayleigh damping.
+
+    Rayleigh damping: α=0 (mass-proportional off), β=3e-6 (stiffness-proportional)
+    yields ~1.5% critical damping at 50 kHz.
+    ξ = β·ω/2 = 3e-6 × 2π×50000 / 2 ≈ 0.47% per mode → ~1.5% total (composites).
+    Literature: CFRP sandwich ~1-3% damping at ultrasonic frequencies.
+
+    moisture_factor: 1.0=dry, 0.92=2% moisture (reduces matrix properties).
+    """
+    RAYLEIGH_ALPHA = 0.0     # mass-proportional (off for wave propagation)
+    RAYLEIGH_BETA = 3.0e-6   # stiffness-proportional (~1.5% at 50 kHz)
+
+    # Moisture-degraded matrix properties (E1 fiber-dominated, unaffected)
+    E2_eff = CFRP_E2 * moisture_factor
+    G12_eff = CFRP_G12 * moisture_factor
+    G13_eff = CFRP_G13 * moisture_factor
+    G23_eff = CFRP_G23 * moisture_factor
+
     # CFRP
     mat = model.Material(name='Mat-CFRP')
     mat.Density(table=((CFRP_DENSITY,),))
     mat.Elastic(
         type=LAMINA,
-        table=((CFRP_E1, CFRP_E2, CFRP_NU12,
-                CFRP_G12, CFRP_G13, CFRP_G23),))
+        table=((CFRP_E1, E2_eff, CFRP_NU12,
+                G12_eff, G13_eff, G23_eff),))
+    mat.Damping(alpha=RAYLEIGH_ALPHA, beta=RAYLEIGH_BETA)
+    if include_thermal:
+        mat.Expansion(table=((CFRP_CTE_1, CFRP_CTE_2, 0.0),))
 
     # Al-Honeycomb (engineering constants in cylindrical CSYS)
     mat_c = model.Material(name='Mat-Honeycomb')
@@ -223,18 +269,27 @@ def create_materials(model):
         table=((E_CORE_1, E_CORE_2, E_CORE_3,
                 NU_CORE_12, NU_CORE_13, NU_CORE_23,
                 G_CORE_12, G_CORE_13, G_CORE_23),))
+    mat_c.Damping(alpha=RAYLEIGH_ALPHA, beta=RAYLEIGH_BETA)
+    if include_thermal:
+        mat_c.Expansion(table=((CORE_CTE,),))
 
     # Frame (isotropic Al-7075)
     mat_f = model.Material(name='Mat-Frame')
     mat_f.Density(table=((FRAME_DENSITY,),))
     mat_f.Elastic(table=((FRAME_E, FRAME_NU),))
+    mat_f.Damping(alpha=RAYLEIGH_ALPHA, beta=RAYLEIGH_BETA)
+    if include_thermal:
+        mat_f.Expansion(table=((23.6e-6,),))  # Al-7075 CTE
 
     # Void (for openings)
     mat_v = model.Material(name='Mat-Void')
     mat_v.Density(table=((1e-15,),))
     mat_v.Elastic(table=((1.0, 0.3),))
 
-    print("Materials created: CFRP, Honeycomb, Frame, Void")
+    moisture_str = ', moisture=%.0f%%' % ((1 - moisture_factor) * 100) \
+        if moisture_factor < 1.0 else ''
+    print("Materials created: CFRP, Honeycomb, Frame, Void%s%s" % (
+        ' (with CTE)' if include_thermal else '', moisture_str))
 
 
 def create_sections(model):
@@ -533,6 +588,42 @@ def partition_defect_zone(p_core, p_outer, defect_params):
         z_c, defect_params['theta_deg'], r_def))
 
 
+def partition_absorbing_zones(p_inner, p_core, p_outer,
+                               sector_angle, abl_width_deg):
+    """Partition parts at ABL boundaries near circumferential edges.
+
+    Creates datum planes at θ=abl_width and θ=sector_angle-abl_width,
+    splitting the geometry into: ABL_lo | main | ABL_hi zones.
+    """
+    r_ref = RADIUS + CORE_T / 2.0
+    z_mid = (DEFAULT_Z_MIN + DEFAULT_Z_MAX) / 2.0
+
+    for theta_deg in [abl_width_deg, sector_angle - abl_width_deg]:
+        theta_rad = math.radians(theta_deg)
+        nx = -math.sin(theta_rad)
+        nz = math.cos(theta_rad)
+        pt = (r_ref * math.cos(theta_rad), z_mid,
+              r_ref * math.sin(theta_rad))
+
+        for part in [p_inner, p_core, p_outer]:
+            try:
+                dp = part.DatumPlaneByPointNormal(
+                    point=pt, normal=(nx, 0.0, nz))
+                datum = part.datums[dp.id]
+                if part.cells:
+                    part.PartitionCellByDatumPlane(
+                        datumPlane=datum, cells=part.cells)
+                else:
+                    part.PartitionFaceByDatumPlane(
+                        datumPlane=datum, faces=part.faces)
+            except Exception as e:
+                print("  ABL partition warning (%s): %s" % (
+                    part.name, str(e)[:60]))
+
+    print("ABL zones partitioned: [0, %.1f] and [%.1f, %.1f] deg" % (
+        abl_width_deg, sector_angle - abl_width_deg, sector_angle))
+
+
 # ==============================================================================
 # SECTION ASSIGNMENT (with cylindrical CSYS)
 # ==============================================================================
@@ -646,6 +737,69 @@ def assign_sections(p_inner, p_core, p_outer, openings, defect_params):
         len(healthy_f), len(void_f)))
 
 
+def _assign_defect_zone_sections(p_core, p_outer, defect_params,
+                                  skin_mat, core_mat):
+    """Override section assignment in the defect zone with defect materials."""
+    n_skin = 0
+    n_core = 0
+
+    # Outer skin: faces inside defect zone → Section-Defect-Skin
+    if skin_mat:
+        defect_faces = []
+        for face in p_outer.faces:
+            pt = face.pointOn[0]
+            if _point_in_defect_zone(pt[0], pt[1], pt[2], defect_params):
+                defect_faces.append(face)
+        if defect_faces:
+            pts = tuple((f.pointOn[0],) for f in defect_faces)
+            reg = p_outer.Set(
+                faces=p_outer.faces.findAt(*pts), name='Set-Defect-Skin')
+            p_outer.SectionAssignment(
+                region=reg, sectionName='Section-Defect-Skin')
+            # Re-apply cylindrical CSYS orientation
+            cyl_outer = None
+            for dk in p_outer.datums.keys():
+                d = p_outer.datums[dk]
+                if hasattr(d, 'name') and 'CylCS' in d.name:
+                    cyl_outer = d
+                    break
+            if cyl_outer:
+                p_outer.MaterialOrientation(
+                    region=reg, orientationType=SYSTEM,
+                    axis=AXIS_1, additionalRotationType=ROTATION_NONE,
+                    localCsys=cyl_outer)
+            n_skin = len(defect_faces)
+
+    # Core: cells inside defect zone → Section-Defect-Core
+    if core_mat:
+        defect_cells = []
+        for cell in p_core.cells:
+            pt = cell.pointOn[0]
+            if _point_in_defect_zone(pt[0], pt[1], pt[2], defect_params):
+                defect_cells.append(cell)
+        if defect_cells:
+            pts = tuple((c.pointOn[0],) for c in defect_cells)
+            reg = p_core.Set(
+                cells=p_core.cells.findAt(*pts), name='Set-Defect-Core')
+            p_core.SectionAssignment(
+                region=reg, sectionName='Section-Defect-Core')
+            cyl_core = None
+            for dk in p_core.datums.keys():
+                d = p_core.datums[dk]
+                if hasattr(d, 'name') and 'CylCS' in d.name:
+                    cyl_core = d
+                    break
+            if cyl_core:
+                p_core.MaterialOrientation(
+                    region=reg, orientationType=SYSTEM,
+                    axis=AXIS_3, additionalRotationType=ROTATION_NONE,
+                    localCsys=cyl_core)
+            n_core = len(defect_cells)
+
+    print("  Defect zone override: %d skin faces, %d core cells" % (
+        n_skin, n_core))
+
+
 # ==============================================================================
 # ASSEMBLY
 # ==============================================================================
@@ -673,21 +827,43 @@ def create_assembly(model, p_inner, p_core, p_outer, frame_parts):
 # INTERACTIONS — Surface-based CZM (General Contact for Explicit)
 # ==============================================================================
 
+def _defect_damaged_interface(defect_params):
+    """Determine which interface is damaged by this defect type.
+
+    Returns 'outer', 'inner', or None.
+    - debonding/impact/thermal_progression: outer skin-core interface
+    - inner_debond: inner skin-core interface
+    - fod/delamination/acoustic_fatigue: no interface damage (bulk only)
+    """
+    if defect_params is None:
+        return None
+    dt = defect_params.get('defect_type', 'debonding')
+    if dt in ('debonding', 'impact', 'thermal_progression'):
+        return 'outer'
+    elif dt == 'inner_debond':
+        return 'inner'
+    else:
+        return None
+
+
 def _classify_core_surfaces_mesh(assembly, inst_core, defect_params):
     """Create mesh-based surfaces for core inner/outer faces.
 
     Uses element face normals to identify inner (R=RADIUS) and outer
-    (R=RADIUS+CORE_T) surfaces, then classifies outer faces into
-    healthy vs defect zones.
+    (R=RADIUS+CORE_T) surfaces, then classifies into healthy vs defect
+    zones based on which interface is damaged by the defect type.
 
-    Returns (surf_inner, surf_outer_healthy, surf_outer_defect).
+    Returns (surf_inner_h, surf_inner_d, surf_outer_h, surf_outer_d).
     Must be called AFTER meshing.
     """
     r_inner = RADIUS
     r_outer = RADIUS + CORE_T
     tol_r = CORE_T * 0.3  # generous tolerance
 
-    inner_elems = []
+    damaged_iface = _defect_damaged_interface(defect_params)
+
+    inner_h_elems = []
+    inner_d_elems = []
     outer_h_elems = []
     outer_d_elems = []
 
@@ -696,16 +872,13 @@ def _classify_core_surfaces_mesh(assembly, inst_core, defect_params):
         node_coords = [inst_core.nodes[n].coordinates for n in nodes]
 
         # Check each element face (for C3D8R: 6 faces)
-        # Face normals computed from face center
         n_nodes = len(nodes)
         if n_nodes == 8:
-            # C3D8R faces: (0123), (4567), (0154), (1265), (2376), (3047)
             face_defs = [
                 (0, 1, 2, 3, 'S1'), (4, 5, 6, 7, 'S2'),
                 (0, 1, 5, 4, 'S3'), (1, 2, 6, 5, 'S4'),
                 (2, 3, 7, 6, 'S5'), (3, 0, 4, 7, 'S6')]
         elif n_nodes == 6:
-            # C3D6 (wedge) faces
             face_defs = [
                 (0, 1, 2, -1, 'S1'), (3, 4, 5, -1, 'S2'),
                 (0, 1, 4, 3, 'S3'), (1, 2, 5, 4, 'S4'),
@@ -727,26 +900,36 @@ def _classify_core_surfaces_mesh(assembly, inst_core, defect_params):
             cz = sum([node_coords[i][2] for i in face_nodes]) / len(face_nodes)
             r_face = math.sqrt(cx * cx + cz * cz)
 
+            in_defect = (defect_params and
+                         _point_in_defect_zone(cx, cy, cz, defect_params))
+
             if abs(r_face - r_inner) < tol_r:
-                inner_elems.append((elem.label, fn))
+                if in_defect and damaged_iface == 'inner':
+                    inner_d_elems.append((elem.label, fn))
+                else:
+                    inner_h_elems.append((elem.label, fn))
             elif abs(r_face - r_outer) < tol_r:
-                if defect_params and _point_in_defect_zone(
-                        cx, cy, cz, defect_params):
+                if in_defect and damaged_iface == 'outer':
                     outer_d_elems.append((elem.label, fn))
                 else:
                     outer_h_elems.append((elem.label, fn))
 
-    print("  Core mesh surfaces: %d inner, %d outer healthy, %d outer defect" % (
-        len(inner_elems), len(outer_h_elems), len(outer_d_elems)))
+    print("  Core surfaces: inner %d/%d (h/d), outer %d/%d (h/d)" % (
+        len(inner_h_elems), len(inner_d_elems),
+        len(outer_h_elems), len(outer_d_elems)))
 
     # Create element-based surfaces
-    surf_inner = None
+    surf_inner_h = None
+    surf_inner_d = None
     surf_outer_h = None
     surf_outer_d = None
 
-    if inner_elems:
-        surf_inner = _create_elem_surface(assembly, inst_core,
-                                           'Surf-Core-Inner', inner_elems)
+    if inner_h_elems:
+        surf_inner_h = _create_elem_surface(assembly, inst_core,
+                                             'Surf-Core-Inner-Healthy', inner_h_elems)
+    if inner_d_elems:
+        surf_inner_d = _create_elem_surface(assembly, inst_core,
+                                             'Surf-Core-Inner-Defect', inner_d_elems)
     if outer_h_elems:
         surf_outer_h = _create_elem_surface(assembly, inst_core,
                                              'Surf-Core-Outer-Healthy', outer_h_elems)
@@ -754,7 +937,7 @@ def _classify_core_surfaces_mesh(assembly, inst_core, defect_params):
         surf_outer_d = _create_elem_surface(assembly, inst_core,
                                              'Surf-Core-Outer-Defect', outer_d_elems)
 
-    return surf_inner, surf_outer_h, surf_outer_d
+    return surf_inner_h, surf_inner_d, surf_outer_h, surf_outer_d
 
 
 def _create_elem_surface(assembly, inst, name, elem_face_list):
@@ -791,34 +974,25 @@ def create_interactions(model, assembly,
     CohesiveBehavior requires General Contact in Explicit — cannot use
     SurfaceToSurfaceContactExp (pair-based).
     Strategy:
-      - Create named surfaces for core inner/outer, inner/outer skin
-      - Use ContactExp (General Contact) with surface pair assignments:
-        * Core-Inner ↔ InnerSkin: CZM-Healthy
-        * Core-Outer-Healthy ↔ OuterSkin: CZM-Healthy
-        * Core-Outer-Defect ↔ OuterSkin: CZM-Damaged (frictionless)
-        * All other: default (hard + frictionless)
+      - Classify core surfaces into inner/outer × healthy/defect
+      - CZM-Damaged only on the interface matching defect_type:
+        * debonding/impact/thermal_progression → outer interface
+        * inner_debond → inner interface
+        * fod/delamination/acoustic_fatigue → no interface damage
     """
     # --- Create mesh-based surfaces ---
-    # Core surfaces (inner/outer healthy/defect) from element faces
-    surf_core_inner, surf_core_outer_h, surf_core_outer_d = \
+    surf_inner_h, surf_inner_d, surf_outer_h, surf_outer_d = \
         _classify_core_surfaces_mesh(assembly, inst_core, defect_params)
 
-    # Inner skin all faces
-    surf_inner = assembly.Surface(
+    # Skin surfaces
+    surf_inner_skin = assembly.Surface(
         side1Faces=inst_inner.faces, name='Surf-InnerSkin')
-
-    # Outer skin all faces
-    surf_outer = assembly.Surface(
+    surf_outer_skin = assembly.Surface(
         side1Faces=inst_outer.faces, name='Surf-OuterSkin')
 
     # --- General Contact (Explicit) ---
     gc = model.ContactExp(name='GeneralContact', createStepName='Initial')
-
-    # Include all surfaces with self-contact
-    gc.includedPairs.setValuesInStep(
-        stepName='Initial', useAllstar=ON)
-
-    # Default property: hard + frictionless
+    gc.includedPairs.setValuesInStep(stepName='Initial', useAllstar=ON)
     gc.contactPropertyAssignments.appendInStep(
         stepName='Initial',
         assignments=((GLOBAL, SELF, 'IntProp-Default'),))
@@ -826,22 +1000,29 @@ def create_interactions(model, assembly,
     # Surface pair assignments for CZM
     pair_assignments = []
 
-    # Inner interface: CZM-Healthy
-    if surf_core_inner is not None:
+    # Inner interface: healthy
+    if surf_inner_h is not None:
         pair_assignments.append(
-            (assembly.surfaces['Surf-Core-Inner'],
+            (assembly.surfaces['Surf-Core-Inner-Healthy'],
              assembly.surfaces['Surf-InnerSkin'],
              'IntProp-CZM-Healthy'))
 
-    # Outer interface healthy: CZM-Healthy
-    if surf_core_outer_h is not None:
+    # Inner interface: defect (inner_debond)
+    if surf_inner_d is not None:
+        pair_assignments.append(
+            (assembly.surfaces['Surf-Core-Inner-Defect'],
+             assembly.surfaces['Surf-InnerSkin'],
+             'IntProp-CZM-Damaged'))
+
+    # Outer interface: healthy
+    if surf_outer_h is not None:
         pair_assignments.append(
             (assembly.surfaces['Surf-Core-Outer-Healthy'],
              assembly.surfaces['Surf-OuterSkin'],
              'IntProp-CZM-Healthy'))
 
-    # Outer interface defect: CZM-Damaged (frictionless, no CZM)
-    if surf_core_outer_d is not None:
+    # Outer interface: defect (debonding/impact/thermal_progression)
+    if surf_outer_d is not None:
         pair_assignments.append(
             (assembly.surfaces['Surf-Core-Outer-Defect'],
              assembly.surfaces['Surf-OuterSkin'],
@@ -852,10 +1033,10 @@ def create_interactions(model, assembly,
             stepName='Initial',
             assignments=tuple(pair_assignments))
 
-    n_h = 1 if surf_core_outer_h else 0
-    n_d = 1 if surf_core_outer_d else 0
-    print("General Contact: %d CZM pairs (%d outer healthy, %d outer defect)" % (
-        len(pair_assignments), n_h, n_d))
+    n_id = 1 if surf_inner_d else 0
+    n_od = 1 if surf_outer_d else 0
+    print("General Contact: %d CZM pairs (inner_d=%d, outer_d=%d)" % (
+        len(pair_assignments), n_id, n_od))
 
 
 def create_frame_ties(model, assembly, inst_inner, frame_instances):
@@ -1214,85 +1395,533 @@ def apply_excitation(model, assembly, inst_outer, freq_hz, n_cycles,
     print("Radial force: %.1f N, amplitude=%s" % (FORCE_MAGNITUDE, amp_name))
 
 
+def _place_sensor(model, assembly, inst_outer, step_name,
+                   sensor_id, x, y, z):
+    """Place a single sensor and create history output request.
+
+    Returns (sensor_id, snap_distance) or None if failed.
+    """
+    label, dist = find_nearest_node(inst_outer, x, y, z)
+    if label is None:
+        return None
+
+    set_name = 'Set-Sensor-%d' % sensor_id
+    node_seq = inst_outer.nodes.sequenceFromLabels((label,))
+    assembly.Set(nodes=node_seq, name=set_name)
+    model.HistoryOutputRequest(
+        name='H-Output-S%d' % sensor_id,
+        createStepName=step_name,
+        variables=('U1', 'U2', 'U3'),
+        region=assembly.sets[set_name],
+        sectionPoints=DEFAULT, rebar=EXCLUDE,
+        timeInterval=FIELD_OUTPUT_INTERVAL)
+    return sensor_id, dist
+
+
 def setup_sensor_outputs(model, assembly, inst_outer, step_name,
                          excite_theta_deg, excite_z, sector_angle,
-                         n_sensors=10, spacing=SENSOR_SPACING):
-    """Place sensors in cross pattern on outer skin.
+                         n_sensors=10, spacing=SENSOR_SPACING,
+                         layout='grid', z_min=None, z_max=None,
+                         abl_width_deg=0.0):
+    """Place sensors on outer skin.
 
-    n_circ circumferential (vary theta, fixed z) + n_axial axial (vary z, fixed theta).
-    For n_sensors > 20, spacing is auto-reduced to fit within sector.
+    layout='grid': uniform grid covering the sector (for 2D GNN).
+    layout='cross': cross pattern centered on excitation (legacy).
+
+    Grid layout avoids ABL zones and uses uniform spacing.
     """
     r_outer = RADIUS + CORE_T
-    n_circ = n_sensors // 2
-    n_axial = n_sensors - n_circ
-    # Auto spacing for large n: sector arc ~1360mm, height 2000mm
-    if n_sensors > 20:
-        arc_max = r_outer * math.radians(sector_angle) * 0.9
-        height = DEFAULT_Z_MAX - DEFAULT_Z_MIN
-        spacing = min(spacing, arc_max / max(n_circ - 1, 1), height / max(n_axial - 1, 1))
-        spacing = max(15.0, min(spacing, 30.0))  # clamp 15-30mm
+    if z_min is None:
+        z_min = DEFAULT_Z_MIN
+    if z_max is None:
+        z_max = DEFAULT_Z_MAX
+
     sensor_count = 0
 
-    # Circumferential sensors
-    for i in range(n_circ):
-        arc_offset = (i - n_circ // 2) * spacing
-        d_theta = arc_offset / r_outer
-        theta_s = math.radians(excite_theta_deg) + d_theta
-        # Clamp within sector (with margin)
-        theta_s = max(0.01, min(theta_s, math.radians(sector_angle) - 0.01))
+    if layout == 'grid':
+        # Grid covers sector excluding ABL zones and edge margins
+        theta_lo = math.radians(abl_width_deg + 1.0)  # 1° inside ABL
+        theta_hi = math.radians(sector_angle - abl_width_deg - 1.0)
+        z_lo = z_min + 50.0   # 50mm margin from bottom
+        z_hi = z_max - 50.0   # 50mm margin from top
 
-        x = r_outer * math.cos(theta_s)
-        y = excite_z
-        z = r_outer * math.sin(theta_s)
+        arc_span = r_outer * (theta_hi - theta_lo)
+        z_span = z_hi - z_lo
 
-        label, dist = find_nearest_node(inst_outer, x, y, z)
-        if label is None:
-            continue
+        # Compute grid dimensions to get ~n_sensors with aspect ratio ~1
+        aspect = arc_span / z_span
+        n_theta = max(2, int(math.sqrt(n_sensors * aspect) + 0.5))
+        n_z = max(2, int(n_sensors / n_theta + 0.5))
+        actual_n = n_theta * n_z
 
-        set_name = 'Set-Sensor-%d' % sensor_count
-        node_seq = inst_outer.nodes.sequenceFromLabels((label,))
-        assembly.Set(nodes=node_seq, name=set_name)
-        model.HistoryOutputRequest(
-            name='H-Output-S%d' % sensor_count,
-            createStepName=step_name,
-            variables=('U1', 'U2', 'U3'),
-            region=assembly.sets[set_name],
-            sectionPoints=DEFAULT, rebar=EXCLUDE,
-            timeInterval=FIELD_OUTPUT_INTERVAL)
-        print("  Sensor %d (circ): arc=%.0f mm, snap=%.1f mm" % (
-            sensor_count, arc_offset, dist))
-        sensor_count += 1
+        d_theta = (theta_hi - theta_lo) / max(n_theta - 1, 1)
+        d_z = z_span / max(n_z - 1, 1)
 
-    # Axial sensors
-    for i in range(n_axial):
-        z_offset = (i - n_axial // 2) * spacing
-        z_s = excite_z + z_offset
-        theta_s = math.radians(excite_theta_deg)
+        print("Sensor grid: %d x %d = %d (theta x z)" % (
+            n_theta, n_z, actual_n))
+        print("  Grid spacing: arc=%.1f mm, axial=%.1f mm" % (
+            r_outer * d_theta, d_z))
 
-        x = r_outer * math.cos(theta_s)
-        y = z_s
-        z = r_outer * math.sin(theta_s)
+        for iz in range(n_z):
+            z_s = z_lo + iz * d_z
+            for it in range(n_theta):
+                theta_s = theta_lo + it * d_theta
+                x = r_outer * math.cos(theta_s)
+                y = z_s
+                z = r_outer * math.sin(theta_s)
+                result = _place_sensor(model, assembly, inst_outer,
+                                        step_name, sensor_count, x, y, z)
+                if result:
+                    sensor_count += 1
 
-        label, dist = find_nearest_node(inst_outer, x, y, z)
-        if label is None:
-            continue
+        print("Sensors placed: %d (grid %dx%d)" % (
+            sensor_count, n_theta, n_z))
 
-        set_name = 'Set-Sensor-%d' % sensor_count
-        node_seq = inst_outer.nodes.sequenceFromLabels((label,))
-        assembly.Set(nodes=node_seq, name=set_name)
-        model.HistoryOutputRequest(
-            name='H-Output-S%d' % sensor_count,
-            createStepName=step_name,
-            variables=('U1', 'U2', 'U3'),
-            region=assembly.sets[set_name],
-            sectionPoints=DEFAULT, rebar=EXCLUDE,
-            timeInterval=FIELD_OUTPUT_INTERVAL)
-        print("  Sensor %d (axial): dz=%.0f mm, snap=%.1f mm" % (
-            sensor_count, z_offset, dist))
-        sensor_count += 1
+    else:
+        # Legacy cross pattern
+        n_circ = n_sensors // 2
+        n_axial = n_sensors - n_circ
+        if n_sensors > 20:
+            arc_max = r_outer * math.radians(sector_angle) * 0.9
+            height = z_max - z_min
+            spacing = min(spacing,
+                          arc_max / max(n_circ - 1, 1),
+                          height / max(n_axial - 1, 1))
+            spacing = max(15.0, min(spacing, 30.0))
 
-    print("Sensors placed: %d total (%d circ + %d axial)" % (
-        sensor_count, n_circ, n_axial))
+        # Circumferential sensors
+        for i in range(n_circ):
+            arc_offset = (i - n_circ // 2) * spacing
+            d_theta = arc_offset / r_outer
+            theta_s = math.radians(excite_theta_deg) + d_theta
+            theta_s = max(0.01, min(theta_s,
+                                    math.radians(sector_angle) - 0.01))
+            x = r_outer * math.cos(theta_s)
+            y = excite_z
+            z = r_outer * math.sin(theta_s)
+            result = _place_sensor(model, assembly, inst_outer,
+                                    step_name, sensor_count, x, y, z)
+            if result:
+                print("  Sensor %d (circ): arc=%.0f mm, snap=%.1f mm" % (
+                    sensor_count, arc_offset, result[1]))
+                sensor_count += 1
+
+        # Axial sensors
+        for i in range(n_axial):
+            z_offset = (i - n_axial // 2) * spacing
+            z_s = excite_z + z_offset
+            theta_s = math.radians(excite_theta_deg)
+            x = r_outer * math.cos(theta_s)
+            y = z_s
+            z = r_outer * math.sin(theta_s)
+            result = _place_sensor(model, assembly, inst_outer,
+                                    step_name, sensor_count, x, y, z)
+            if result:
+                print("  Sensor %d (axial): dz=%.0f mm, snap=%.1f mm" % (
+                    sensor_count, z_offset, result[1]))
+                sensor_count += 1
+
+        print("Sensors placed: %d total (%d circ + %d axial)" % (
+            sensor_count, n_circ, n_axial))
+
+
+# ==============================================================================
+# MULTI-TYPE DEFECT MATERIALS (7 types from static model)
+# ==============================================================================
+
+def create_defect_materials(model, defect_params):
+    """Create defect-specific material based on defect_type.
+
+    Supports 7 defect types matching the static analysis model:
+    - debonding: outer skin-core interface loss (E*0.01)
+    - fod: foreign object damage in core (stiff inclusion)
+    - impact: matrix damage + core crushing
+    - delamination: inter-ply shear reduction (depth-dependent)
+    - inner_debond: inner skin-core interface loss
+    - thermal_progression: CTE mismatch induced damage
+    - acoustic_fatigue: high-cycle fatigue matrix weakening
+
+    Returns (skin_material_name, core_material_name) or (skin_mat, None).
+    """
+    defect_type = defect_params.get('defect_type', 'debonding')
+
+    if defect_type == 'debonding':
+        # Debonding: skin is INTACT, only CZM interface is damaged.
+        # Wave scattering from locally "floating" skin (no core backing).
+        # No material override needed — CZM-Damaged handles it.
+        print("  Defect: debonding (CZM-Damaged at outer interface, skin intact)")
+        return None, None
+
+    elif defect_type == 'fod':
+        sf = defect_params.get('stiffness_factor', 10.0)
+        mat = model.Material(name='Mat-Honeycomb-FOD')
+        mat.Density(table=((CORE_DENSITY * 3,),))  # denser inclusion
+        mat.Elastic(type=ENGINEERING_CONSTANTS, table=((
+            E_CORE_1 * sf, E_CORE_2 * sf, E_CORE_3 * sf,
+            NU_CORE_12, NU_CORE_13, NU_CORE_23,
+            G_CORE_12 * sf, G_CORE_13 * sf, G_CORE_23 * sf),))
+        mat.Expansion(table=((12e-6,),))  # metallic FOD CTE
+        print("  Defect material: FOD (core E*%.0f, CTE=12e-6)" % sf)
+        return None, 'Mat-Honeycomb-FOD'
+
+    elif defect_type == 'impact':
+        dr = defect_params.get('damage_ratio', 0.3)
+        # Damaged skin
+        mat_s = model.Material(name='Mat-CFRP-Impact')
+        mat_s.Density(table=((CFRP_DENSITY,),))
+        mat_s.Elastic(type=LAMINA, table=((
+            CFRP_E1 * 0.7, CFRP_E2 * dr, CFRP_NU12,
+            CFRP_G12 * dr, CFRP_G13 * dr, CFRP_G23 * dr),))
+        mat_s.Expansion(table=((CFRP_CTE_1, CFRP_CTE_2, 0.0),))
+        # Crushed core
+        mat_c = model.Material(name='Mat-Honeycomb-Crushed')
+        mat_c.Density(table=((CORE_DENSITY,),))
+        mat_c.Elastic(type=ENGINEERING_CONSTANTS, table=((
+            E_CORE_1 * 0.1, E_CORE_2 * 0.5, E_CORE_3 * 0.5,
+            NU_CORE_12, NU_CORE_13, NU_CORE_23,
+            G_CORE_12 * 0.1, G_CORE_13 * 0.1, G_CORE_23 * 0.5),))
+        mat_c.Expansion(table=((CORE_CTE,),))
+        print("  Defect material: impact (skin dr=%.2f, core crushed)" % dr)
+        return 'Mat-CFRP-Impact', 'Mat-Honeycomb-Crushed'
+
+    elif defect_type == 'delamination':
+        depth = defect_params.get('depth', 0.5)
+        shear_red = max(0.05, 1.0 - depth)
+        mat = model.Material(name='Mat-CFRP-Delaminated')
+        mat.Density(table=((CFRP_DENSITY,),))
+        mat.Elastic(type=LAMINA, table=((
+            CFRP_E1 * 0.9,
+            CFRP_E2 * (0.3 + 0.5 * (1 - depth)),
+            CFRP_NU12,
+            CFRP_G12 * shear_red,
+            CFRP_G13 * shear_red,
+            CFRP_G23 * shear_red),))
+        mat.Expansion(table=((CFRP_CTE_1, CFRP_CTE_2, 0.0),))
+        print("  Defect material: delamination (depth=%.2f, G*%.2f)" %
+              (depth, shear_red))
+        return 'Mat-CFRP-Delaminated', None
+
+    elif defect_type == 'inner_debond':
+        # Inner debonding: inner skin is INTACT, CZM at inner interface damaged.
+        # No material override — CZM-Damaged at inner interface handles it.
+        print("  Defect: inner_debond (CZM-Damaged at inner interface, skin intact)")
+        return None, None
+
+    elif defect_type == 'thermal_progression':
+        mat = model.Material(name='Mat-CFRP-ThermalDamaged')
+        mat.Density(table=((CFRP_DENSITY,),))
+        mat.Elastic(type=LAMINA, table=((
+            CFRP_E1 * 0.05, CFRP_E2 * 0.05, CFRP_NU12,
+            CFRP_G12 * 0.05, CFRP_G13 * 0.05, CFRP_G23 * 0.05),))
+        mat.Expansion(table=((5e-6, 40e-6, 0.0),))  # elevated CTE
+        print("  Defect material: thermal_progression (E*0.05, CTE elevated)")
+        return 'Mat-CFRP-ThermalDamaged', None
+
+    elif defect_type == 'acoustic_fatigue':
+        sev = defect_params.get('severity', 0.35)
+        mat = model.Material(name='Mat-CFRP-AcousticFatigue')
+        mat.Density(table=((CFRP_DENSITY,),))
+        mat.Elastic(type=LAMINA, table=((
+            CFRP_E1 * (0.2 + 0.5 * (1 - sev)),
+            CFRP_E2 * sev,
+            CFRP_NU12,
+            CFRP_G12 * sev, CFRP_G13 * sev, CFRP_G23 * sev),))
+        mat.Expansion(table=((CFRP_CTE_1, CFRP_CTE_2, 0.0),))
+        print("  Defect material: acoustic_fatigue (sev=%.2f)" % sev)
+        return 'Mat-CFRP-AcousticFatigue', None
+
+    else:
+        print("  WARNING: Unknown defect_type '%s', using debonding" %
+              defect_type)
+        return create_defect_materials(model,
+                                       dict(defect_params, defect_type='debonding'))
+
+
+def create_defect_sections(model, skin_mat, core_mat):
+    """Create sections for defect zone materials."""
+    if skin_mat:
+        ply_data = [section.SectionLayer(
+            thickness=PLY_T, orientAngle=angle, material=skin_mat)
+            for angle in PLY_ANGLES]
+        model.CompositeShellSection(
+            name='Section-Defect-Skin', preIntegrate=OFF,
+            idealization=NO_IDEALIZATION, symmetric=OFF,
+            thicknessType=UNIFORM, poissonDefinition=DEFAULT,
+            useDensity=OFF, layup=ply_data)
+    if core_mat:
+        model.HomogeneousSolidSection(
+            name='Section-Defect-Core', material=core_mat, thickness=None)
+
+
+# ==============================================================================
+# ABSORBING BOUNDARY LAYER (ABL) — Materials, Sections, Assignment
+# ==============================================================================
+
+def create_absorbing_materials(model, include_thermal=True, moisture_factor=1.0):
+    """Create high-damping materials for ABL zones.
+
+    Same elastic properties as main materials, but Rayleigh β increased by
+    ABL_BETA_FACTOR (100x) to attenuate waves near sector edges.
+    Round-trip attenuation: wave → ABL → reflection → ABL ≈ 10000x reduction.
+    """
+    RAYLEIGH_BETA_ABL = 3.0e-6 * ABL_BETA_FACTOR
+
+    E2_eff = CFRP_E2 * moisture_factor
+    G12_eff = CFRP_G12 * moisture_factor
+    G13_eff = CFRP_G13 * moisture_factor
+    G23_eff = CFRP_G23 * moisture_factor
+
+    mat = model.Material(name='Mat-CFRP-ABL')
+    mat.Density(table=((CFRP_DENSITY,),))
+    mat.Elastic(
+        type=LAMINA,
+        table=((CFRP_E1, E2_eff, CFRP_NU12,
+                G12_eff, G13_eff, G23_eff),))
+    mat.Damping(alpha=0.0, beta=RAYLEIGH_BETA_ABL)
+    if include_thermal:
+        mat.Expansion(table=((CFRP_CTE_1, CFRP_CTE_2, 0.0),))
+
+    mat_c = model.Material(name='Mat-Honeycomb-ABL')
+    mat_c.Density(table=((CORE_DENSITY,),))
+    mat_c.Elastic(
+        type=ENGINEERING_CONSTANTS,
+        table=((E_CORE_1, E_CORE_2, E_CORE_3,
+                NU_CORE_12, NU_CORE_13, NU_CORE_23,
+                G_CORE_12, G_CORE_13, G_CORE_23),))
+    mat_c.Damping(alpha=0.0, beta=RAYLEIGH_BETA_ABL)
+    if include_thermal:
+        mat_c.Expansion(table=((CORE_CTE,),))
+
+    print("ABL materials created: beta=%.1e (%.0fx normal)" % (
+        RAYLEIGH_BETA_ABL, ABL_BETA_FACTOR))
+
+
+def create_absorbing_sections(model):
+    """Create sections using ABL (high-damping) materials."""
+    ply_data = [section.SectionLayer(
+        thickness=PLY_T, orientAngle=angle, material='Mat-CFRP-ABL')
+        for angle in PLY_ANGLES]
+    model.CompositeShellSection(
+        name='Section-CFRP-Skin-ABL', preIntegrate=OFF,
+        idealization=NO_IDEALIZATION, symmetric=OFF,
+        thicknessType=UNIFORM, poissonDefinition=DEFAULT,
+        useDensity=OFF, layup=ply_data)
+
+    model.HomogeneousSolidSection(
+        name='Section-Core-ABL', material='Mat-Honeycomb-ABL',
+        thickness=None)
+
+    print("ABL sections created: CFRP-Skin-ABL, Core-ABL")
+
+
+def _in_absorbing_zone(x, y, z, sector_angle, abl_width_deg):
+    """Check if point is within the ABL zone (near sector edges)."""
+    r = math.sqrt(x * x + z * z)
+    if r < 1.0:
+        return False
+    theta = math.degrees(math.atan2(z, x))
+    return theta < abl_width_deg or theta > (sector_angle - abl_width_deg)
+
+
+def assign_abl_zone_sections(p_inner, p_core, p_outer,
+                              sector_angle, abl_width_deg):
+    """Override section assignment in ABL zones with high-damping sections.
+
+    Must be called AFTER assign_sections() and partition_absorbing_zones().
+    """
+    n_skin = 0
+    n_core = 0
+
+    # Inner skin
+    abl_faces = []
+    for face in p_inner.faces:
+        pt = face.pointOn[0]
+        if _in_absorbing_zone(pt[0], pt[1], pt[2], sector_angle, abl_width_deg):
+            abl_faces.append(face)
+    if abl_faces:
+        pts = tuple((f.pointOn[0],) for f in abl_faces)
+        reg = p_inner.Set(
+            faces=p_inner.faces.findAt(*pts), name='Set-ABL-Inner')
+        p_inner.SectionAssignment(
+            region=reg, sectionName='Section-CFRP-Skin-ABL')
+        cyl = None
+        for dk in p_inner.datums.keys():
+            d = p_inner.datums[dk]
+            if hasattr(d, 'name') and 'CylCS' in d.name:
+                cyl = d
+                break
+        if cyl:
+            p_inner.MaterialOrientation(
+                region=reg, orientationType=SYSTEM,
+                axis=AXIS_1, additionalRotationType=ROTATION_NONE,
+                localCsys=cyl)
+        n_skin += len(abl_faces)
+
+    # Outer skin
+    abl_faces = []
+    for face in p_outer.faces:
+        pt = face.pointOn[0]
+        if _in_absorbing_zone(pt[0], pt[1], pt[2], sector_angle, abl_width_deg):
+            abl_faces.append(face)
+    if abl_faces:
+        pts = tuple((f.pointOn[0],) for f in abl_faces)
+        reg = p_outer.Set(
+            faces=p_outer.faces.findAt(*pts), name='Set-ABL-Outer')
+        p_outer.SectionAssignment(
+            region=reg, sectionName='Section-CFRP-Skin-ABL')
+        cyl = None
+        for dk in p_outer.datums.keys():
+            d = p_outer.datums[dk]
+            if hasattr(d, 'name') and 'CylCS' in d.name:
+                cyl = d
+                break
+        if cyl:
+            p_outer.MaterialOrientation(
+                region=reg, orientationType=SYSTEM,
+                axis=AXIS_1, additionalRotationType=ROTATION_NONE,
+                localCsys=cyl)
+        n_skin += len(abl_faces)
+
+    # Core
+    abl_cells = []
+    for cell in p_core.cells:
+        pt = cell.pointOn[0]
+        if _in_absorbing_zone(pt[0], pt[1], pt[2], sector_angle, abl_width_deg):
+            abl_cells.append(cell)
+    if abl_cells:
+        pts = tuple((c.pointOn[0],) for c in abl_cells)
+        reg = p_core.Set(
+            cells=p_core.cells.findAt(*pts), name='Set-ABL-Core')
+        p_core.SectionAssignment(
+            region=reg, sectionName='Section-Core-ABL')
+        cyl = None
+        for dk in p_core.datums.keys():
+            d = p_core.datums[dk]
+            if hasattr(d, 'name') and 'CylCS' in d.name:
+                cyl = d
+                break
+        if cyl:
+            p_core.MaterialOrientation(
+                region=reg, orientationType=SYSTEM,
+                axis=AXIS_3, additionalRotationType=ROTATION_NONE,
+                localCsys=cyl)
+        n_core = len(abl_cells)
+
+    print("ABL zone assigned: %d skin faces, %d core cells" % (
+        n_skin, n_core))
+
+
+# ==============================================================================
+# BOTTOM BOUNDARY CONDITION
+# ==============================================================================
+
+def apply_bottom_bc(model, assembly, inst_inner, inst_core, inst_outer,
+                    frame_instances, z_min):
+    """Fix bottom (z=z_min) for all instances: u1=u2=u3=0.
+
+    In cylindrical coordinates, y=z_min corresponds to the barrel bottom
+    where it attaches to the satellite adapter ring.
+    """
+    r_box = RADIUS + CORE_T + 500.0
+    set_kwargs = {}
+
+    # Shell edges at y=z_min
+    all_insts = [inst_inner, inst_outer] + list(frame_instances)
+    edge_seq = None
+    for inst in all_insts:
+        try:
+            edges = inst.edges.getByBoundingBox(
+                xMin=-r_box, xMax=r_box,
+                yMin=z_min - 0.1, yMax=z_min + 0.1,
+                zMin=-r_box, zMax=r_box)
+            if len(edges) > 0:
+                edge_seq = edges if edge_seq is None else edge_seq + edges
+        except Exception as e:
+            print("  BC bottom edge warning (%s): %s" % (
+                inst.name, str(e)[:60]))
+    if edge_seq is not None and len(edge_seq) > 0:
+        set_kwargs['edges'] = edge_seq
+
+    # Core faces at y=z_min
+    face_pts = []
+    for f in inst_core.faces:
+        try:
+            pt = f.pointOn[0]
+            if abs(pt[1] - z_min) < 1.0:
+                face_pts.append((pt,))
+        except Exception:
+            pass
+    if face_pts:
+        fseq = inst_core.faces.findAt(*face_pts)
+        if len(fseq) > 0:
+            set_kwargs['faces'] = fseq
+
+    if set_kwargs:
+        bot_set = assembly.Set(name='BC_Bottom', **set_kwargs)
+        model.DisplacementBC(name='Fix_Bottom', createStepName='Initial',
+                             region=bot_set, u1=0, u2=0, u3=0)
+        n_ent = sum(len(v) for v in set_kwargs.values())
+        print("BC: Fixed at y=%.0f (bottom): %d entities" % (z_min, n_ent))
+    else:
+        print("Warning: No BC geometry found at y=%.0f" % z_min)
+
+
+# ==============================================================================
+# THERMAL PREDEFINED FIELD
+# ==============================================================================
+
+def apply_thermal_field(model, assembly, inst_inner, inst_core, inst_outer,
+                        step_name):
+    """Apply thermal predefined field for ascent heating.
+
+    Ground inspection scenario with residual cure stress:
+    - Reference: 180°C (autoclave cure, stress-free state)
+    - Outer skin: 40°C (solar exposure at launch site)
+    - Core: 32°C (through-thickness average)
+    - Inner skin: 25°C (shaded, near ambient)
+    ΔT from cure ≈ -140 to -155°C → residual stress from CTE mismatch
+    """
+    # Initial temperature (reference for thermal strain)
+    for inst in [inst_inner, inst_core, inst_outer]:
+        try:
+            all_nodes = inst.nodes
+            node_set = assembly.Set(
+                nodes=all_nodes,
+                name='TempInit-%s' % inst.name.replace('-1', ''))
+            model.Temperature(
+                name='Temp-Init-%s' % inst.name.replace('-1', ''),
+                createStepName='Initial',
+                region=node_set,
+                distributionType=UNIFORM,
+                crossSectionDistribution=CONSTANT_THROUGH_THICKNESS,
+                magnitudes=(TEMP_REF,))
+        except Exception as e:
+            print("  Thermal init warning (%s): %s" % (inst.name, str(e)[:60]))
+
+    # Step temperature field
+    temp_map = {
+        inst_inner: TEMP_INNER,
+        inst_core: TEMP_CORE,
+        inst_outer: TEMP_OUTER,
+    }
+    for inst, temp in temp_map.items():
+        try:
+            all_nodes = inst.nodes
+            node_set = assembly.Set(
+                nodes=all_nodes,
+                name='TempStep-%s' % inst.name.replace('-1', ''))
+            model.Temperature(
+                name='Temp-Step-%s' % inst.name.replace('-1', ''),
+                createStepName=step_name,
+                region=node_set,
+                distributionType=UNIFORM,
+                crossSectionDistribution=CONSTANT_THROUGH_THICKNESS,
+                magnitudes=(temp,))
+        except Exception as e:
+            print("  Thermal step warning (%s): %s" % (inst.name, str(e)[:60]))
+
+    print("Thermal field: Inner=%.0f°C, Core=%.0f°C, Outer=%.0f°C (ref=%.0f°C)" %
+          (TEMP_INNER, TEMP_CORE, TEMP_OUTER, TEMP_REF))
 
 
 # ==============================================================================
@@ -1307,21 +1936,24 @@ def generate_model(job_name, freq_khz=DEFAULT_FREQ_KHZ, n_cycles=DEFAULT_CYCLES,
                    include_frames=True, include_openings=True,
                    excite_z=None, excite_theta=None,
                    n_sensors=DEFAULT_N_SENSORS, sensor_spacing=SENSOR_SPACING,
-                   czm_params=None, no_run=False):
+                   sensor_layout='grid',
+                   czm_params=None, no_run=False,
+                   include_thermal=True, fix_bottom=True,
+                   absorbing_bc=True, moisture_factor=1.0):
     """Generate realistic fairing guided wave model."""
     freq_hz = freq_khz * 1e3
 
-    # Auto mesh seed: lambda/8
+    # Auto mesh seed: lambda/8 (uses PHASE velocity for wavelength)
     if mesh_seed is None:
         wavelength = CP_ESTIMATE / freq_hz * 1000.0
         mesh_seed = min(wavelength / 8.0, 4.0)
 
-    # Auto time period
+    # Auto time period (uses GROUP velocity for wave packet travel time)
     if time_period is None:
         arc_length = (RADIUS + CORE_T) * math.radians(sector_angle)
         height = z_max - z_min
         diag = math.sqrt(arc_length ** 2 + height ** 2)
-        time_period = max(diag / (CP_ESTIMATE * 1000.0) * 2.5, 0.5e-3)
+        time_period = max(diag / (VG_ESTIMATE * 1000.0) * 2.5, 0.5e-3)
 
     if czm_params is None:
         czm_params = DEFAULT_CZM
@@ -1338,11 +1970,18 @@ def generate_model(job_name, freq_khz=DEFAULT_FREQ_KHZ, n_cycles=DEFAULT_CYCLES,
     print("  Sector: %.0f deg, z=[%.0f, %.0f] mm" % (
         sector_angle, z_min, z_max))
     print("  Freq: %.0f kHz, %d cycles" % (freq_khz, n_cycles))
-    print("  Mesh seed: %.2f mm (lambda=%.1f mm)" % (
-        mesh_seed, CP_ESTIMATE / freq_hz * 1000.0))
-    print("  Time: %.3e s (%.2f ms)" % (time_period, time_period * 1e3))
+    print("  Mesh seed: %.2f mm (lambda=%.1f mm, vp=%.0f m/s)" % (
+        mesh_seed, CP_ESTIMATE / freq_hz * 1000.0, CP_ESTIMATE))
+    print("  Time: %.3e s (%.2f ms, vg=%.0f m/s)" % (
+        time_period, time_period * 1e3, VG_ESTIMATE))
     print("  Excitation: theta=%.1f deg, z=%.0f mm" % (
         excite_theta, excite_z))
+    if absorbing_bc:
+        print("  ABL: %.1f deg per edge (beta*%.0f)" % (
+            ABL_WIDTH_DEG, ABL_BETA_FACTOR))
+    if moisture_factor < 1.0:
+        print("  Moisture: %.0f%% stiffness reduction" % (
+            (1 - moisture_factor) * 100))
     if defect_params:
         print("  Defect: z=%.0f, theta=%.1f, r=%.0f" % (
             defect_params['z_center'],
@@ -1353,9 +1992,14 @@ def generate_model(job_name, freq_khz=DEFAULT_FREQ_KHZ, n_cycles=DEFAULT_CYCLES,
     model = mdb.models['Model-1']
 
     # 1. Materials, sections, contact properties
-    create_materials(model)
+    create_materials(model, include_thermal=include_thermal,
+                     moisture_factor=moisture_factor)
     create_sections(model)
     create_contact_properties(model, czm_params)
+    if absorbing_bc:
+        create_absorbing_materials(model, include_thermal=include_thermal,
+                                   moisture_factor=moisture_factor)
+        create_absorbing_sections(model)
 
     # 2. Geometry
     p_inner, p_core, p_outer = create_sector_parts(
@@ -1380,12 +2024,33 @@ def generate_model(job_name, freq_khz=DEFAULT_FREQ_KHZ, n_cycles=DEFAULT_CYCLES,
         else:
             print("No openings in z/theta range")
 
-    # 5. Defect partitioning
+    # 5. Defect partitioning + multi-type defect materials
+    defect_skin_mat = None
+    defect_core_mat = None
     if defect_params:
         partition_defect_zone(p_core, p_outer, defect_params)
+        defect_skin_mat, defect_core_mat = create_defect_materials(
+            model, defect_params)
+        create_defect_sections(model, defect_skin_mat, defect_core_mat)
+
+    # 5b. ABL zone partitioning (before section assignment)
+    if absorbing_bc:
+        partition_absorbing_zones(p_inner, p_core, p_outer,
+                                   sector_angle, ABL_WIDTH_DEG)
 
     # 6. Section assignment (cylindrical CSYS)
     assign_sections(p_inner, p_core, p_outer, openings, defect_params)
+
+    # 6b. Override defect zone sections with defect-specific materials
+    if defect_params and (defect_skin_mat or defect_core_mat):
+        _assign_defect_zone_sections(
+            p_core, p_outer, defect_params,
+            defect_skin_mat, defect_core_mat)
+
+    # 6c. Override ABL zone sections with high-damping materials
+    if absorbing_bc:
+        assign_abl_zone_sections(p_inner, p_core, p_outer,
+                                  sector_angle, ABL_WIDTH_DEG)
 
     # 7. Assembly
     a, inst_inner, inst_core, inst_outer, frame_insts = create_assembly(
@@ -1407,8 +2072,18 @@ def generate_model(job_name, freq_khz=DEFAULT_FREQ_KHZ, n_cycles=DEFAULT_CYCLES,
     apply_symmetry_bcs(model, a, inst_inner, inst_core, inst_outer,
                        frame_insts, sector_angle)
 
+    # 11b. Bottom BC (satellite adapter attachment)
+    if fix_bottom:
+        apply_bottom_bc(model, a, inst_inner, inst_core, inst_outer,
+                        frame_insts, z_min)
+
     # 12. Explicit step
     step_name = create_explicit_step(model, time_period)
+
+    # 12b. Thermal predefined field (ascent heating)
+    if include_thermal:
+        apply_thermal_field(model, a, inst_inner, inst_core, inst_outer,
+                            step_name)
 
     # 13. Excitation
     apply_excitation(model, a, inst_outer, freq_hz, n_cycles,
@@ -1417,7 +2092,9 @@ def generate_model(job_name, freq_khz=DEFAULT_FREQ_KHZ, n_cycles=DEFAULT_CYCLES,
     # 14. Sensors
     setup_sensor_outputs(model, a, inst_outer, step_name,
                          excite_theta, excite_z, sector_angle,
-                         n_sensors=n_sensors, spacing=sensor_spacing)
+                         n_sensors=n_sensors, spacing=sensor_spacing,
+                         layout=sensor_layout, z_min=z_min, z_max=z_max,
+                         abl_width_deg=ABL_WIDTH_DEG if absorbing_bc else 0.0)
 
     # 15. Job
     mdb.Job(name=job_name, model='Model-1', type=ANALYSIS,
@@ -1470,7 +2147,10 @@ if __name__ == '__main__':
     parser.add_argument('--n_sensors', type=int, default=DEFAULT_N_SENSORS,
                         help='Number of sensors (default: 10)')
     parser.add_argument('--sensor_spacing', type=float, default=SENSOR_SPACING,
-                        help='Sensor spacing in mm (default: 30)')
+                        help='Sensor spacing in mm (default: 20)')
+    parser.add_argument('--sensor_layout', type=str, default='grid',
+                        choices=['grid', 'cross'],
+                        help='Sensor layout: grid (2D GNN) or cross (legacy)')
     parser.add_argument('--phase', type=int, default=1,
                         help='Opening set: 1 or 2 (default: 1)')
     parser.add_argument('--no_openings', action='store_true',
@@ -1479,6 +2159,19 @@ if __name__ == '__main__':
                         help='Disable ring frames')
     parser.add_argument('--no_run', action='store_true',
                         help='Write INP only, do not run solver')
+    parser.add_argument('--no_thermal', action='store_true',
+                        help='Disable thermal field and CTE')
+    parser.add_argument('--no_bottom_bc', action='store_true',
+                        help='Disable bottom fixed BC')
+    parser.add_argument('--defect_type', type=str, default='debonding',
+                        choices=['debonding', 'fod', 'impact', 'delamination',
+                                 'inner_debond', 'thermal_progression',
+                                 'acoustic_fatigue'],
+                        help='Defect type (default: debonding)')
+    parser.add_argument('--no_absorbing_bc', action='store_true',
+                        help='Disable absorbing boundary layers at sector edges')
+    parser.add_argument('--moisture', type=float, default=1.0,
+                        help='Moisture stiffness factor (1.0=dry, 0.92=2%% moisture)')
 
     # Parse args — use parse_known_args to ignore Abaqus internal flags
     args, _ = parser.parse_known_args()
@@ -1491,6 +2184,9 @@ if __name__ == '__main__':
         except (ValueError, TypeError):
             print("ERROR: Invalid defect JSON: %s" % args.defect)
             sys.exit(1)
+        # Merge defect_type from CLI into defect_params
+        if 'defect_type' not in defect_data:
+            defect_data['defect_type'] = args.defect_type
 
     generate_model(
         job_name=args.job,
@@ -1509,5 +2205,10 @@ if __name__ == '__main__':
         excite_theta=args.excite_theta,
         n_sensors=args.n_sensors,
         sensor_spacing=args.sensor_spacing,
+        sensor_layout=args.sensor_layout,
         no_run=args.no_run,
+        include_thermal=not args.no_thermal,
+        fix_bottom=not args.no_bottom_bc,
+        absorbing_bc=not args.no_absorbing_bc,
+        moisture_factor=args.moisture,
     )
