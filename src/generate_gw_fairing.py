@@ -114,7 +114,7 @@ CP_ESTIMATE = 1550.0      # m/s, A0 mode phase velocity estimate
 FORCE_MAGNITUDE = 1.0     # N, concentrated force
 FIELD_OUTPUT_INTERVAL = 1e-6  # 1 microsecond
 SENSOR_SPACING = 20.0     # mm between sensors (< λ/2 ≈ 15.5mm at 50kHz)
-DEFAULT_N_SENSORS = 10    # 5 circumferential + 5 axial
+DEFAULT_N_SENSORS = 100   # 10x10 grid (extract script can subsample)
 
 # Group velocity — A0 mode wave packet speed (dispersion: vg < vp)
 # At 50 kHz in CFRP sandwich: vg ≈ 0.7 × vp (Lamb wave dispersion)
@@ -1860,7 +1860,11 @@ def apply_bottom_bc(model, assembly, inst_inner, inst_core, inst_outer,
         bot_set = assembly.Set(name='BC_Bottom', **set_kwargs)
         model.DisplacementBC(name='Fix_Bottom', createStepName='Initial',
                              region=bot_set, u1=0, u2=0, u3=0)
-        n_ent = sum(len(v) for v in set_kwargs.values())
+        n_ent = 0
+        if 'edges' in set_kwargs:
+            n_ent += len(set_kwargs['edges'])
+        if 'faces' in set_kwargs:
+            n_ent += len(set_kwargs['faces'])
         print("BC: Fixed at y=%.0f (bottom): %d entities" % (z_min, n_ent))
     else:
         print("Warning: No BC geometry found at y=%.0f" % z_min)
@@ -1899,12 +1903,12 @@ def apply_thermal_field(model, assembly, inst_inner, inst_core, inst_outer,
             print("  Thermal init warning (%s): %s" % (inst.name, str(e)[:60]))
 
     # Step temperature field
-    temp_map = {
-        inst_inner: TEMP_INNER,
-        inst_core: TEMP_CORE,
-        inst_outer: TEMP_OUTER,
-    }
-    for inst, temp in temp_map.items():
+    temp_pairs = [
+        (inst_inner, TEMP_INNER),
+        (inst_core, TEMP_CORE),
+        (inst_outer, TEMP_OUTER),
+    ]
+    for inst, temp in temp_pairs:
         try:
             all_nodes = inst.nodes
             node_set = assembly.Set(
