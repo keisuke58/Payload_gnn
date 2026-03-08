@@ -150,8 +150,81 @@ def build_sensor_graph_edges(positions, k=8):
     return edge_index, edge_attr
 
 
+def _collect_stgnn_samples(csv_dir, doe_path=None, manifest_path=None):
+    """Collect (csv_path, label, name) triples for ST-GNN data.
+
+    Supports:
+      1. manifest_path: explicit JSON list of {csv, label}
+      2. doe_path: standard DOE-based scan
+      3. fallback: auto-detect by filename pattern
+    """
+    import re
+    _HEALTHY_RE = re.compile(
+        r'(Healthy|Valid-H|Valid-Healthy|Test-H)', re.IGNORECASE)
+
+    samples = []
+
+    # Mode 1: Manifest
+    if manifest_path:
+        manifest_path = os.path.abspath(manifest_path)
+        if os.path.exists(manifest_path):
+            with open(manifest_path) as fh:
+                manifest = json.load(fh)
+            entries = manifest.get('samples', manifest if isinstance(manifest, list) else [])
+            for entry in entries:
+                csv_path = entry['csv']
+                if not os.path.isabs(csv_path):
+                    csv_path = os.path.join(PROJECT_ROOT, csv_path)
+                label = int(entry.get('label', 1))
+                name = os.path.basename(csv_path)
+                if os.path.exists(csv_path):
+                    samples.append((csv_path, label, name))
+            return samples
+
+    # Mode 2/3: Directory scan
+    csv_dir = os.path.abspath(csv_dir)
+    if not os.path.isdir(csv_dir):
+        print("ERROR: csv_dir not found: %s" % csv_dir)
+        return []
+
+    seen = set()
+
+    # Healthy: main + augmented + non-standard patterns
+    for f in sorted(os.listdir(csv_dir)):
+        if not f.endswith("_sensors.csv"):
+            continue
+        if _HEALTHY_RE.search(f):
+            samples.append((os.path.join(csv_dir, f), 0, f))
+            seen.add(f)
+
+    # Defect from DOE
+    if doe_path and os.path.exists(doe_path):
+        with open(doe_path) as fh:
+            doe = json.load(fh)
+        for i in range(doe.get("n_samples", 0)):
+            name = "Job-GW-Fair-%04d_sensors.csv" % i
+            if name in seen:
+                continue
+            path = os.path.join(csv_dir, name)
+            if os.path.exists(path):
+                samples.append((path, 1, name))
+                seen.add(name)
+
+    # Remaining sensor CSVs → defect
+    for f in sorted(os.listdir(csv_dir)):
+        if f in seen or not f.endswith("_sensors.csv"):
+            continue
+        if _HEALTHY_RE.search(f):
+            continue
+        if f.startswith("Job-GW-"):
+            samples.append((os.path.join(csv_dir, f), 1, f))
+            seen.add(f)
+
+    return samples
+
+
 def prepare_stgnn_data(csv_dir, doe_path=None, max_len=4000, k_neighbors=8,
-                       n_sensors_filter=None, min_sensors=2):
+                       n_sensors_filter=None, min_sensors=2, manifest_path=None):
     """Build PyG dataset from GW sensor CSVs.
 
     Each graph: nodes=sensors, node features=raw waveform (T,),
@@ -168,37 +241,11 @@ def prepare_stgnn_data(csv_dir, doe_path=None, max_len=4000, k_neighbors=8,
         n_sensors_filter: if set, only include samples with exactly this many sensors.
                           If None, accept all sensor counts >= min_sensors.
         min_sensors: minimum number of sensors to accept (default=2)
+        manifest_path: optional manifest JSON for explicit CSV+label list
 
     Returns list of Data objects.
     """
-    csv_dir = os.path.abspath(csv_dir)
-    if not os.path.isdir(csv_dir):
-        print("ERROR: csv_dir not found: %s" % csv_dir)
-        return []
-
-    # Collect samples: (csv_path, label, name)
-    samples = []
-
-    # Healthy: main + augmented
-    for f in sorted(os.listdir(csv_dir)):
-        if not f.endswith("_sensors.csv"):
-            continue
-        if "Healthy" in f and "Test" not in f:
-            samples.append((os.path.join(csv_dir, f), 0, f))
-
-    # Defect
-    if doe_path and os.path.exists(doe_path):
-        with open(doe_path) as fh:
-            doe = json.load(fh)
-        for i in range(doe.get("n_samples", 0)):
-            name = "Job-GW-Fair-%04d_sensors.csv" % i
-            path = os.path.join(csv_dir, name)
-            if os.path.exists(path):
-                samples.append((path, 1, name))
-    else:
-        for f in sorted(os.listdir(csv_dir)):
-            if f.endswith("_sensors.csv") and f.startswith("Job-GW-Fair-0"):
-                samples.append((os.path.join(csv_dir, f), 1, f))
+    samples = _collect_stgnn_samples(csv_dir, doe_path, manifest_path)
 
     if not samples:
         print("No samples found")
@@ -735,6 +782,8 @@ def main():
     parser.add_argument("--csv_dir", type=str,
                         default="abaqus_work/gw_fairing_dataset")
     parser.add_argument("--doe", type=str, default="doe_gw_fairing.json")
+    parser.add_argument("--manifest", type=str, default=None,
+                        help="Manifest JSON with explicit CSV+label list (overrides --csv_dir/--doe)")
 
     # Data
     parser.add_argument("--max_len", type=int, default=3920,
@@ -772,6 +821,7 @@ def main():
     # Resolve paths
     csv_dir = os.path.join(PROJECT_ROOT, args.csv_dir)
     doe_path = os.path.join(PROJECT_ROOT, args.doe) if args.doe else None
+    manifest_path = os.path.join(PROJECT_ROOT, args.manifest) if args.manifest else None
 
     if args.mode in ("di_baseline", "both"):
         di_baseline(csv_dir, doe_path)
@@ -784,6 +834,7 @@ def main():
             k_neighbors=args.k_neighbors,
             n_sensors_filter=args.n_sensors,
             min_sensors=args.min_sensors,
+            manifest_path=manifest_path,
         )
         if len(dataset) < 4:
             print("ERROR: Not enough samples (%d). Need at least 4." % len(dataset))

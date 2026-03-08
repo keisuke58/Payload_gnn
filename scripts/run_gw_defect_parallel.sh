@@ -146,7 +146,7 @@ for idx in JOB_INDICES_PLACEHOLDER; do
     cd "$WORK_DIR"
     $ENV_CMD $ABAQUS job=$job input=$job.inp cpus=$CPUS interactive 2>&1 | tail -3
     # Check completion
-    if grep -q "THE ANALYSIS HAS BEEN COMPLETED" "$WORK_DIR/$job.sta" 2>/dev/null; then
+    if grep -q "COMPLETED SUCCESSFULLY" "$WORK_DIR/$job.sta" 2>/dev/null; then
         echo "[$(date '+%H:%M:%S')] DONE $job"
     else
         echo "[$(date '+%H:%M:%S')] FAIL $job (check .sta/.msg)"
@@ -184,7 +184,7 @@ do_status() {
         [ -f "$WORK_DIR/$job.inp" ] && ((n_inp++))
         if [ -f "$WORK_DIR/$job.odb" ]; then
             # Check if completed
-            if grep -q "THE ANALYSIS HAS BEEN COMPLETED" "$WORK_DIR/$job.sta" 2>/dev/null; then
+            if grep -q "COMPLETED SUCCESSFULLY" "$WORK_DIR/$job.sta" 2>/dev/null; then
                 ((n_odb++))
             else
                 # In progress or failed
@@ -239,7 +239,7 @@ do_extract() {
         if [ ! -f "$WORK_DIR/$job.odb" ]; then
             continue
         fi
-        if ! grep -q "THE ANALYSIS HAS BEEN COMPLETED" "$WORK_DIR/$job.sta" 2>/dev/null; then
+        if ! grep -q "COMPLETED SUCCESSFULLY" "$WORK_DIR/$job.sta" 2>/dev/null; then
             echo "  SKIP $job (not completed)"
             continue
         fi
