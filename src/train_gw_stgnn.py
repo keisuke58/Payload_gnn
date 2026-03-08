@@ -319,12 +319,32 @@ class TemporalEncoder(nn.Module):
 
 
 class SpatioTemporalGNN(nn.Module):
-    """ST-GNN: TemporalEncoder → GAT spatial layers → graph pooling → classifier."""
+    """ST-GNN: TemporalEncoder → [TransformerEncoder] → GAT spatial layers
+    → graph pooling → classifier.
+
+    CFRP-former inspired: optional Transformer encoder between temporal CNN
+    and spatial GAT captures long-range temporal dependencies via multi-head
+    self-attention, complementing the CNN's local pattern extraction.
+    """
 
     def __init__(self, in_len=4000, d_temporal=64, d_hidden=64,
-                 n_gat_layers=3, n_heads=4, dropout=0.1):
+                 n_gat_layers=3, n_heads=4, dropout=0.1,
+                 use_transformer=False, n_transformer_layers=2,
+                 transformer_heads=4):
         super().__init__()
         self.temporal = TemporalEncoder(in_len=in_len, d_out=d_temporal)
+
+        # CFRP-former style: Transformer encoder after temporal CNN
+        self.use_transformer = use_transformer
+        if use_transformer:
+            encoder_layer = nn.TransformerEncoderLayer(
+                d_model=d_temporal, nhead=transformer_heads,
+                dim_feedforward=d_temporal * 4, dropout=dropout,
+                activation='gelu', batch_first=True,
+            )
+            self.transformer_encoder = nn.TransformerEncoder(
+                encoder_layer, num_layers=n_transformer_layers)
+            self.transformer_norm = nn.LayerNorm(d_temporal)
 
         self.gat_layers = nn.ModuleList()
         self.gat_norms = nn.ModuleList()
@@ -355,6 +375,18 @@ class SpatioTemporalGNN(nn.Module):
         """
         # Temporal encoding: per-sensor waveform → embedding
         h = self.temporal(x)  # (total_nodes, d_temporal)
+
+        # CFRP-former style: Transformer refines temporal embeddings per graph
+        if self.use_transformer:
+            unique_graphs = batch.unique()
+            h_out = torch.zeros_like(h)
+            for g_id in unique_graphs:
+                mask = (batch == g_id)
+                h_g = h[mask].unsqueeze(0)  # (1, n_sensors, d_temporal)
+                h_g = self.transformer_encoder(h_g)
+                h_g = self.transformer_norm(h_g)
+                h_out[mask] = h_g.squeeze(0)
+            h = h_out
 
         # Spatial GAT layers
         for conv, norm in zip(self.gat_layers, self.gat_norms):
@@ -610,10 +642,15 @@ def train_stgnn(dataset, args):
         n_gat_layers=args.n_gat_layers,
         n_heads=args.n_heads,
         dropout=args.dropout,
+        use_transformer=args.use_transformer,
+        n_transformer_layers=args.n_transformer_layers,
+        transformer_heads=args.transformer_heads,
     ).to(device)
 
     n_params = sum(p.numel() for p in model.parameters())
-    print("Model: SpatioTemporalGNN (%d params)" % n_params)
+    transformer_str = " +Transformer(%dL,%dH)" % (
+        args.n_transformer_layers, args.transformer_heads) if args.use_transformer else ""
+    print("Model: SpatioTemporalGNN%s (%d params)" % (transformer_str, n_params))
     print("  temporal_dim=%d, hidden=%d, gat_layers=%d, heads=%d" % (
         args.d_temporal, args.d_hidden, args.n_gat_layers, args.n_heads))
 
@@ -715,6 +752,11 @@ def main():
     parser.add_argument("--n_gat_layers", type=int, default=3)
     parser.add_argument("--n_heads", type=int, default=4)
     parser.add_argument("--dropout", type=float, default=0.1)
+    # CFRP-former style Transformer
+    parser.add_argument("--use_transformer", action="store_true",
+                        help="Add Transformer encoder after temporal CNN (CFRP-former style)")
+    parser.add_argument("--n_transformer_layers", type=int, default=2)
+    parser.add_argument("--transformer_heads", type=int, default=4)
 
     # Training
     parser.add_argument("--epochs", type=int, default=200)
