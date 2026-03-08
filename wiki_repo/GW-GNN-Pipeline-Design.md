@@ -95,13 +95,72 @@ python src/prepare_gw_ml_data.py --input abaqus_work/gw_fairing_dataset --output
 python src/train_gw.py --data_dir data/processed_gw_100 --arch gat --epochs 200
 ```
 
-## 5. 実装状況
+## 5. Spatio-Temporal GNN (ST-GNN) — 新モデル
+
+### 5.1 アーキテクチャ
+
+```
+Raw waveform (n_sensors × T steps)
+  → TemporalEncoder (1D-CNN dual-branch: narrow + wide kernel)
+    → 64-dim embedding per sensor
+  → GAT × 3 layers (4 heads, residual, LayerNorm)
+    → spatial wave propagation pattern learning
+  → global_mean_pool + global_max_pool → 128-dim graph embedding
+  → MLP → 2-class (healthy / defect)
+```
+
+**従来 (`train_gw.py`)** との違い:
+- 従来: 手動特徴量 (max_abs, rms, peak_time 等 3〜15次元) → 情報ロス大
+- ST-GNN: 生波形 3920ステップをそのまま 1D-CNN に入力 → 自動特徴抽出
+
+### 5.2 センサー数可変対応
+
+グラフベースなのでノード数が異なるサンプルを混在学習可能:
+
+```bash
+# 全センサー数混在OK（9, 99 等）
+python3 src/train_gw_stgnn.py --mode train
+
+# 99センサーのみ
+python3 src/train_gw_stgnn.py --mode train --n_sensors 99
+
+# 10センサーのみ
+python3 src/train_gw_stgnn.py --mode train --n_sensors 10
+```
+
+### 5.3 DI Baseline
+
+同一ファイルに Damage Index ベースライン搭載:
+- `DI_i = 1 - |corr(healthy_i, defect_i)|` (相関係数ベース)
+- threshold sweep で最適 F1 を探索
+
+```bash
+python3 src/train_gw_stgnn.py --mode di_baseline
+python3 src/train_gw_stgnn.py --mode both  # DI + ST-GNN 両方実行
+```
+
+### 5.4 パイプライン自動化
+
+```bash
+# ODB抽出 → vancouver02転送 → 学習 (一括)
+bash scripts/launch_stgnn_pipeline.sh all
+
+# 個別ステップ
+bash scripts/launch_stgnn_pipeline.sh extract   # ODB→CSV
+bash scripts/launch_stgnn_pipeline.sh transfer   # rsync to vancouver02
+bash scripts/launch_stgnn_pipeline.sh train      # nohup学習
+bash scripts/launch_stgnn_pipeline.sh status      # 進捗確認
+```
+
+## 6. 実装状況
 
 1. ✅ `build_gw_graph.py`: CSV 読み込み + 時間特徴抽出 + グラフ構築
 2. ✅ `prepare_gw_ml_data.py`: Healthy-A* 対応、train/val 保存
-3. ✅ `train_gw.py`: graph-level 2 値分類、クラスバランス対応
+3. ✅ `train_gw.py`: graph-level 2 値分類、手動特徴量ベース
+4. ✅ `train_gw_stgnn.py`: ST-GNN (1D-CNN + GAT) + DI baseline
+5. ✅ `launch_stgnn_pipeline.sh`: 抽出→転送→学習自動化
 
-## 6. 参照
+## 7. 参照
 
 - `scripts/extract_gw_history.py`: 出力形式
 - `scripts/verify_gw_extract.py`: 整合性検証
