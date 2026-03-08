@@ -33,16 +33,16 @@ CORE_T = 10.0   # mm (reduced from 38mm for manageable model)
 CORE_NZ = 5     # elements through core thickness
 
 # In-plane element size
-ELEM_XY = 2.0   # mm
+ELEM_XY = 1.0   # mm (refined for DGD crack kinematics resolution)
 
 # Impact parameters
 IMP_R = 6.35            # impact zone radius (mm)
-PEAK_PRESSURE = 10.0    # MPa (conservative — avoids DGD nonconvergence)
-PULSE_DURATION = 0.0005 # s (0.5 ms half-sine)
+PEAK_PRESSURE = 12.0    # MPa (below ~15 MPa DGD limit, 1mm mesh gives more damage)
+PULSE_DURATION = 0.001  # s (1.0 ms half-sine — slower ramp for DGD stability)
 
 # Analysis
-TIME_PERIOD = 0.001     # s (1 ms total — pulse + response)
-MASS_SCALING = 4        # factor (sqrt(4)=2x speedup, minimal)
+TIME_PERIOD = 0.002     # s (2 ms total — longer pulse + response)
+MASS_SCALING = 2        # factor (sqrt(2)=1.4x speedup, minimal)
 
 # CompDam feature flags:
 #   1xxxxx = matrix damage (CDM), 2=cohesive
@@ -437,7 +437,7 @@ def main():
         f.write("*Dynamic, Explicit\n")
         f.write(f", {TIME_PERIOD}\n")
         f.write("*Bulk Viscosity\n")
-        f.write("0.06, 1.2\n")
+        f.write("0.10, 1.5\n")
         f.write(f"*Fixed Mass Scaling, factor={MASS_SCALING}\n")
 
         # Amplitude: smooth half-sine pulse
