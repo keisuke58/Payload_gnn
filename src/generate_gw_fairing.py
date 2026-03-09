@@ -31,6 +31,21 @@ from abaqusConstants import *
 from caeModules import *
 import mesh
 
+
+def _create_datum_plane_at_angle(part, theta_rad, y_ref):
+    """Create a datum plane through the revolve axis at angle theta.
+
+    Uses DatumPlaneByThreePoints instead of DatumPlaneByPointNormal
+    to avoid 'TypeError: keyword error on normal' in Abaqus 2024.
+    The plane passes through the Y-axis (revolve axis) at angle theta.
+    """
+    r_ref = RADIUS + CORE_T / 2.0
+    ct, st = math.cos(theta_rad), math.sin(theta_rad)
+    p1 = (r_ref * ct, y_ref, r_ref * st)
+    p2 = (r_ref * ct, y_ref + 100.0, r_ref * st)
+    p3 = (0.0, y_ref, 0.0)
+    return part.DatumPlaneByThreePoints(point1=p1, point2=p2, point3=p3)
+
 # ==============================================================================
 # CONSTANTS — Geometry
 # ==============================================================================
@@ -492,12 +507,8 @@ def partition_opening(part, opening, geom_type='shell'):
 
         # Angled datum planes for circumferential bounds
         for theta in [theta_lo, theta_hi]:
-            nx = -math.sin(theta)
-            nz = math.cos(theta)
-            pt = (r_ref * math.cos(theta), z_c, r_ref * math.sin(theta))
             try:
-                part.DatumPlaneByPointNormal(
-                    point=pt, normal=(nx, 0.0, nz))
+                _create_datum_plane_at_angle(part, theta, z_c)
             except Exception:
                 pass
 
@@ -559,12 +570,8 @@ def partition_defect_zone(p_core, p_outer, defect_params):
         # Circumferential bounds
         arc_half = r_def / r_ref
         for theta in [theta_c - arc_half, theta_c + arc_half]:
-            pt = (r_ref * math.cos(theta), z_c, r_ref * math.sin(theta))
-            nx = -math.sin(theta)
-            nz = math.cos(theta)
             try:
-                part.DatumPlaneByPointNormal(
-                    point=pt, normal=(nx, 0.0, nz))
+                _create_datum_plane_at_angle(part, theta, z_c)
             except Exception:
                 pass
 
@@ -600,15 +607,10 @@ def partition_absorbing_zones(p_inner, p_core, p_outer,
 
     for theta_deg in [abl_width_deg, sector_angle - abl_width_deg]:
         theta_rad = math.radians(theta_deg)
-        nx = -math.sin(theta_rad)
-        nz = math.cos(theta_rad)
-        pt = (r_ref * math.cos(theta_rad), z_mid,
-              r_ref * math.sin(theta_rad))
 
         for part in [p_inner, p_core, p_outer]:
             try:
-                dp = part.DatumPlaneByPointNormal(
-                    point=pt, normal=(nx, 0.0, nz))
+                dp = _create_datum_plane_at_angle(part, theta_rad, z_mid)
                 datum = part.datums[dp.id]
                 if part.cells:
                     part.PartitionCellByDatumPlane(
@@ -1732,80 +1734,99 @@ def assign_abl_zone_sections(p_inner, p_core, p_outer,
     n_skin = 0
     n_core = 0
 
-    # Inner skin
-    abl_faces = []
-    for face in p_inner.faces:
-        pt = face.pointOn[0]
-        if _in_absorbing_zone(pt[0], pt[1], pt[2], sector_angle, abl_width_deg):
-            abl_faces.append(face)
-    if abl_faces:
-        pts = tuple((f.pointOn[0],) for f in abl_faces)
-        reg = p_inner.Set(
-            faces=p_inner.faces.findAt(*pts), name='Set-ABL-Inner')
-        p_inner.SectionAssignment(
-            region=reg, sectionName='Section-CFRP-Skin-ABL')
-        cyl = None
-        for dk in p_inner.datums.keys():
-            d = p_inner.datums[dk]
+    # Helper: check if partition actually split the part into multiple faces/cells.
+    # If partition failed, the part has only 1 face/cell — ABL override would
+    # replace the healthy section for ALL elements, breaking the simulation.
+    def _find_cyl_csys(part):
+        for dk in part.datums.keys():
+            d = part.datums[dk]
             if hasattr(d, 'name') and 'CylCS' in d.name:
-                cyl = d
-                break
-        if cyl:
-            p_inner.MaterialOrientation(
-                region=reg, orientationType=SYSTEM,
-                axis=AXIS_1, additionalRotationType=ROTATION_NONE,
-                localCsys=cyl)
-        n_skin += len(abl_faces)
+                return d
+        return None
+
+    # Inner skin
+    if len(p_inner.faces) <= 1:
+        print("  WARNING: InnerSkin not partitioned — skipping ABL assignment")
+    else:
+        abl_faces = []
+        non_abl = 0
+        for face in p_inner.faces:
+            pt = face.pointOn[0]
+            if _in_absorbing_zone(pt[0], pt[1], pt[2], sector_angle, abl_width_deg):
+                abl_faces.append(face)
+            else:
+                non_abl += 1
+        if abl_faces and non_abl > 0:
+            pts = tuple((f.pointOn[0],) for f in abl_faces)
+            reg = p_inner.Set(
+                faces=p_inner.faces.findAt(*pts), name='Set-ABL-Inner')
+            p_inner.SectionAssignment(
+                region=reg, sectionName='Section-CFRP-Skin-ABL')
+            cyl = _find_cyl_csys(p_inner)
+            if cyl:
+                p_inner.MaterialOrientation(
+                    region=reg, orientationType=SYSTEM,
+                    axis=AXIS_1, additionalRotationType=ROTATION_NONE,
+                    localCsys=cyl)
+            n_skin += len(abl_faces)
+        elif abl_faces and non_abl == 0:
+            print("  WARNING: All InnerSkin faces in ABL zone — skipping")
 
     # Outer skin
-    abl_faces = []
-    for face in p_outer.faces:
-        pt = face.pointOn[0]
-        if _in_absorbing_zone(pt[0], pt[1], pt[2], sector_angle, abl_width_deg):
-            abl_faces.append(face)
-    if abl_faces:
-        pts = tuple((f.pointOn[0],) for f in abl_faces)
-        reg = p_outer.Set(
-            faces=p_outer.faces.findAt(*pts), name='Set-ABL-Outer')
-        p_outer.SectionAssignment(
-            region=reg, sectionName='Section-CFRP-Skin-ABL')
-        cyl = None
-        for dk in p_outer.datums.keys():
-            d = p_outer.datums[dk]
-            if hasattr(d, 'name') and 'CylCS' in d.name:
-                cyl = d
-                break
-        if cyl:
-            p_outer.MaterialOrientation(
-                region=reg, orientationType=SYSTEM,
-                axis=AXIS_1, additionalRotationType=ROTATION_NONE,
-                localCsys=cyl)
-        n_skin += len(abl_faces)
+    if len(p_outer.faces) <= 1:
+        print("  WARNING: OuterSkin not partitioned — skipping ABL assignment")
+    else:
+        abl_faces = []
+        non_abl = 0
+        for face in p_outer.faces:
+            pt = face.pointOn[0]
+            if _in_absorbing_zone(pt[0], pt[1], pt[2], sector_angle, abl_width_deg):
+                abl_faces.append(face)
+            else:
+                non_abl += 1
+        if abl_faces and non_abl > 0:
+            pts = tuple((f.pointOn[0],) for f in abl_faces)
+            reg = p_outer.Set(
+                faces=p_outer.faces.findAt(*pts), name='Set-ABL-Outer')
+            p_outer.SectionAssignment(
+                region=reg, sectionName='Section-CFRP-Skin-ABL')
+            cyl = _find_cyl_csys(p_outer)
+            if cyl:
+                p_outer.MaterialOrientation(
+                    region=reg, orientationType=SYSTEM,
+                    axis=AXIS_1, additionalRotationType=ROTATION_NONE,
+                    localCsys=cyl)
+            n_skin += len(abl_faces)
+        elif abl_faces and non_abl == 0:
+            print("  WARNING: All OuterSkin faces in ABL zone — skipping")
 
     # Core
-    abl_cells = []
-    for cell in p_core.cells:
-        pt = cell.pointOn[0]
-        if _in_absorbing_zone(pt[0], pt[1], pt[2], sector_angle, abl_width_deg):
-            abl_cells.append(cell)
-    if abl_cells:
-        pts = tuple((c.pointOn[0],) for c in abl_cells)
-        reg = p_core.Set(
-            cells=p_core.cells.findAt(*pts), name='Set-ABL-Core')
-        p_core.SectionAssignment(
-            region=reg, sectionName='Section-Core-ABL')
-        cyl = None
-        for dk in p_core.datums.keys():
-            d = p_core.datums[dk]
-            if hasattr(d, 'name') and 'CylCS' in d.name:
-                cyl = d
-                break
-        if cyl:
-            p_core.MaterialOrientation(
-                region=reg, orientationType=SYSTEM,
-                axis=AXIS_3, additionalRotationType=ROTATION_NONE,
-                localCsys=cyl)
-        n_core = len(abl_cells)
+    if len(p_core.cells) <= 1:
+        print("  WARNING: Core not partitioned — skipping ABL assignment")
+    else:
+        abl_cells = []
+        non_abl = 0
+        for cell in p_core.cells:
+            pt = cell.pointOn[0]
+            if _in_absorbing_zone(pt[0], pt[1], pt[2], sector_angle, abl_width_deg):
+                abl_cells.append(cell)
+            else:
+                non_abl += 1
+        if abl_cells and non_abl > 0:
+            pts = tuple((c.pointOn[0],) for c in abl_cells)
+            reg = p_core.Set(
+                cells=p_core.cells.findAt(*pts), name='Set-ABL-Core')
+            p_core.SectionAssignment(
+                region=reg, sectionName='Section-Core-ABL')
+            cyl = _find_cyl_csys(p_core)
+            if cyl:
+                p_core.MaterialOrientation(
+                    region=reg, orientationType=SYSTEM,
+                    axis=AXIS_3, additionalRotationType=ROTATION_NONE,
+                    localCsys=cyl)
+            n_core = len(abl_cells)
+        elif abl_cells and non_abl == 0:
+            print("  WARNING: All Core cells in ABL zone — skipping")
 
     print("ABL zone assigned: %d skin faces, %d core cells" % (
         n_skin, n_core))
