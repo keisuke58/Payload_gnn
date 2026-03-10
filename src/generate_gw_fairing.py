@@ -249,15 +249,14 @@ def find_nearest_node(instance, target_x, target_y, target_z):
 def create_materials(model, include_thermal=True, moisture_factor=1.0):
     """Create all materials with thermal expansion and Rayleigh damping.
 
-    Rayleigh damping: α=0 (mass-proportional off), β=3e-6 (stiffness-proportional)
-    yields ~1.5% critical damping at 50 kHz.
-    ξ = β·ω/2 = 3e-6 × 2π×50000 / 2 ≈ 0.47% per mode → ~1.5% total (composites).
-    Literature: CFRP sandwich ~1-3% damping at ultrasonic frequencies.
+    Rayleigh damping: β=3.18e-8 (stiffness-proportional, ~0.5% at 50 kHz).
+    Physical: CFRP GW attenuation ~1-5 dB/m at 50 kHz ≈ ξ~0.005.
+    Old β=3e-6 gave ξ=0.47 → 8.6x Δt penalty in Explicit (too aggressive).
 
     moisture_factor: 1.0=dry, 0.92=2% moisture (reduces matrix properties).
     """
-    RAYLEIGH_ALPHA = 0.0     # mass-proportional (off for wave propagation)
-    RAYLEIGH_BETA = 3.0e-6   # stiffness-proportional (~1.5% at 50 kHz)
+    RAYLEIGH_ALPHA = 0.0     # mass-proportional (off for normal elements)
+    RAYLEIGH_BETA = 3.18e-8  # stiffness-proportional (~0.5% at 50 kHz, <5% Δt penalty)
 
     # Moisture-degraded matrix properties (E1 fiber-dominated, unaffected)
     E2_eff = CFRP_E2 * moisture_factor
@@ -1071,6 +1070,25 @@ def generate_mesh(assembly, inst_inner, inst_core, inst_outer,
     assembly.seedPartInstance(regions=tuple(all_insts), size=mesh_seed,
                               deviationFactor=0.1)
 
+    # Enforce minimum edge seed on short partition-boundary edges.
+    # ABL and defect partitions can create very short edges at intersections,
+    # producing tiny elements that collapse the stable time increment.
+    min_edge_seed = mesh_seed * 0.5
+    n_reseeded = 0
+    for inst in [inst_inner, inst_outer]:
+        for edge in inst.edges:
+            try:
+                elen = edge.getSize(printResults=False)
+                if elen < min_edge_seed:
+                    assembly.seedEdgeBySize(
+                        edges=(edge,), size=mesh_seed, constraint=FIXED)
+                    n_reseeded += 1
+            except Exception:
+                pass
+    if n_reseeded > 0:
+        print("  Short edges re-seeded: %d (min_edge=%.2f mm)" % (
+            n_reseeded, min_edge_seed))
+
     # Core: override thickness-direction edges to 2 divisions
     # (prevents excessive through-thickness refinement)
     n_overridden = 0
@@ -1314,7 +1332,7 @@ def apply_symmetry_bcs(model, assembly,
 # ==============================================================================
 
 def create_explicit_step(model, time_period):
-    """Create Abaqus/Explicit step (no mass scaling)."""
+    """Create Abaqus/Explicit step."""
     model.ExplicitDynamicsStep(
         name='Step-Wave',
         previous='Initial',
@@ -1326,6 +1344,41 @@ def create_explicit_step(model, time_period):
 
     print("Explicit step: T=%.3e s" % time_period)
     return 'Step-Wave'
+
+
+def inject_mass_scaling_inp(inp_path, dt_target):
+    """Post-process INP to add Fixed Mass Scaling (BELOW MIN).
+
+    Inserts *Fixed Mass Scaling after *Dynamic, Explicit line.
+    Only scales elements with dt < dt_target, preserving well-formed elements.
+    """
+    import os
+    with open(inp_path, 'r') as f:
+        lines = f.readlines()
+
+    inserted = False
+    new_lines = []
+    skip_next = False
+    for i, line in enumerate(lines):
+        if skip_next:
+            skip_next = False
+            continue
+        new_lines.append(line)
+        if line.strip().startswith('*Dynamic, Explicit') and not inserted:
+            # Append the time period line (next line)
+            if i + 1 < len(lines):
+                new_lines.append(lines[i + 1])
+                skip_next = True
+            # Insert mass scaling (TYPE and DT both as keyword parameters)
+            new_lines.append('*Fixed Mass Scaling, type=BELOW MIN, dt=%.4e\n' % dt_target)
+            inserted = True
+
+    if inserted:
+        with open(inp_path, 'w') as f:
+            f.writelines(new_lines)
+        print("Mass scaling injected: dt=%.2e (BELOW MIN)" % dt_target)
+    else:
+        print("WARNING: Could not inject mass scaling (*Dynamic not found)")
 
 
 def generate_tone_burst_amplitude(model, freq_hz, n_cycles,
@@ -1662,11 +1715,12 @@ def create_defect_sections(model, skin_mat, core_mat):
 def create_absorbing_materials(model, include_thermal=True, moisture_factor=1.0):
     """Create high-damping materials for ABL zones.
 
-    Same elastic properties as main materials, but Rayleigh β increased by
-    ABL_BETA_FACTOR (100x) to attenuate waves near sector edges.
-    Round-trip attenuation: wave → ABL → reflection → ABL ≈ 10000x reduction.
+    ABL uses mass-proportional α damping (no Δt penalty in Explicit).
+    α provides strong attenuation at the target frequency:
+    ξ = α/(2ω) = 6.28e6 / (2 × 2π × 50kHz) ≈ 10 at 50 kHz.
+    Old β=3e-4 gave ξ=424 at ω_max → 849x Δt penalty (made jobs infeasible).
     """
-    RAYLEIGH_BETA_ABL = 3.0e-6 * ABL_BETA_FACTOR
+    RAYLEIGH_ALPHA_ABL = 6.283e6  # mass-proportional (ξ≈10 at 50kHz, no Δt penalty)
 
     E2_eff = CFRP_E2 * moisture_factor
     G12_eff = CFRP_G12 * moisture_factor
@@ -1679,7 +1733,7 @@ def create_absorbing_materials(model, include_thermal=True, moisture_factor=1.0)
         type=LAMINA,
         table=((CFRP_E1, E2_eff, CFRP_NU12,
                 G12_eff, G13_eff, G23_eff),))
-    mat.Damping(alpha=0.0, beta=RAYLEIGH_BETA_ABL)
+    mat.Damping(alpha=RAYLEIGH_ALPHA_ABL, beta=0.0)
     if include_thermal:
         mat.Expansion(table=((CFRP_CTE_1, CFRP_CTE_2, 0.0),))
 
@@ -1690,12 +1744,12 @@ def create_absorbing_materials(model, include_thermal=True, moisture_factor=1.0)
         table=((E_CORE_1, E_CORE_2, E_CORE_3,
                 NU_CORE_12, NU_CORE_13, NU_CORE_23,
                 G_CORE_12, G_CORE_13, G_CORE_23),))
-    mat_c.Damping(alpha=0.0, beta=RAYLEIGH_BETA_ABL)
+    mat_c.Damping(alpha=RAYLEIGH_ALPHA_ABL, beta=0.0)
     if include_thermal:
         mat_c.Expansion(table=((CORE_CTE,),))
 
-    print("ABL materials created: beta=%.1e (%.0fx normal)" % (
-        RAYLEIGH_BETA_ABL, ABL_BETA_FACTOR))
+    print("ABL materials created: alpha=%.1e (mass-proportional, no dt penalty)" % (
+        RAYLEIGH_ALPHA_ABL,))
 
 
 def create_absorbing_sections(model):
@@ -1968,10 +2022,12 @@ def generate_model(job_name, freq_khz=DEFAULT_FREQ_KHZ, n_cycles=DEFAULT_CYCLES,
     """Generate realistic fairing guided wave model."""
     freq_hz = freq_khz * 1e3
 
-    # Auto mesh seed: lambda/8 (uses PHASE velocity for wavelength)
+    # Auto mesh seed: lambda/6 (uses PHASE velocity for wavelength)
+    # lambda/6 balances GW accuracy (need >= lambda/10) with solver cost.
+    # lambda/8 caused tiny elements at ABL partition boundaries → dt collapse.
     if mesh_seed is None:
         wavelength = CP_ESTIMATE / freq_hz * 1000.0
-        mesh_seed = min(wavelength / 8.0, 4.0)
+        mesh_seed = min(wavelength / 6.0, 5.0)
 
     # Auto time period (uses GROUP velocity for wave packet travel time)
     if time_period is None:
@@ -2002,8 +2058,8 @@ def generate_model(job_name, freq_khz=DEFAULT_FREQ_KHZ, n_cycles=DEFAULT_CYCLES,
     print("  Excitation: theta=%.1f deg, z=%.0f mm" % (
         excite_theta, excite_z))
     if absorbing_bc:
-        print("  ABL: %.1f deg per edge (beta*%.0f)" % (
-            ABL_WIDTH_DEG, ABL_BETA_FACTOR))
+        print("  ABL: %.1f deg per edge (alpha=%.1e, mass-proportional)" % (
+            ABL_WIDTH_DEG, 6.283e6))
     if moisture_factor < 1.0:
         print("  Moisture: %.0f%% stiffness reduction" % (
             (1 - moisture_factor) * 100))
@@ -2128,6 +2184,12 @@ def generate_model(job_name, freq_khz=DEFAULT_FREQ_KHZ, n_cycles=DEFAULT_CYCLES,
             explicitPrecision=SINGLE, nodalOutputPrecision=FULL)
     mdb.saveAs(pathName=job_name + '.cae')
     mdb.jobs[job_name].writeInput(consistencyChecking=OFF)
+
+    # Inject selective mass scaling into INP (fixes partition micro-elements).
+    # Target dt ≈ 0.5 × undamped Δt for this mesh seed.
+    ms_dt = 0.5 * mesh_seed / 7.0e6
+    inject_mass_scaling_inp(job_name + '.inp', ms_dt)
+
     print("\nINP written: %s.inp" % job_name)
 
     if not no_run:
