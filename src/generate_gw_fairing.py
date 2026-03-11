@@ -2018,8 +2018,15 @@ def generate_model(job_name, freq_khz=DEFAULT_FREQ_KHZ, n_cycles=DEFAULT_CYCLES,
                    sensor_layout='grid',
                    czm_params=None, no_run=False,
                    include_thermal=True, fix_bottom=True,
-                   absorbing_bc=True, moisture_factor=1.0):
-    """Generate realistic fairing guided wave model."""
+                   absorbing_bc=True, moisture_factor=1.0,
+                   multi_defect_list=None):
+    """Generate realistic fairing guided wave model.
+
+    Args:
+        multi_defect_list: list of defect_params dicts for multi-defect mode.
+            If provided, defect_params is ignored and multiple defects are
+            placed in a single model.
+    """
     freq_hz = freq_khz * 1e3
 
     # Auto mesh seed: lambda/6 (uses PHASE velocity for wavelength)
@@ -2063,7 +2070,13 @@ def generate_model(job_name, freq_khz=DEFAULT_FREQ_KHZ, n_cycles=DEFAULT_CYCLES,
     if moisture_factor < 1.0:
         print("  Moisture: %.0f%% stiffness reduction" % (
             (1 - moisture_factor) * 100))
-    if defect_params:
+    if _defect_list:
+        print("  Defects: %d" % len(_defect_list))
+        for _di, _dp in enumerate(_defect_list):
+            print("    [%d] z=%.0f, theta=%.1f, r=%.0f, type=%s" % (
+                _di, _dp['z_center'], _dp['theta_deg'],
+                _dp['radius'], _dp.get('defect_type', 'debonding')))
+    elif defect_params:
         print("  Defect: z=%.0f, theta=%.1f, r=%.0f" % (
             defect_params['z_center'],
             defect_params['theta_deg'],
@@ -2106,13 +2119,25 @@ def generate_model(job_name, freq_khz=DEFAULT_FREQ_KHZ, n_cycles=DEFAULT_CYCLES,
             print("No openings in z/theta range")
 
     # 5. Defect partitioning + multi-type defect materials
+    # Build effective defect list (multi_defect_list takes precedence)
+    _defect_list = []
+    if multi_defect_list:
+        _defect_list = list(multi_defect_list)
+    elif defect_params:
+        _defect_list = [defect_params]
+
     defect_skin_mat = None
     defect_core_mat = None
-    if defect_params:
-        partition_defect_zone(p_core, p_outer, defect_params)
-        defect_skin_mat, defect_core_mat = create_defect_materials(
-            model, defect_params)
-        create_defect_sections(model, defect_skin_mat, defect_core_mat)
+    for _di, _dp in enumerate(_defect_list):
+        partition_defect_zone(p_core, p_outer, _dp)
+        _s, _c = create_defect_materials(model, _dp)
+        if _s:
+            defect_skin_mat = _s
+        if _c:
+            defect_core_mat = _c
+        create_defect_sections(model, _s, _c)
+    if not _defect_list and defect_params is None:
+        pass  # no defect
 
     # 5b. ABL zone partitioning (before section assignment)
     if absorbing_bc:
@@ -2120,12 +2145,13 @@ def generate_model(job_name, freq_khz=DEFAULT_FREQ_KHZ, n_cycles=DEFAULT_CYCLES,
                                    sector_angle, ABL_WIDTH_DEG)
 
     # 6. Section assignment (cylindrical CSYS)
-    assign_sections(p_inner, p_core, p_outer, openings, defect_params)
+    assign_sections(p_inner, p_core, p_outer, openings,
+                    _defect_list[0] if _defect_list else None)
 
     # 6b. Override defect zone sections with defect-specific materials
-    if defect_params and (defect_skin_mat or defect_core_mat):
+    for _dp in _defect_list:
         _assign_defect_zone_sections(
-            p_core, p_outer, defect_params,
+            p_core, p_outer, _dp,
             defect_skin_mat, defect_core_mat)
 
     # 6c. Override ABL zone sections with high-damping materials
@@ -2142,8 +2168,14 @@ def generate_model(job_name, freq_khz=DEFAULT_FREQ_KHZ, n_cycles=DEFAULT_CYCLES,
                   frame_insts, mesh_seed)
 
     # 9. Surface-based CZM interactions
-    create_interactions(model, a, inst_inner, inst_core, inst_outer,
-                        defect_params)
+    if len(_defect_list) > 1:
+        # Multi-defect: use extended classification
+        from generate_gw_multi_defect import create_interactions_multi
+        create_interactions_multi(model, a, inst_inner, inst_core, inst_outer,
+                                  _defect_list)
+    else:
+        create_interactions(model, a, inst_inner, inst_core, inst_outer,
+                            _defect_list[0] if _defect_list else None)
 
     # 10. Frame ties
     if frame_insts:

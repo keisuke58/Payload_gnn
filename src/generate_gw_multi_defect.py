@@ -35,7 +35,12 @@ except ImportError:
     sys.exit(1)
 
 # Import the base generator
-sys.path.insert(0, os.path.dirname(__file__))
+# __file__ is not defined in Abaqus CAE noGUI mode
+try:
+    _this_dir = os.path.dirname(__file__)
+except NameError:
+    _this_dir = os.path.dirname(os.path.abspath(sys.argv[-1]))
+sys.path.insert(0, _this_dir)
 from generate_gw_fairing import (
     generate_model,
     partition_defect_zone,
@@ -231,66 +236,19 @@ def generate_multi_defect_model(doe_path, model_idx=0,
     print("Multi-Defect Model: %s (%d defects)" % (job_name, n_defects))
     print("=" * 60)
 
-    # Step 1: Generate base model WITHOUT defect (healthy geometry)
-    # We'll add defects manually after
+    # Use generate_model with multi_defect_list parameter
+    # This handles partitioning, materials, mesh, interactions, INP in one pass
     generate_model(
         job_name=job_name,
-        defect_params=None,  # No defect initially
+        defect_params=None,
+        multi_defect_list=defect_list,
         n_sensors=n_sensors,
         sensor_layout='grid',
-        no_run=True,  # Don't run yet
+        no_run=no_run,
     )
 
-    # Step 2: Re-open model and add multi-defect features
-    mdb_path = job_name + '.cae'
-    if not os.path.exists(mdb_path):
-        print("ERROR: CAE not found: %s" % mdb_path)
-        return
-
-    mdb = openMdb(mdb_path)
-    model = mdb.models['Model-1']
-
-    # Get parts
-    p_core = model.parts['Part-Core']
-    p_outer = model.parts['Part-OuterSkin']
-
-    # Step 3: Partition and assign materials for each defect
-    for di, dp in enumerate(defect_list):
-        print("\nDefect %d/%d: z=%.0f, theta=%.1f, r=%.0f, type=%s" % (
-            di + 1, n_defects, dp['z_center'], dp['theta_deg'],
-            dp['radius'], dp.get('defect_type', 'debonding')))
-
-        # Partition
-        partition_defect_zone(p_core, p_outer, dp)
-
-        # Create defect-specific materials
-        skin_mat, core_mat = create_defect_materials(model, dp)
-
-        # Assign sections to defect zone elements
-        _assign_defect_zone_sections(p_core, p_outer, dp, skin_mat, core_mat)
-
-    # Step 4: Re-mesh (partitioning may have changed geometry)
-    a = model.rootAssembly
-    a.regenerate()
-
-    # Step 5: Re-create interactions with multi-defect surfaces
-    # Delete old GeneralContact if exists
-    if 'GeneralContact' in model.interactions:
-        del model.interactions['GeneralContact']
-
-    inst_inner = a.instances['Part-InnerSkin-1']
-    inst_core = a.instances['Part-Core-1']
-    inst_outer = a.instances['Part-OuterSkin-1']
-
-    create_interactions_multi(model, a, inst_inner, inst_core, inst_outer,
-                               defect_list)
-
-    # Step 6: Save and write INP
-    mdb.saveAs(pathName=job_name + '.cae')
-    mdb.jobs[job_name].writeInput(consistencyChecking=OFF)
-
     print("\n" + "=" * 60)
-    print("Multi-defect INP written: %s.inp" % job_name)
+    print("Multi-defect model complete: %s" % job_name)
     print("  Defects: %d" % n_defects)
     print("  Sensors: %d (grid)" % n_sensors)
     print("=" * 60)
