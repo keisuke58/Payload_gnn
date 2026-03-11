@@ -1161,7 +1161,7 @@ def _create_interactions_multi(model, assembly,
         gc.contactPropertyAssignments.appendInStep(
             stepName='Initial', assignments=tuple(pair_assignments))
 
-    n_d = sum(1 for _, s1, s2 in defect_surfaces if s1 or s2)
+    n_d = len([1 for _, s1, s2 in defect_surfaces if s1 or s2])
     print("Multi-defect General Contact: %d CZM pairs (%d defect zones)" % (
         len(pair_assignments), n_d))
 
