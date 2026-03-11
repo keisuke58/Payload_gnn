@@ -1,5 +1,5 @@
 #!/bin/bash
-#PBS -l nodes=1:ppn=4
+#PBS -l nodes=1:ppn=8
 #PBS -l walltime=72:00:00
 #PBS -j oe
 #PBS -V
@@ -8,7 +8,7 @@
 # Usage: qsub -v JOB_NAME=Job-GW-Fair-0001 scripts/qsub_gw_single.sh
 
 WORK_DIR=~/Payload2026/abaqus_work
-CPUS=4
+CPUS=8
 ABAQUS=/home/nishioka/DassaultSystemes/SIMULIA/Commands/abaqus
 EXTRACT_SCRIPT=~/Payload2026/scripts/extract_gw_history.py
 CSV_DIR=~/Payload2026/abaqus_work/gw_fairing_dataset

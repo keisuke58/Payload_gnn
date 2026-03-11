@@ -73,6 +73,16 @@ def load_sensor_csv(csv_path):
     return times, waveforms, positions
 
 
+def _count_sensors_header(csv_path):
+    """Count sensor columns from CSV header only (fast, no full parse)."""
+    try:
+        with open(csv_path) as f:
+            header = f.readline().strip().split(',')
+        return sum(1 for col in header if col.startswith('sensor_') and '_U' in col)
+    except (IOError, OSError):
+        return 0
+
+
 class GWOperatorDataset(Dataset):
     """Dataset for FNO/DeepONet GW surrogate learning.
 
@@ -173,6 +183,11 @@ class GWOperatorDataset(Dataset):
             csv_path = os.path.join(data_dir, f"{job}_sensors.csv")
             if not os.path.exists(csv_path):
                 continue
+            # Validate sensor count matches healthy reference (header-only check)
+            n_csv_sensors = _count_sensors_header(csv_path)
+            if n_csv_sensors != self.n_sensors:
+                print(f"  [SKIP] {job}: sensor count {n_csv_sensors} != {self.n_sensors}")
+                continue
             p = sample.get('defect_params', sample.get('defect', {}))
             params_norm = self._normalize_params(
                 p.get('z_center', 0), p.get('theta_deg', 0),
@@ -222,8 +237,8 @@ class GWOperatorDataset(Dataset):
         params_norm, csv_path = self.samples[idx]
 
         _, defect_waveform, _ = load_sensor_csv(csv_path)
-        if defect_waveform is None:
-            # Return zeros as fallback
+        if defect_waveform is None or defect_waveform.shape[0] != self.n_sensors:
+            # Return zeros as fallback (sensor count mismatch or load failure)
             defect_waveform = np.zeros_like(self.healthy_waveform)
 
         # Downsample and truncate
