@@ -285,8 +285,8 @@ def main():
     parser.add_argument('--no_augmented', action='store_true',
                         help='Exclude Healthy-A* augmented samples')
     parser.add_argument('--feature_set', type=str, default='baseline',
-                        choices=['baseline', 'extended', 'full'],
-                        help='baseline=3, extended=10, full=15 feat')
+                        choices=['baseline', 'extended', 'full', 'comprehensive'],
+                        help='baseline=3, extended=10, full=15, comprehensive=24')
     args = parser.parse_args()
 
     prepare_gw_dataset(

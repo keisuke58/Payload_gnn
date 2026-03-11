@@ -1,0 +1,544 @@
+{
+  "samples": [
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-0000_sensors.csv",
+      "label": 1,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-0034_sensors.csv",
+      "label": 1,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-0035_sensors.csv",
+      "label": 1,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-0036_sensors.csv",
+      "label": 1,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-0068_sensors.csv",
+      "label": 1,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-0069_sensors.csv",
+      "label": 1,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A000_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A001_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A002_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A003_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A004_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A005_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A006_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A007_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A008_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A009_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A010_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A011_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A012_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A013_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A014_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A015_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A016_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A017_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A018_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A019_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A020_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A021_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A022_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A023_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A024_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A025_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A026_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A027_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A028_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A029_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A030_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A031_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A032_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A033_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A034_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A035_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A036_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A037_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A038_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A039_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A040_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A041_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A042_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A043_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A044_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A045_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A046_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A047_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A048_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A049_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A050_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A051_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A052_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A053_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A054_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A055_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A056_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A057_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A058_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A059_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A060_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A061_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A062_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A063_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A064_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A065_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A066_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A067_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A068_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A069_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A070_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A071_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A072_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A073_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A074_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A075_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A076_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A077_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A078_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A079_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A080_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A081_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A082_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A083_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A084_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A085_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A086_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A087_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A088_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A089_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A090_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A091_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A092_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A093_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A094_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A095_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A096_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A097_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A098_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Healthy-A099_sensors.csv",
+      "label": 0,
+      "split": null
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Test-D3_sensors.csv",
+      "label": 1,
+      "split": "test"
+    },
+    {
+      "csv": "abaqus_work/gw_fairing_dataset/Job-GW-Fair-Test-H3_sensors.csv",
+      "label": 0,
+      "split": "test"
+    }
+  ]
+}

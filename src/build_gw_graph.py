@@ -116,17 +116,79 @@ def _safe_fft_features(sig, dt):
             float(rolloff / nyq) if nyq > 0 else 0.0)
 
 
-def _hilbert_envelope_max(sig):
-    """Hilbert envelope max. Returns 0 if too short."""
+def _hilbert_envelope(sig):
+    """Hilbert envelope. Returns (envelope_max, decay_rate)."""
     if len(sig) < 4:
-        return 0.0
+        return 0.0, 0.0
     from scipy.signal import hilbert
     try:
         analytic = hilbert(sig)
         envelope = np.abs(analytic)
-        return float(np.max(envelope))
+        env_max = float(np.max(envelope))
+        # Decay rate: fit log(envelope) after peak
+        peak_idx = np.argmax(envelope)
+        tail = envelope[peak_idx:]
+        if len(tail) > 10 and env_max > 1e-20:
+            log_env = np.log(np.clip(tail / env_max, 1e-12, None))
+            x = np.arange(len(tail), dtype=float)
+            # Simple linear fit: log_env ~ slope * x
+            slope = np.polyfit(x, log_env, 1)[0]
+            decay_rate = float(-slope)  # positive = decaying
+        else:
+            decay_rate = 0.0
+        return env_max, decay_rate
     except Exception:
+        return 0.0, 0.0
+
+
+def _tof_threshold(sig, times, threshold_frac=0.1):
+    """Time of flight: first time abs(sig) exceeds threshold_frac * max."""
+    if len(sig) < 4:
         return 0.0
+    max_abs = np.max(np.abs(sig))
+    if max_abs < 1e-20:
+        return 0.0
+    thresh = threshold_frac * max_abs
+    idx = np.argmax(np.abs(sig) > thresh)
+    return float(times[idx]) if idx < len(times) else 0.0
+
+
+def _velocity_features(sig, dt):
+    """Velocity (dU/dt) peak and RMS."""
+    if len(sig) < 4 or dt <= 0:
+        return 0.0, 0.0
+    vel = np.diff(sig) / dt
+    vel_peak = float(np.max(np.abs(vel)))
+    vel_rms = float(np.sqrt(np.mean(vel ** 2)))
+    return vel_peak, vel_rms
+
+
+def _ricker_wavelet(points, a):
+    """Mexican hat (Ricker) wavelet."""
+    A = 2.0 / (np.sqrt(3.0 * a) * (np.pi ** 0.25))
+    wsq = a ** 2
+    t = np.arange(points) - (points - 1) / 2.0
+    mod = 1.0 - (t ** 2) / wsq
+    gauss = np.exp(-(t ** 2) / (2.0 * wsq))
+    return A * mod * gauss
+
+
+def _wavelet_features(sig, n_scales=4):
+    """Multi-scale energy using Ricker wavelet convolution."""
+    if len(sig) < 16:
+        return [0.0] * n_scales
+    try:
+        widths = np.geomspace(2, len(sig) // 4, n_scales).astype(int)
+        widths = np.clip(widths, 2, len(sig) // 2)
+        energies = []
+        for w in widths:
+            wavelet = _ricker_wavelet(min(10 * w, len(sig)), w)
+            conv = np.convolve(sig, wavelet, mode='same')
+            energies.append(float(np.sum(conv ** 2)))
+        total = sum(energies) + 1e-30
+        return [e / total for e in energies]
+    except Exception:
+        return [0.0] * n_scales
 
 
 def _safe_skew_kurt(sig):
@@ -149,35 +211,32 @@ def extract_time_features(times, sensor_data, feature_set='baseline'):
     Args:
         times: (n_steps,) array
         sensor_data: dict {sensor_id: (n_steps,) array}
-        feature_set: 'baseline' (3), 'extended' (10), or 'full' (15)
+        feature_set: 'baseline' (3), 'extended' (10), 'full' (15),
+                     or 'comprehensive' (24)
 
     Returns (n_sensors, n_features) array.
 
-    Baseline: max_abs, rms, peak_time_norm
-    Extended: + mean, std, peak_to_peak, energy, zcr, dom_freq, spec_centroid
-    Full: + envelope_max, skewness, kurtosis, spectral_bandwidth
+    Baseline (3):  max_abs, rms, peak_time_norm
+    Extended (10): + mean, std, peak_to_peak, energy, zcr, dom_freq, spec_centroid
+    Full (15):     + envelope_max, skewness, kurtosis, spec_bandwidth, spec_rolloff
+    Comprehensive (24): + tof, vel_peak, vel_rms, crest_factor,
+                          envelope_decay, wavelet_e(x4)
     """
+    FEAT_COUNTS = {'baseline': 3, 'extended': 10, 'full': 15, 'comprehensive': 24}
+    n_feat = FEAT_COUNTS.get(feature_set, 3)
+
     sensor_ids = sorted(sensor_data.keys())
     features = []
     t_max = times[-1] if len(times) > 0 else 1.0
     dt = (times[1] - times[0]) if len(times) > 1 else 1e-6
 
-    n_baseline = 3
-    n_extended = 7   # extended adds 7
-    n_full_extra = 5  # full adds 5 more: envelope, skew, kurt, bandwidth
-
     for sid in sensor_ids:
         sig = sensor_data[sid]
         if len(sig) == 0:
-            n = n_baseline
-            if feature_set == 'extended':
-                n = n_baseline + n_extended
-            elif feature_set == 'full':
-                n = n_baseline + n_extended + n_full_extra
-            features.append([0.0] * n)
+            features.append([0.0] * n_feat)
             continue
 
-        # Baseline
+        # Baseline (3)
         max_abs = np.max(np.abs(sig))
         rms = np.sqrt(np.mean(sig ** 2))
         peak_idx = np.argmax(np.abs(sig))
@@ -185,7 +244,7 @@ def extract_time_features(times, sensor_data, feature_set='baseline'):
         peak_time_norm = peak_time / t_max if t_max > 0 else 0.0
         row = [max_abs, rms, peak_time_norm]
 
-        if feature_set in ('extended', 'full'):
+        if feature_set in ('extended', 'full', 'comprehensive'):
             mean = np.mean(sig)
             std = np.std(sig)
             std = std if std > 1e-12 else 1e-12
@@ -197,10 +256,22 @@ def extract_time_features(times, sensor_data, feature_set='baseline'):
             dom_freq, spec_cent, spec_bw, spec_rolloff = _safe_fft_features(sig, dt)
             row.extend([mean, std, peak_to_peak, energy, zcr, dom_freq, spec_cent])
 
-        if feature_set == 'full':
-            envelope_max = _hilbert_envelope_max(sig)
+        if feature_set in ('full', 'comprehensive'):
+            envelope_max, envelope_decay = _hilbert_envelope(sig)
             skew, kurt = _safe_skew_kurt(sig)
             row.extend([envelope_max, skew, kurt, spec_bw, spec_rolloff])
+
+        if feature_set == 'comprehensive':
+            # ToF (normalized)
+            tof = _tof_threshold(sig, times)
+            tof_norm = tof / t_max if t_max > 0 else 0.0
+            # Velocity features
+            vel_peak, vel_rms = _velocity_features(sig, dt)
+            # Crest factor
+            crest = max_abs / rms if rms > 1e-20 else 0.0
+            # Wavelet energies (4 scales)
+            wav = _wavelet_features(sig, n_scales=4)
+            row.extend([tof_norm, vel_peak, vel_rms, crest, envelope_decay] + wav)
 
         features.append(row)
 
@@ -272,7 +343,7 @@ def main():
     parser.add_argument('--connectivity', type=str, default='full',
                         choices=['full', 'knn'])
     parser.add_argument('--feature_set', type=str, default='baseline',
-                        choices=['baseline', 'extended', 'full'])
+                        choices=['baseline', 'extended', 'full', 'comprehensive'])
     args = parser.parse_args()
 
     if not args.csv or not os.path.exists(args.csv):
