@@ -434,6 +434,9 @@ python src/augment_gw_healthy.py \
 - [x] v3 モデル（104 センサーグリッド）による高精度データ生成
 - [x] 24 次元 comprehensive 特徴量（ToF, Hilbert 包絡線, ウェーブレット等）
 - [ ] v3 DOE 55 ジョブ（50 欠陥 + 5 健全）の FEM 実行
+- [x] Junction モデル設計・実装（バレル・ノーズコーン接合部 z=3500–6500mm）
+- [ ] Junction Static 形状検証 → GW Explicit 検証
+- [ ] Junction DOE 33 ジョブ（30 欠陥 + 3 健全）の FEM 実行
 - [ ] PZT ネットワークのトポロジ最適化
 
 ---
@@ -491,3 +494,87 @@ python src/augment_gw_healthy.py \
 | 4-10 | mean, std, ptp, energy, zcr, dom_freq, spec_centroid | Extended |
 | 11-15 | envelope_max, skewness, kurtosis, spec_bandwidth, rolloff | Full |
 | 16-24 | tof_norm, vel_peak, vel_rms, crest, decay, wavelet_e(×4) | Comprehensive |
+
+---
+
+## Junction モデル — バレル・ノーズコーン接合部
+
+### 動機
+
+バレル部（円筒 R=2600mm）とノーズコーン（タンジェントオジャイブ）の接合部（z=3500–6500mm）は、
+曲率の急変・ボルト接合フランジ・応力集中が共存するため、デボンディング欠陥が発生しやすい。
+打ち上げ前地上検査として、接合部近傍の GW-SHM を別モデルで構築する。
+
+### 幾何形状
+
+```
+z=3500 ┬─ Barrel section (cylinder R=2600)
+       │
+z=5000 ├─ Junction flange (Al-7075 ring, 80mm height, 8mm thick)
+       │
+z=6500 └─ Ogive section (tangent ogive, ρ = (R²+L²)/(2R))
+```
+
+- **バレル部** (z=3500–5000): 円筒 R=2600mm、v3 バレルモデルと同一構造
+- **オジャイブ部** (z=5000–6500): タンジェントオジャイブ曲面、半径が z に応じて縮小
+- **接合フランジ**: z=5000mm に Al-7075 リング（ボルト接合部を代表）
+
+### モデル仕様
+
+| パラメータ | Junction モデル | v3 バレルモデル |
+|-----------|----------------|----------------|
+| セクター角度 | 30° (1/12) | 30° (1/12) |
+| 軸方向範囲 | z = 3500–6500 mm | z = 500–2500 mm |
+| 幾何形状 | 円筒 + オジャイブ | 円筒のみ |
+| 接合フランジ | あり (Al-7075) | なし |
+| メッシュシード | 7.5 mm | 5.0 mm |
+| センサー数 | 40 | 104 (8×13 grid) |
+| 推定要素数 | ~30K | ~65K |
+| 推定 DOF | ~100K | ~250K |
+| 推定計算時間 | ~1–2 h | ~7 h |
+| 欠陥タイプ | 7 種 (同一) | 7 種 |
+| CZM | Surface-based, BK | Surface-based, BK |
+| ABL | 2° 幅 | 2° 幅 |
+| 励振 | 50 kHz, 5-cycle | 50 kHz, 5-cycle |
+
+### センサー配置
+
+40 個のセンサーを二重曲率面上に配置。オジャイブ部では `_ogive_radius_at_z()` で
+各 z 位置の局所半径を取得し、正しい曲面座標にマッピングする。
+
+### DOE — 33 サンプル
+
+| カテゴリ | サンプル数 | 備考 |
+|----------|-----------|------|
+| 欠陥 (defective) | 30 | 7 種混合、LHS サンプリング |
+| 健全 (healthy) | 3 | |
+| **合計** | **33** | |
+
+**欠陥タイプ内訳**: debonding 5, FOD 5, impact 4, delamination 4, inner_debond 4, thermal_progression 4, acoustic_fatigue 4
+
+**サイズ分布**: Small (20–40mm) 9, Medium (40–60mm) 13, Large (60–80mm) 8
+
+**接合部近傍**: 30 サンプル中 11 個が |z − 5000| < 500mm（接合フランジ付近に集中）
+
+### パイプライン
+
+```
+doe_gw_junction.json
+  → qsub_junction_batch.sh submit
+    → qsub_junction_single.sh (per job)
+      → generate_nosecone_junction.py (Abaqus CAE → INP)
+      → Abaqus/Explicit solver
+      → extract_gw_history.py (ODB → CSV)
+    → junction_dataset/*.csv
+  → build_gw_graph.py + train.py (GNN — センサー数自動検出)
+```
+
+### スクリプト
+
+| ファイル | 用途 |
+|----------|------|
+| `src/generate_nosecone_junction.py` | Junction GW モデル生成 (Explicit) |
+| `src/generate_nosecone_junction_static.py` | Junction Static モデル (形状検証用) |
+| `doe_gw_junction.json` | DOE 定義 (30 defective + 3 healthy) |
+| `scripts/qsub_junction_single.sh` | PBS 単一ジョブスクリプト |
+| `scripts/qsub_junction_batch.sh` | バッチ投入・状態確認 |
