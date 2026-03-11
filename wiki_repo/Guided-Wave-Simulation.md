@@ -2,7 +2,7 @@
 
 # ガイド波（ラム波）シミュレーション — Guided Wave Simulation
 
-> 最終更新: 2026-03-06 (Step 6 30° フェアリングセクタ検証完了)
+> 最終更新: 2026-03-11 (v3 モデル・DOE・FEM 概要図追加)
 > **Phase 4/5 準備**: アクティブ SHM のための Abaqus/Explicit 動解析
 
 ---
@@ -431,4 +431,63 @@ python src/augment_gw_healthy.py \
 - [x] 周波数スイープ（25〜100 kHz、全帯域で DI >> 0.2、推奨 75〜100 kHz）
 - [x] GNN 入力データとしての時系列特徴量設計（build_gw_graph: max_abs, rms, peak_time_norm）
 - [x] train_gw.py による graph-level 2 値分類（健全 vs 欠陥）
+- [x] v3 モデル（104 センサーグリッド）による高精度データ生成
+- [x] 24 次元 comprehensive 特徴量（ToF, Hilbert 包絡線, ウェーブレット等）
+- [ ] v3 DOE 55 ジョブ（50 欠陥 + 5 健全）の FEM 実行
 - [ ] PZT ネットワークのトポロジ最適化
+
+---
+
+## v3 モデル — 104 センサーグリッド
+
+### 全体形状
+
+![H3 Fairing 3D Overview](images/guided_wave/fairing_3d_overview.png)
+
+30° セクター（1/12）を 360° に展開した全体像。青いセクターが FEM 解析領域。
+右上インセットにバレル部分の拡大（センサーグリッド 8×13 = 104 個、励振点、欠陥ゾーン）。
+
+### FEM モデル構成
+
+![FEM Model Overview](images/guided_wave/fem_model_overview.png)
+
+**(a)** サンドイッチ断面: CFRP [45/0/-45/90]s 積層 / Al-5052 ハニカムコア / CZM 界面
+**(b)** セクター平面図: HVAC ドア開口 (φ400mm)、ベントホール (φ100mm)、リングフレーム 5 本、ABL 吸収境界層
+**(c)** 材料物性: CFRP T1000G/Epoxy、Al-HC、CZM パラメータ、熱場・吸湿条件
+**(d)** 7 種の欠陥タイプ: debonding, FOD, impact, delamination, inner debond, thermal progression, acoustic fatigue
+
+### v3 DOE — 欠陥パラメータ分布
+
+![DOE v3 Distribution](images/guided_wave/doe_v3_distribution.png)
+
+50 欠陥サンプル + 5 健全サンプル。LHS 一様サンプリング。
+サイズ: Small 20–40mm (30%), Medium 40–60mm (45%), Large 60–80mm (25%)。
+7 種の欠陥タイプを確率的に混合。
+
+### v3 モデル仕様
+
+| パラメータ | 値 |
+|-----------|-----|
+| セクター角度 | 30° (1/12) |
+| バレル範囲 | z = 500–2500 mm |
+| 内径 | R = 2600 mm |
+| スキン | CFRP 1.0 mm × 2, [45/0/-45/90]s |
+| コア | Al-HC 38 mm |
+| メッシュシード | 5.0 mm |
+| センサー配置 | 8×13 = 104 グリッド |
+| 励振 | 50 kHz, 5-cycle Hanning, セクター中心 |
+| 開口部 | HVAC ドア φ400, ベント φ100 |
+| フレーム | Al-7075 リングフレーム × 5 |
+| CZM | Surface-based, BK 法 |
+| ABL | 2° 幅、Rayleigh β 減衰 |
+| 吸湿 | 2% → 弾性率 8% 低下 |
+| 熱場 | 硬化 180°C → 外面 40°C / 内面 25°C |
+
+### 24 次元特徴量 (comprehensive)
+
+| # | 特徴量 | 説明 |
+|---|--------|------|
+| 1-3 | max_abs, rms, peak_time_norm | Baseline |
+| 4-10 | mean, std, ptp, energy, zcr, dom_freq, spec_centroid | Extended |
+| 11-15 | envelope_max, skewness, kurtosis, spec_bandwidth, rolloff | Full |
+| 16-24 | tof_norm, vel_peak, vel_rms, crest, decay, wavelet_e(×4) | Comprehensive |
