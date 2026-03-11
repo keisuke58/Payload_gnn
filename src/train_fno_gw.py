@@ -22,6 +22,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, random_split
 
 from dataset_fno_gw import GWOperatorDataset, GWDeepONetDataset
+from dataset_fno_gw_augmented import AugmentedGWDataset
 from models_fno_gw import FNOGWSurrogate, DeepONetGW
 
 
@@ -30,16 +31,30 @@ def train_fno(args):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Device: {device}")
 
-    # Dataset
-    ds = GWOperatorDataset(
-        args.data_dir, args.doe,
-        residual=args.residual,
-        downsample=args.downsample,
-        max_timesteps=args.max_timesteps,
-    )
-    meta = ds.get_metadata()
-    print(f"Dataset: {len(ds)} defect samples, {meta['n_sensors']} sensors, "
-          f"T={meta['T']} (dt={meta['dt']:.2e}s)")
+    # Dataset (augmented or plain)
+    augment_factor = getattr(args, 'augment', 1)
+    if augment_factor > 1:
+        ds = AugmentedGWDataset(
+            args.data_dir, args.doe,
+            residual=args.residual,
+            downsample=args.downsample,
+            max_timesteps=args.max_timesteps,
+            augment_factor=augment_factor,
+        )
+        meta = ds.get_metadata()
+        print(f"Dataset: {meta['n_original']} FEM → {len(ds)} augmented samples "
+              f"({augment_factor}×), {meta['n_sensors']} sensors, "
+              f"T={meta['T']} (dt={meta['dt']:.2e}s)")
+    else:
+        ds = GWOperatorDataset(
+            args.data_dir, args.doe,
+            residual=args.residual,
+            downsample=args.downsample,
+            max_timesteps=args.max_timesteps,
+        )
+        meta = ds.get_metadata()
+        print(f"Dataset: {len(ds)} defect samples, {meta['n_sensors']} sensors, "
+              f"T={meta['T']} (dt={meta['dt']:.2e}s)")
 
     if len(ds) < 2:
         print("ERROR: Need at least 2 defect samples. "
@@ -436,6 +451,10 @@ def main():
     parser.add_argument('--basis_dim', type=int, default=64)
     parser.add_argument('--n_query', type=int, default=512,
                         help='Query points per sample for DeepONet')
+
+    # Augmentation
+    parser.add_argument('--augment', type=int, default=1,
+                        help='Augmentation factor (1=no aug, 10=10x Mixup+noise+scale)')
 
     # Generation
     parser.add_argument('--generate', type=int, default=0,
