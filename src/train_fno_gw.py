@@ -327,9 +327,25 @@ def generate_surrogate_data(args):
     rng = np.random.RandomState(args.seed + 1000)
     t0 = time.time()
 
+    defect_types = getattr(ds, 'DEFECT_TYPES', [])
+    encode_type = getattr(ds, 'encode_defect_type', False) and len(defect_types) > 0
+
     for i in range(n_gen):
         # Random defect params (normalized [0,1])
-        params_norm = rng.rand(3).astype(np.float32)
+        z_n, theta_n, r_n = rng.rand(3).astype(np.float32)
+        params_list = [z_n, theta_n, r_n]
+
+        # Add defect type one-hot if model expects it
+        if encode_type:
+            type_idx = rng.randint(len(defect_types))
+            one_hot = [0.0] * len(defect_types)
+            one_hot[type_idx] = 1.0
+            params_list.extend(one_hot)
+            defect_type_name = defect_types[type_idx]
+        else:
+            defect_type_name = 'debonding'
+
+        params_norm = np.array(params_list, dtype=np.float32)
         params_t = torch.tensor(params_norm).unsqueeze(0).to(device)
 
         with torch.no_grad():
@@ -338,10 +354,10 @@ def generate_surrogate_data(args):
         # Denormalize
         pred_np = pred.cpu().numpy()[0] * ds.waveform_scale
 
-        # Denormalize params
-        z = params_norm[0] * (ds.z_max - ds.z_min) + ds.z_min
-        theta = params_norm[1] * (ds.theta_max - ds.theta_min) + ds.theta_min
-        radius = params_norm[2] * (ds.r_max - ds.r_min) + ds.r_min
+        # Denormalize spatial params
+        z = z_n * (ds.z_max - ds.z_min) + ds.z_min
+        theta = theta_n * (ds.theta_max - ds.theta_min) + ds.theta_min
+        radius = r_n * (ds.r_max - ds.r_min) + ds.r_min
 
         # Save as CSV (same format as Abaqus output)
         csv_path = os.path.join(gen_dir, f'FNO-GW-{i:04d}_sensors.csv')
