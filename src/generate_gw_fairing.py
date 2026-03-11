@@ -1040,6 +1040,132 @@ def create_interactions(model, assembly,
         len(pair_assignments), n_id, n_od))
 
 
+def _create_interactions_multi(model, assembly,
+                               inst_inner, inst_core, inst_outer,
+                               defect_list):
+    """Create General Contact with multiple CZM defect zones.
+
+    Classifies core element faces against ALL defect zones,
+    creating per-defect damaged surfaces.
+    """
+    r_inner = RADIUS
+    r_outer = RADIUS + CORE_T
+    tol_r = CORE_T * 0.3
+
+    inner_h_elems = []
+    outer_h_elems = []
+    inner_d_by_defect = {i: [] for i in range(len(defect_list))}
+    outer_d_by_defect = {i: [] for i in range(len(defect_list))}
+
+    for elem in inst_core.elements:
+        nodes = elem.connectivity
+        node_coords = [inst_core.nodes[n].coordinates for n in nodes]
+        n_nodes = len(nodes)
+        if n_nodes == 8:
+            face_defs = [
+                (0, 1, 2, 3, 'S1'), (4, 5, 6, 7, 'S2'),
+                (0, 1, 5, 4, 'S3'), (1, 2, 6, 5, 'S4'),
+                (2, 3, 7, 6, 'S5'), (3, 0, 4, 7, 'S6')]
+        elif n_nodes == 6:
+            face_defs = [
+                (0, 1, 2, -1, 'S1'), (3, 4, 5, -1, 'S2'),
+                (0, 1, 4, 3, 'S3'), (1, 2, 5, 4, 'S4'),
+                (0, 2, 5, 3, 'S5')]
+        elif n_nodes == 4:
+            face_defs = [
+                (0, 1, 2, -1, 'S1'), (0, 1, 3, -1, 'S2'),
+                (1, 2, 3, -1, 'S3'), (0, 2, 3, -1, 'S4')]
+        else:
+            continue
+
+        for fd in face_defs:
+            fn = fd[-1]
+            face_nodes = [i for i in fd[:-1] if i >= 0]
+            if len(face_nodes) < 3:
+                continue
+            cx = sum([node_coords[i][0] for i in face_nodes]) / len(face_nodes)
+            cy = sum([node_coords[i][1] for i in face_nodes]) / len(face_nodes)
+            cz = sum([node_coords[i][2] for i in face_nodes]) / len(face_nodes)
+            r_face = math.sqrt(cx * cx + cz * cz)
+
+            assigned_defect = None
+            for di, dp in enumerate(defect_list):
+                if _point_in_defect_zone(cx, cy, cz, dp):
+                    damaged_iface = _defect_damaged_interface(dp)
+                    if abs(r_face - r_inner) < tol_r and damaged_iface == 'inner':
+                        assigned_defect = ('inner', di)
+                        break
+                    elif abs(r_face - r_outer) < tol_r and damaged_iface == 'outer':
+                        assigned_defect = ('outer', di)
+                        break
+
+            if assigned_defect is not None:
+                iface, di = assigned_defect
+                if iface == 'inner':
+                    inner_d_by_defect[di].append((elem.label, fn))
+                else:
+                    outer_d_by_defect[di].append((elem.label, fn))
+            else:
+                if abs(r_face - r_inner) < tol_r:
+                    inner_h_elems.append((elem.label, fn))
+                elif abs(r_face - r_outer) < tol_r:
+                    outer_h_elems.append((elem.label, fn))
+
+    # Create surfaces
+    surf_inner_h = _create_elem_surface(
+        assembly, inst_core, 'Surf-Core-Inner-Healthy',
+        inner_h_elems) if inner_h_elems else None
+    surf_outer_h = _create_elem_surface(
+        assembly, inst_core, 'Surf-Core-Outer-Healthy',
+        outer_h_elems) if outer_h_elems else None
+
+    defect_surfaces = []
+    for di in range(len(defect_list)):
+        sid = _create_elem_surface(
+            assembly, inst_core, 'Surf-Core-Inner-Defect-%d' % di,
+            inner_d_by_defect[di]) if inner_d_by_defect[di] else None
+        sod = _create_elem_surface(
+            assembly, inst_core, 'Surf-Core-Outer-Defect-%d' % di,
+            outer_d_by_defect[di]) if outer_d_by_defect[di] else None
+        defect_surfaces.append((di, sid, sod))
+
+    # Skin surfaces
+    surf_inner_skin = assembly.Surface(
+        side1Faces=inst_inner.faces, name='Surf-InnerSkin')
+    surf_outer_skin = assembly.Surface(
+        side1Faces=inst_outer.faces, name='Surf-OuterSkin')
+
+    # General Contact
+    gc = model.ContactExp(name='GeneralContact', createStepName='Initial')
+    gc.includedPairs.setValuesInStep(stepName='Initial', useAllstar=ON)
+    gc.contactPropertyAssignments.appendInStep(
+        stepName='Initial',
+        assignments=((GLOBAL, SELF, 'IntProp-Default'),))
+
+    pair_assignments = []
+    if surf_inner_h:
+        pair_assignments.append((surf_inner_h, surf_inner_skin,
+                                 'IntProp-CZM-Healthy'))
+    if surf_outer_h:
+        pair_assignments.append((surf_outer_h, surf_outer_skin,
+                                 'IntProp-CZM-Healthy'))
+    for di, sid, sod in defect_surfaces:
+        if sid:
+            pair_assignments.append((sid, surf_inner_skin,
+                                     'IntProp-CZM-Damaged'))
+        if sod:
+            pair_assignments.append((sod, surf_outer_skin,
+                                     'IntProp-CZM-Damaged'))
+
+    if pair_assignments:
+        gc.contactPropertyAssignments.appendInStep(
+            stepName='Initial', assignments=tuple(pair_assignments))
+
+    n_d = sum(1 for _, s1, s2 in defect_surfaces if s1 or s2)
+    print("Multi-defect General Contact: %d CZM pairs (%d defect zones)" % (
+        len(pair_assignments), n_d))
+
+
 def create_frame_ties(model, assembly, inst_inner, frame_instances):
     """Tie ring frames to inner skin."""
     for i, fi in enumerate(frame_instances):
@@ -2169,10 +2295,9 @@ def generate_model(job_name, freq_khz=DEFAULT_FREQ_KHZ, n_cycles=DEFAULT_CYCLES,
 
     # 9. Surface-based CZM interactions
     if len(_defect_list) > 1:
-        # Multi-defect: use extended classification
-        from generate_gw_multi_defect import create_interactions_multi
-        create_interactions_multi(model, a, inst_inner, inst_core, inst_outer,
-                                  _defect_list)
+        # Multi-defect: create interactions with multiple CZM zones
+        _create_interactions_multi(model, a, inst_inner, inst_core, inst_outer,
+                                    _defect_list)
     else:
         create_interactions(model, a, inst_inner, inst_core, inst_outer,
                             _defect_list[0] if _defect_list else None)
