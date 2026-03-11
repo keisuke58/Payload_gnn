@@ -2196,7 +2196,14 @@ def generate_model(job_name, freq_khz=DEFAULT_FREQ_KHZ, n_cycles=DEFAULT_CYCLES,
     if moisture_factor < 1.0:
         print("  Moisture: %.0f%% stiffness reduction" % (
             (1 - moisture_factor) * 100))
-    if _defect_list:
+    # Build effective defect list early (for print + later use)
+    _defect_list = []
+    if multi_defect_list:
+        _defect_list = list(multi_defect_list)
+    elif defect_params:
+        _defect_list = [defect_params]
+
+    if len(_defect_list) > 1:
         print("  Defects: %d" % len(_defect_list))
         for _di, _dp in enumerate(_defect_list):
             print("    [%d] z=%.0f, theta=%.1f, r=%.0f, type=%s" % (
@@ -2245,13 +2252,7 @@ def generate_model(job_name, freq_khz=DEFAULT_FREQ_KHZ, n_cycles=DEFAULT_CYCLES,
             print("No openings in z/theta range")
 
     # 5. Defect partitioning + multi-type defect materials
-    # Build effective defect list (multi_defect_list takes precedence)
-    _defect_list = []
-    if multi_defect_list:
-        _defect_list = list(multi_defect_list)
-    elif defect_params:
-        _defect_list = [defect_params]
-
+    # (_defect_list already built above for print section)
     defect_skin_mat = None
     defect_core_mat = None
     for _di, _dp in enumerate(_defect_list):
