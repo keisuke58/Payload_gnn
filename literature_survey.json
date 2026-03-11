@@ -1,0 +1,163 @@
+{
+  "FNO / Neural Operator for GW surrogate": [
+    {
+      "title": "Multiple-Input Fourier Neural Operator (MIFNO) for source-dependent 3D elastodynamics",
+      "year": 2024,
+      "venue": "Journal of Computational Physics",
+      "citations": 17,
+      "authors": [
+        "Fanny Lehmann",
+        "F. Gatti",
+        "Didier Clouteau"
+      ],
+      "doi": "10.1016/j.jcp.2025.113813",
+      "arxiv": "2404.10115",
+      "abstract": "Numerical simulations are essential tools to evaluate the solution of the wave equation in complex settings, such as three-dimensional (3D) domains with heterogeneous properties. However, their application is limited by high computational costs and existing surrogate models lack the flexibility of n"
+    },
+    {
+      "title": "A boundary-based fourier neural operator (B-FNO) method for efficient parametric acoustic wave analysis",
+      "year": 2025,
+      "venue": "Engineering computations",
+      "citations": 4,
+      "authors": [
+        "Ruoyan Li",
+        "Wenjing Ye",
+        "Yijun Liu"
+      ],
+      "doi": "10.1007/s00366-024-02103-x",
+      "arxiv": null,
+      "abstract": "Repetitive wave analysis is required in various applications involving parametric analyses across different settings. However, traditional numerical methods based on domain discretization become computationally impractical due to the large number of simulations required, especially in unbounded doma"
+    },
+    {
+      "title": "Uncertainty propagation from crustal geologies to rock-site ground motion with a Fourier Neural Operator",
+      "year": 2024,
+      "venue": "",
+      "citations": 1,
+      "authors": [
+        "Fanny Lehmann",
+        "F. Gatti",
+        "Michaël Bertin",
+        "Damien Grenié",
+        "Didier Clouteau"
+      ],
+      "doi": "10.1080/19648189.2024.2393883",
+      "arxiv": null,
+      "abstract": "Abstract Seismic hazard analyses in the area of a nuclear installation must account for a large number of uncertainties, including limited geological knowledge. Combining the accuracy of physics-based simulations with the expressivity of deep neural networks can help to quantify the influence of cru"
+    },
+    {
+      "title": "Dual-Stage Fourier Neural Operator: Mitigating Spectral Bias for Enhanced Ultrasonic Guided Wave Corrosion Imaging",
+      "year": 2025,
+      "venue": "IUS",
+      "citations": 0,
+      "authors": [
+        "Yizhe Gao",
+        "Linfeng Wang",
+        "Yitian Yan",
+        "Jian Li",
+        "Yang Liu"
+      ],
+      "doi": "10.1109/IUS62464.2025.11201843",
+      "arxiv": null,
+      "abstract": "Deep neural networks exhibit spectral bias in data-driven ultrasonic guided wave corrosion imaging, preferentially learning low-frequency components while struggling with high-frequency features critical for defect boundary delineation. This paper proposes a Dual-Stage Fourier Neural Operator (DS-FN"
+    },
+    {
+      "title": "A Surrogate Model for Rapid Solution of Acoustic Wave Equation Based on the Boundary Element Method and Fourier Neural Operators",
+      "year": 2024,
+      "venue": "The International Conference on Computational &amp; Experimental Engineering and Sciences",
+      "citations": 0,
+      "authors": [
+        "Ruoyan Li",
+        "Wenjing Ye",
+        "Yijun Liu"
+      ],
+      "doi": "10.32604/icces.2024.012150",
+      "arxiv": null,
+      "abstract": "A modern approach to control sound is through the development of sound-control materials/structures, which enable a wide range of applications such as noise reduction and non-contact particle manipulation. Designing these sound-controlling metamaterials requires accurate and efficient simulation met"
+    }
+  ],
+  "Multi-defect SHM": [],
+  "Data augmentation for SHM / NDT": [],
+  "DL surrogate for FEM simulation": [
+    {
+      "title": "A Deep-Learning Surrogate Model for the Fast Calculation of Temperature Distribution of ±500 kV RIP Bushings",
+      "year": 2024,
+      "venue": "IEEE Transactions on Power Delivery",
+      "citations": 1,
+      "authors": [
+        "Luming Xin",
+        "Zehua Wu",
+        "Qingyu Wang",
+        "Baoying Wu",
+        "Linjie Zhao",
+        "Jianwei Cheng",
+        "Qiang Zeng",
+        "Zongren Peng"
+      ],
+      "doi": "10.1109/TPWRD.2024.3448471",
+      "arxiv": null,
+      "abstract": "In response to the problems of time-consuming simulation of temperature field of resin impregnated paper (RIP) bushings on valve side of converter transformer, which result from a high degree of freedom and complex coupling mechanism, a deep learning surrogate model (DLSM) suitable for fast predicti"
+    },
+    {
+      "title": "Fast 2D forward modeling of electromagnetic propagation well logs using finite element method and data-driven deep learning",
+      "year": 2025,
+      "venue": "Artificial Intelligence in Geosciences",
+      "citations": 1,
+      "authors": [
+        "A. M. Petrov",
+        "A. Leonenko",
+        "K. Danilovskiy",
+        "O. Nechaev"
+      ],
+      "doi": "10.1016/j.aiig.2025.100112",
+      "arxiv": null,
+      "abstract": ""
+    },
+    {
+      "title": "A surrogate model for finite element simulation of elastic wave propagation in composite materials",
+      "year": 2023,
+      "venue": "AIP Advances",
+      "citations": 0,
+      "authors": [
+        "Hong Li",
+        "Qingfeng Wang"
+      ],
+      "doi": "10.1063/5.0177974",
+      "arxiv": null,
+      "abstract": "Deep learning surrogate models can be employed in solid mechanics to forecast the behavior of structures subjected to various loading conditions, substantially decreasing the computational costs associated with simulations. In this letter, we have utilized convolutional neural networks and Fourier t"
+    },
+    {
+      "title": "Stochastic Deep Learning Surrogate Models for Uncertainty Propagation in Microstructure-Properties of Ceramic Aerogels",
+      "year": 2025,
+      "venue": "Computational materials science",
+      "citations": 0,
+      "authors": [
+        "Md Azharul Islam",
+        "Dwyer Deighan",
+        "Shayan Bhattacharjee",
+        "Daniel Tantalo",
+        "Pratyush Kumar Singh",
+        "David Salac",
+        "D. Faghihi"
+      ],
+      "doi": "10.48550/arXiv.2501.13255",
+      "arxiv": "2501.13255",
+      "abstract": "This study presents an integrated computational framework that, given synthesis parameters, predicts the resulting microstructural morphology and mechanical response of ceramic aerogel porous materials by combining physics-based simulations with deep learning surrogate models. Lattice Boltzmann simu"
+    },
+    {
+      "title": "Deep Learning-based Surrogate Model of Subject-Specific Finite-Element Analysis for Vertebrae.",
+      "year": 2025,
+      "venue": "IEEE transactions on bio-medical engineering",
+      "citations": 0,
+      "authors": [
+        "Yuanrui Cai",
+        "Enrico Dall’Ara",
+        "Damien Lacroix",
+        "Lingzhong Guo"
+      ],
+      "doi": "10.1109/TBME.2025.3642160",
+      "arxiv": null,
+      "abstract": "Subject-specific finite-element analysis (FEA) models enable accurate simulation of vertebral biomechanics but are often time-consuming to construct and solve under varying conditions. This study presents a novel deep learning (DL)/machine learning (ML)-based surrogate model that predicts stress dis"
+    }
+  ],
+  "GW SHM benchmark dataset": []
+}

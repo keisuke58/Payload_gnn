@@ -291,6 +291,163 @@ class LocalGlobalAttentionGNN(nn.Module):
 
 
 # =========================================================================
+# MeshGNN — Encode-Process-Decode (MeshGraphNets-inspired, PyG)
+# =========================================================================
+class _EdgeUpdateMLP(nn.Module):
+    """Edge update: concat(sender, receiver, edge_feat) -> MLP -> new edge_feat."""
+
+    def __init__(self, node_dim, edge_dim, out_dim, num_layers=2):
+        super().__init__()
+        layers = []
+        in_dim = node_dim * 2 + edge_dim
+        for i in range(num_layers):
+            layers.append(nn.Linear(in_dim if i == 0 else out_dim, out_dim))
+            if i < num_layers - 1:
+                layers.append(nn.ReLU())
+        layers.append(nn.LayerNorm(out_dim))
+        self.mlp = nn.Sequential(*layers)
+
+    def forward(self, node_features, edge_index, edge_features):
+        src, dst = edge_index
+        x_src = node_features[src]
+        x_dst = node_features[dst]
+        inp = torch.cat([x_src, x_dst, edge_features], dim=-1)
+        return self.mlp(inp)
+
+
+class _NodeUpdateMLP(nn.Module):
+    """Node update: concat(node_feat, aggregated_edge_feat) -> MLP -> new node_feat."""
+
+    def __init__(self, node_dim, edge_dim, out_dim, num_layers=2):
+        super().__init__()
+        layers = []
+        in_dim = node_dim + edge_dim
+        for i in range(num_layers):
+            layers.append(nn.Linear(in_dim if i == 0 else out_dim, out_dim))
+            if i < num_layers - 1:
+                layers.append(nn.ReLU())
+        layers.append(nn.LayerNorm(out_dim))
+        self.mlp = nn.Sequential(*layers)
+
+    def forward(self, node_features, edge_features, edge_index, num_nodes):
+        # Aggregate incoming edge features (sum)
+        dst = edge_index[1]
+        agg = torch.zeros(num_nodes, edge_features.size(-1),
+                          device=edge_features.device)
+        agg.scatter_add_(0, dst.unsqueeze(-1).expand_as(edge_features),
+                         edge_features)
+        inp = torch.cat([node_features, agg], dim=-1)
+        return self.mlp(inp)
+
+
+class _GraphNetBlock(nn.Module):
+    """Single message-passing block with edge + node update and residual."""
+
+    def __init__(self, latent_size, edge_latent_size, mlp_layers=2):
+        super().__init__()
+        self.edge_fn = _EdgeUpdateMLP(latent_size, edge_latent_size,
+                                       edge_latent_size, mlp_layers)
+        self.node_fn = _NodeUpdateMLP(latent_size, edge_latent_size,
+                                       latent_size, mlp_layers)
+
+    def forward(self, node_features, edge_features, edge_index):
+        # Edge update
+        new_edge = self.edge_fn(node_features, edge_index, edge_features)
+        # Node update
+        new_node = self.node_fn(node_features, new_edge, edge_index,
+                                node_features.size(0))
+        # Residual connections on both nodes and edges
+        new_node = new_node + node_features
+        new_edge = new_edge + edge_features
+        return new_node, new_edge
+
+
+class MeshGNNModel(nn.Module):
+    """Encode-Process-Decode GNN inspired by MeshGraphNets (Pfaff et al. 2021).
+
+    - Encoder: independent MLPs project node/edge features to latent space
+    - Processor: M rounds of GraphNetBlock (edge update + node update + residual)
+    - Decoder: MLP from latent node features to output
+
+    Key differences from BaseGNN:
+    - Explicit edge feature updates at every step
+    - Residual connections on both nodes AND edges
+    - LayerNorm instead of BatchNorm (stable for small batches)
+    - Same block repeated M times (can optionally share weights)
+    """
+
+    def __init__(self, in_channels, hidden_channels=128, num_classes=2,
+                 num_layers=6, dropout=0.1, edge_attr_dim=0,
+                 mlp_layers=2, share_weights=False, use_residual=False):
+        super().__init__()
+        self.dropout = dropout
+        self._latent_size = hidden_channels
+        self._edge_latent_size = hidden_channels
+        self._num_steps = num_layers
+        self._edge_attr_dim = edge_attr_dim
+
+        # Encoder: node features -> latent
+        self.node_encoder = nn.Sequential(
+            nn.Linear(in_channels, hidden_channels),
+            nn.ReLU(),
+            nn.Linear(hidden_channels, hidden_channels),
+            nn.LayerNorm(hidden_channels),
+        )
+
+        # Encoder: edge features -> latent (or create from scratch if no edge_attr)
+        edge_in = edge_attr_dim if edge_attr_dim > 0 else 1
+        self.edge_encoder = nn.Sequential(
+            nn.Linear(edge_in, hidden_channels),
+            nn.ReLU(),
+            nn.Linear(hidden_channels, hidden_channels),
+            nn.LayerNorm(hidden_channels),
+        )
+
+        # Processor: M GraphNetBlocks
+        if share_weights:
+            block = _GraphNetBlock(hidden_channels, hidden_channels, mlp_layers)
+            self.processors = nn.ModuleList([block] * num_layers)
+        else:
+            self.processors = nn.ModuleList([
+                _GraphNetBlock(hidden_channels, hidden_channels, mlp_layers)
+                for _ in range(num_layers)
+            ])
+
+        # Decoder: latent node features -> output
+        self.head = nn.Sequential(
+            nn.Linear(hidden_channels, hidden_channels // 2),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_channels // 2, num_classes),
+        )
+
+    def _encode_edges(self, edge_index, edge_attr):
+        """Encode edge features; create dummy if none provided."""
+        if edge_attr is not None and self._edge_attr_dim > 0:
+            return self.edge_encoder(edge_attr)
+        # Default: constant 1.0 per edge
+        num_edges = edge_index.size(1)
+        dummy = torch.ones(num_edges, 1, device=edge_index.device)
+        return self.edge_encoder(dummy)
+
+    def encode(self, x, edge_index, edge_attr=None):
+        """Encode + Process, return node embeddings."""
+        node_latent = self.node_encoder(x)
+        edge_latent = self._encode_edges(edge_index, edge_attr)
+
+        for block in self.processors:
+            node_latent, edge_latent = block(node_latent, edge_latent, edge_index)
+            node_latent = F.dropout(node_latent, p=self.dropout,
+                                    training=self.training)
+
+        return node_latent
+
+    def forward(self, x, edge_index, edge_attr=None, batch=None):
+        h = self.encode(x, edge_index, edge_attr)
+        return self.head(h)
+
+
+# =========================================================================
 # Factory
 # =========================================================================
 # =========================================================================
@@ -376,6 +533,7 @@ MODEL_REGISTRY = {
     'gin': GINModel,
     'sage': SAGEModel,
     'lgsta': LocalGlobalAttentionGNN,
+    'meshgnn': MeshGNNModel,
 }
 
 if _GPS_AVAILABLE:
@@ -403,7 +561,7 @@ def build_model(arch, in_channels, edge_attr_dim=0, **kwargs):
         raise ValueError("Unknown architecture '%s'. Choose from: %s" %
                          (arch, list(MODEL_REGISTRY.keys())))
     cls = MODEL_REGISTRY[arch]
-    if arch in ('gat', 'lgsta'):
+    if arch in ('gat', 'lgsta', 'meshgnn'):
         return cls(in_channels, edge_attr_dim=edge_attr_dim, **kwargs)
     # GPS: filter out edge_attr_dim from kwargs (handled internally)
     if arch == 'gps':

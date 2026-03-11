@@ -35,7 +35,7 @@ class AugmentedGWDataset(Dataset):
                  downsample=1, max_timesteps=None,
                  augment_factor=10, noise_snr_db=30.0,
                  amplitude_range=(0.8, 1.2), mixup_alpha=0.4,
-                 seed=42, **kwargs):
+                 time_shift_max=0.05, seed=42, **kwargs):
         self.base = GWOperatorDataset(
             data_dir, doe_path, residual=residual,
             downsample=downsample, max_timesteps=max_timesteps, **kwargs)
@@ -43,6 +43,7 @@ class AugmentedGWDataset(Dataset):
         self.noise_snr_db = noise_snr_db
         self.amplitude_range = amplitude_range
         self.mixup_alpha = mixup_alpha
+        self.time_shift_max = time_shift_max  # max fraction of T to shift
         self.rng = np.random.RandomState(seed)
 
         n_base = len(self.base)
@@ -69,10 +70,11 @@ class AugmentedGWDataset(Dataset):
         if n_aug <= 0:
             return plan
 
-        # Distribute augmentation types: 50% mixup, 30% noise, 20% scale
-        n_mixup = int(n_aug * 0.5)
-        n_noise = int(n_aug * 0.3)
-        n_scale = n_aug - n_mixup - n_noise
+        # Distribute augmentation types: 40% mixup, 25% noise, 15% scale, 20% time_shift
+        n_mixup = int(n_aug * 0.40)
+        n_noise = int(n_aug * 0.25)
+        n_scale = int(n_aug * 0.15)
+        n_tshift = n_aug - n_mixup - n_noise - n_scale
 
         # Mixup pairs
         for _ in range(n_mixup):
@@ -91,6 +93,13 @@ class AugmentedGWDataset(Dataset):
             i = self.rng.randint(n_base)
             scale = self.rng.uniform(*self.amplitude_range)
             plan.append(('scale', i, scale))
+
+        # Time shift (circular shift — models excitation timing variation)
+        for _ in range(n_tshift):
+            i = self.rng.randint(n_base)
+            shift_frac = self.rng.uniform(-self.time_shift_max,
+                                           self.time_shift_max)
+            plan.append(('time_shift', i, shift_frac))
 
         return plan
 
@@ -111,6 +120,9 @@ class AugmentedGWDataset(Dataset):
 
         elif aug_type == 'scale':
             return self._apply_scale(indices, aug_param)
+
+        elif aug_type == 'time_shift':
+            return self._apply_time_shift(indices, aug_param)
 
     def _apply_mixup(self, i, j, alpha):
         """Linear interpolation of two samples (physics: Born approximation)."""
@@ -155,6 +167,39 @@ class AugmentedGWDataset(Dataset):
             'healthy': s['healthy'],
             'target': s['target'] * scale,
             'defect_full': s['healthy'] + s['target'] * scale,
+        }
+
+    def _apply_time_shift(self, i, shift_frac):
+        """Circular time shift (physics: excitation timing variation).
+
+        Shifts both target and healthy by the same amount to preserve
+        the relative scattering pattern.
+        """
+        s = self._cache[i]
+        T = s['target'].shape[-1]
+        shift = int(shift_frac * T)
+        if shift == 0:
+            return s
+
+        target = torch.roll(s['target'], shifts=shift, dims=-1)
+        healthy = torch.roll(s['healthy'], shifts=shift, dims=-1)
+        defect_full = torch.roll(s['defect_full'], shifts=shift, dims=-1)
+
+        # Zero-pad the wrapped region (not circular — causal signal)
+        if shift > 0:
+            target[..., :shift] = 0.0
+            healthy[..., :shift] = 0.0
+            defect_full[..., :shift] = 0.0
+        elif shift < 0:
+            target[..., shift:] = 0.0
+            healthy[..., shift:] = 0.0
+            defect_full[..., shift:] = 0.0
+
+        return {
+            'params': s['params'],
+            'healthy': healthy,
+            'target': target,
+            'defect_full': defect_full,
         }
 
     def get_metadata(self):
@@ -205,11 +250,17 @@ class MultiDefectLocalDataset(Dataset):
     This allows 1 FEM run → N training samples.
     """
 
+    # Same 7-type encoding as GWOperatorDataset
+    DEFECT_TYPES = [
+        'debonding', 'fod', 'impact', 'delamination',
+        'inner_debond', 'thermal_progression', 'acoustic_fatigue',
+    ]
+
     def __init__(self, multi_defect_csv, healthy_csv, defect_list,
                  sensor_positions_2d, k_nearest=9, residual=True,
                  downsample=1, max_timesteps=None,
                  z_bounds=(500, 2500), theta_bounds=(2, 28),
-                 r_bounds=(20, 80)):
+                 r_bounds=(20, 80), encode_defect_type=True):
         """
         Args:
             multi_defect_csv: path to CSV with all sensors from multi-defect FEM
@@ -218,9 +269,11 @@ class MultiDefectLocalDataset(Dataset):
                 z_center, theta_deg, radius, defect_type
             sensor_positions_2d: (n_sensors, 2) array of (z_mm, arc_mm)
             k_nearest: number of nearest sensors per defect
+            encode_defect_type: if True, append 7-dim one-hot for defect type
         """
         self.residual = residual
         self.k_nearest = k_nearest
+        self.encode_defect_type = encode_defect_type
 
         # Load waveforms
         times_d, wf_defect, _ = load_sensor_csv(multi_defect_csv)
@@ -281,7 +334,16 @@ class MultiDefectLocalDataset(Dataset):
             z_n = (z - self.z_min) / (self.z_max - self.z_min + 1e-8)
             t_n = (theta - self.theta_min) / (self.theta_max - self.theta_min + 1e-8)
             r_n = (r - self.r_min) / (self.r_max - self.r_min + 1e-8)
-            params = np.array([z_n, t_n, r_n], dtype=np.float32)
+            params_list = [z_n, t_n, r_n]
+
+            # Defect type one-hot encoding (7 types)
+            if self.encode_defect_type:
+                one_hot = [0.0] * len(self.DEFECT_TYPES)
+                if dtype in self.DEFECT_TYPES:
+                    one_hot[self.DEFECT_TYPES.index(dtype)] = 1.0
+                params_list.extend(one_hot)
+
+            params = np.array(params_list, dtype=np.float32)
 
             self.samples.append({
                 'params': params,
@@ -289,7 +351,8 @@ class MultiDefectLocalDataset(Dataset):
                 'defect_info': defect,
             })
 
-        self.n_params = 3  # z, theta, radius (no one-hot for simplicity)
+        # 3 spatial + 7 type one-hot (if enabled)
+        self.n_params = 3 + (len(self.DEFECT_TYPES) if self.encode_defect_type else 0)
 
     def __len__(self):
         return len(self.samples)
@@ -324,4 +387,6 @@ class MultiDefectLocalDataset(Dataset):
             'waveform_scale': float(self.waveform_scale),
             'residual': self.residual,
             'multi_defect': True,
+            'encode_defect_type': self.encode_defect_type,
+            'defect_types': self.DEFECT_TYPES,
         }

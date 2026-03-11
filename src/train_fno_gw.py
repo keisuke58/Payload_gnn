@@ -23,7 +23,137 @@ from torch.utils.data import DataLoader, random_split
 
 from dataset_fno_gw import GWOperatorDataset, GWDeepONetDataset
 from dataset_fno_gw_augmented import AugmentedGWDataset
-from models_fno_gw import FNOGWSurrogate, DeepONetGW
+from models_fno_gw import FNOGWSurrogate, DualStageFNOSurrogate, DeepONetGW
+
+
+def pretrain_hemew3d(args):
+    """Pre-train FNO on HEMEW3D dataset (transfer learning).
+
+    Trains spectral convolution layers on general elastic wave propagation,
+    then saves checkpoint for fine-tuning on fairing-specific GW data.
+    """
+    from dataset_hemew3d import HEMEW3DDataset
+
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print(f"=== HEMEW3D Pre-training ===")
+    print(f"Device: {device}")
+
+    ds = HEMEW3DDataset(
+        args.pretrain_hemew3d,
+        n_sensors=9,  # match fairing sensor count
+        downsample_t=max(1, 320 // 256),  # ~256 timesteps
+        max_timesteps=256,
+        n_params=3,
+        residual=args.residual,
+    )
+    meta = ds.get_metadata()
+    print(f"HEMEW3D: {len(ds)} samples, {meta['n_sensors']} sensors, T={meta['T']}")
+
+    n_val = max(1, int(len(ds) * 0.1))
+    n_train = len(ds) - n_val
+    train_ds, val_ds = torch.utils.data.random_split(
+        ds, [n_train, n_val],
+        generator=torch.Generator().manual_seed(args.seed))
+
+    train_loader = DataLoader(train_ds, batch_size=args.batch_size,
+                              shuffle=True, num_workers=2, pin_memory=True)
+    val_loader = DataLoader(val_ds, batch_size=args.batch_size,
+                            shuffle=False, num_workers=2, pin_memory=True)
+
+    # Build model with HEMEW3D dimensions
+    if args.model == 'dual_fno':
+        model = DualStageFNOSurrogate(
+            n_sensors=meta['n_sensors'],
+            n_params=meta['n_params'],
+            modes_low=max(args.modes // 4, 8),
+            modes_high=args.modes,
+            width=args.width,
+            n_layers_low=max(args.n_layers // 2, 2),
+            n_layers_high=args.n_layers,
+            residual=args.residual,
+        ).to(device)
+    else:
+        model = FNOGWSurrogate(
+            n_sensors=meta['n_sensors'],
+            n_params=meta['n_params'],
+            modes=args.modes,
+            width=args.width,
+            n_layers=args.n_layers,
+            residual=args.residual,
+        ).to(device)
+
+    n_params_model = sum(p.numel() for p in model.parameters())
+    print(f"Model: {args.model}, {n_params_model:,} params")
+
+    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr,
+                                  weight_decay=1e-4)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        optimizer, T_max=args.pretrain_epochs)
+
+    def relative_l2(pred, target):
+        diff = (pred - target) ** 2
+        norm = target ** 2 + 1e-8
+        return torch.mean(diff.sum(dim=-1) / norm.sum(dim=-1))
+
+    os.makedirs(args.output, exist_ok=True)
+    best_val_loss = float('inf')
+
+    print(f"\nPre-training for {args.pretrain_epochs} epochs...")
+    for epoch in range(1, args.pretrain_epochs + 1):
+        model.train()
+        train_loss, n_b = 0, 0
+        for batch in train_loader:
+            params = batch['params'].to(device)
+            healthy = batch['healthy'].to(device)
+            target_key = 'defect_full' if args.residual else 'target'
+            target = batch[target_key].to(device)
+
+            pred = model(params, healthy)
+            loss = relative_l2(pred, target)
+
+            optimizer.zero_grad()
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            optimizer.step()
+            train_loss += loss.item()
+            n_b += 1
+
+        scheduler.step()
+
+        # Validation
+        model.eval()
+        val_loss, val_b = 0, 0
+        with torch.no_grad():
+            for batch in val_loader:
+                params = batch['params'].to(device)
+                healthy = batch['healthy'].to(device)
+                target_key = 'defect_full' if args.residual else 'target'
+                target = batch[target_key].to(device)
+                pred = model(params, healthy)
+                val_loss += relative_l2(pred, target).item()
+                val_b += 1
+
+        avg_val = val_loss / max(val_b, 1)
+        if avg_val < best_val_loss:
+            best_val_loss = avg_val
+            torch.save({
+                'model_state_dict': model.state_dict(),
+                'meta': meta,
+                'args': vars(args),
+                'epoch': epoch,
+                'val_loss': avg_val,
+                'pretrained': True,
+                'pretrain_dataset': 'HEMEW3D',
+            }, os.path.join(args.output, 'pretrained_model.pt'))
+
+        if epoch % 10 == 0 or epoch == 1:
+            print(f"  Pretrain Ep {epoch:3d}/{args.pretrain_epochs} | "
+                  f"Train: {train_loss/max(n_b,1):.6f} | "
+                  f"Val: {avg_val:.6f} | Best: {best_val_loss:.6f}")
+
+    print(f"\nPre-training done. Best val: {best_val_loss:.6f}")
+    print(f"Checkpoint: {args.output}/pretrained_model.pt")
+    return os.path.join(args.output, 'pretrained_model.pt')
 
 
 def train_fno(args):
@@ -75,28 +205,98 @@ def train_fno(args):
 
     # Model
     n_params = meta.get('n_params', 3)
-    model = FNOGWSurrogate(
-        n_sensors=meta['n_sensors'],
-        n_params=n_params,
-        modes=args.modes,
-        width=args.width,
-        n_layers=args.n_layers,
-        residual=args.residual,
-    ).to(device)
+    if args.model == 'dual_fno':
+        model = DualStageFNOSurrogate(
+            n_sensors=meta['n_sensors'],
+            n_params=n_params,
+            modes_low=max(args.modes // 4, 8),
+            modes_high=args.modes,
+            width=args.width,
+            n_layers_low=max(args.n_layers // 2, 2),
+            n_layers_high=args.n_layers,
+            residual=args.residual,
+        ).to(device)
+    else:
+        model = FNOGWSurrogate(
+            n_sensors=meta['n_sensors'],
+            n_params=n_params,
+            modes=args.modes,
+            width=args.width,
+            n_layers=args.n_layers,
+            residual=args.residual,
+        ).to(device)
 
     n_params_model = sum(p.numel() for p in model.parameters())
     print(f"FNO Parameters: {n_params_model:,}")
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr,
-                                  weight_decay=1e-4)
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-        optimizer, T_max=args.epochs)
+    # Load pre-trained / fine-tune checkpoint
+    if args.finetune_from:
+        ckpt = torch.load(args.finetune_from, map_location=device,
+                          weights_only=False)
+        # Load matching layers (skip param_encoder if n_params differs)
+        state = ckpt['model_state_dict']
+        model_state = model.state_dict()
+        loaded, skipped = [], []
+        for k, v in state.items():
+            if k in model_state and v.shape == model_state[k].shape:
+                model_state[k] = v
+                loaded.append(k)
+            else:
+                skipped.append(k)
+        model.load_state_dict(model_state)
+        print(f"Fine-tune: loaded {len(loaded)} layers, "
+              f"skipped {len(skipped)} (shape mismatch)")
+        if skipped:
+            print(f"  Skipped: {skipped}")
+
+        # Optionally freeze spectral conv layers
+        if args.freeze_spectral:
+            frozen = 0
+            for name, param in model.named_parameters():
+                if 'spectral' in name or 'weights' in name:
+                    param.requires_grad = False
+                    frozen += 1
+            print(f"  Frozen {frozen} spectral conv parameters")
+
+    lr = args.finetune_lr if args.finetune_from else args.lr
+    optimizer = torch.optim.AdamW(
+        filter(lambda p: p.requires_grad, model.parameters()),
+        lr=lr, weight_decay=1e-4)
+
+    # Warmup + CosineAnnealing (Li 2021 FNO best practice)
+    warmup_epochs = max(1, args.epochs // 20)  # 5% warmup
+    warmup_scheduler = torch.optim.lr_scheduler.LinearLR(
+        optimizer, start_factor=0.01, end_factor=1.0,
+        total_iters=warmup_epochs)
+    cosine_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        optimizer, T_max=args.epochs - warmup_epochs, eta_min=lr * 0.01)
+    scheduler = torch.optim.lr_scheduler.SequentialLR(
+        optimizer, schedulers=[warmup_scheduler, cosine_scheduler],
+        milestones=[warmup_epochs])
 
     # Loss: relative L2 (physics-informed)
     def relative_l2(pred, target):
         diff = (pred - target) ** 2
         norm = target ** 2 + 1e-8
         return torch.mean(diff.sum(dim=-1) / norm.sum(dim=-1))
+
+    # Spectral loss: FFT domain accuracy (Gao et al. 2025 inspired)
+    def spectral_loss(pred, target):
+        """Penalize frequency-domain mismatch for high-freq GW modes."""
+        pred_fft = torch.fft.rfft(pred, dim=-1).abs()
+        tgt_fft = torch.fft.rfft(target, dim=-1).abs()
+        # Relative L2 in frequency domain
+        diff = (pred_fft - tgt_fft) ** 2
+        norm = tgt_fft ** 2 + 1e-8
+        return torch.mean(diff.sum(dim=-1) / norm.sum(dim=-1))
+
+    def combined_loss(pred, target, alpha_spec=None):
+        """Time-domain relative L2 + frequency-domain spectral loss."""
+        l_time = relative_l2(pred, target)
+        if alpha_spec is None or alpha_spec <= 0:
+            return l_time
+        l_freq = spectral_loss(pred, target)
+        return l_time + alpha_spec * l_freq
 
     # Training loop
     best_val_loss = float('inf')
@@ -106,6 +306,7 @@ def train_fno(args):
     print(f"\nTraining FNO for {args.epochs} epochs...")
     print(f"  Modes: {args.modes}, Width: {args.width}, Layers: {args.n_layers}")
     print(f"  Residual: {args.residual}")
+    print(f"  Spectral loss weight: {args.spectral_weight}")
     print(f"  Output: {args.output}")
     print()
 
@@ -122,10 +323,12 @@ def train_fno(args):
             if args.residual:
                 # FNO predicts healthy + residual → compare with defect_full
                 pred = model(params, healthy)
-                loss = relative_l2(pred, batch['defect_full'].to(device))
+                loss = combined_loss(pred, batch['defect_full'].to(device),
+                                     alpha_spec=args.spectral_weight)
             else:
                 pred = model(params, healthy)
-                loss = relative_l2(pred, target)
+                loss = combined_loss(pred, target,
+                                     alpha_spec=args.spectral_weight)
 
             optimizer.zero_grad()
             loss.backward()
@@ -148,10 +351,12 @@ def train_fno(args):
                 healthy = batch['healthy'].to(device)
                 if args.residual:
                     pred = model(params, healthy)
-                    loss = relative_l2(pred, batch['defect_full'].to(device))
+                    loss = combined_loss(pred, batch['defect_full'].to(device),
+                                         alpha_spec=args.spectral_weight)
                 else:
                     pred = model(params, healthy)
-                    loss = relative_l2(pred, batch['target'].to(device))
+                    loss = combined_loss(pred, batch['target'].to(device),
+                                         alpha_spec=args.spectral_weight)
                 val_loss += loss.item()
                 val_batches += 1
 
@@ -418,7 +623,7 @@ def generate_surrogate_data(args):
 def main():
     parser = argparse.ArgumentParser(
         description='Train FNO/DeepONet GW Surrogate')
-    parser.add_argument('--model', choices=['fno', 'deeponet'], default='fno')
+    parser.add_argument('--model', choices=['fno', 'dual_fno', 'deeponet'], default='fno')
     parser.add_argument('--data_dir', default='abaqus_work/gw_fairing_dataset')
     parser.add_argument('--doe', default='doe_gw_fairing.json')
     parser.add_argument('--output', default=None,
@@ -452,6 +657,10 @@ def main():
     parser.add_argument('--n_query', type=int, default=512,
                         help='Query points per sample for DeepONet')
 
+    # Loss
+    parser.add_argument('--spectral_weight', type=float, default=0.1,
+                        help='Weight for spectral (FFT) loss (0=disabled)')
+
     # Augmentation
     parser.add_argument('--augment', type=int, default=1,
                         help='Augmentation factor (1=no aug, 10=10x Mixup+noise+scale)')
@@ -460,15 +669,37 @@ def main():
     parser.add_argument('--generate', type=int, default=0,
                         help='Generate N synthetic waveforms (requires trained model)')
 
+    # Pre-training / Fine-tuning
+    parser.add_argument('--pretrain_hemew3d', type=str, default=None,
+                        help='Pre-train on HEMEW3D data dir before fine-tuning')
+    parser.add_argument('--pretrain_epochs', type=int, default=100,
+                        help='Epochs for HEMEW3D pre-training phase')
+    parser.add_argument('--finetune_from', type=str, default=None,
+                        help='Fine-tune from checkpoint (e.g., pretrained model)')
+    parser.add_argument('--finetune_lr', type=float, default=1e-4,
+                        help='Learning rate for fine-tuning (lower than pre-train)')
+    parser.add_argument('--freeze_spectral', action='store_true',
+                        help='Freeze spectral conv layers during fine-tuning')
+
     args = parser.parse_args()
 
     if args.output is None:
         ts = time.strftime('%Y%m%d_%H%M%S')
         args.output = f'runs/{args.model}_gw_{ts}'
 
-    if args.generate > 0:
+    if args.pretrain_hemew3d:
+        # Phase 1: Pre-train on HEMEW3D
+        pretrain_ckpt = pretrain_hemew3d(args)
+        # Phase 2: Fine-tune on fairing data (if data_dir exists)
+        if os.path.exists(args.data_dir):
+            print(f"\n=== Fine-tuning on fairing data ===")
+            args.finetune_from = pretrain_ckpt
+            train_fno(args)
+        else:
+            print(f"\nPre-training only (no fairing data at {args.data_dir})")
+    elif args.generate > 0:
         generate_surrogate_data(args)
-    elif args.model == 'fno':
+    elif args.model in ('fno', 'dual_fno'):
         train_fno(args)
     else:
         train_deeponet(args)

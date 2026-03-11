@@ -163,6 +163,76 @@ class FNOGWSurrogate(nn.Module):
 
 
 # =============================================================================
+# Dual-Stage FNO (Gao et al. 2025 inspired)
+# =============================================================================
+class DualStageFNOSurrogate(nn.Module):
+    """Two-stage FNO to mitigate spectral bias.
+
+    Stage 1: Low-frequency FNO (fewer modes) captures global wave pattern.
+    Stage 2: High-frequency FNO (more modes) refines residual details.
+
+    Reference: Gao et al. "Dual-Stage FNO for Ultrasonic GW Corrosion
+    Imaging" (IUS, 2025)
+    """
+
+    def __init__(self, n_sensors=9, n_params=3, modes_low=16, modes_high=64,
+                 width=64, n_layers_low=3, n_layers_high=3, residual=True):
+        super().__init__()
+        self.n_sensors = n_sensors
+        self.n_params = n_params
+        self.residual = residual
+
+        # Shared param encoder
+        self.param_encoder = nn.Sequential(
+            nn.Linear(n_params, 32),
+            nn.GELU(),
+            nn.Linear(32, n_sensors),
+        )
+
+        # Stage 1: low-frequency (global structure)
+        self.fno_low = FNO1d(
+            in_channels=n_sensors * 2,
+            out_channels=n_sensors,
+            modes=modes_low, width=width, n_layers=n_layers_low,
+        )
+
+        # Stage 2: high-frequency (fine detail on residual)
+        # Input: stage1 output + healthy + param_encoded = 3 * n_sensors
+        self.fno_high = FNO1d(
+            in_channels=n_sensors * 3,
+            out_channels=n_sensors,
+            modes=modes_high, width=width, n_layers=n_layers_high,
+        )
+
+    def forward(self, params, healthy):
+        """
+        Args:
+            params: (batch, n_params)
+            healthy: (batch, n_sensors, T)
+        Returns:
+            pred: (batch, n_sensors, T)
+        """
+        batch, _, T = healthy.shape
+
+        # Encode params
+        p_enc = self.param_encoder(params)
+        p_broadcast = p_enc.unsqueeze(-1).expand(-1, -1, T)
+
+        # Stage 1: low-freq prediction
+        x1_in = torch.cat([healthy, p_broadcast], dim=1)
+        stage1_residual = self.fno_low(x1_in)
+        stage1_pred = healthy + stage1_residual if self.residual else stage1_residual
+
+        # Stage 2: refine with high-freq modes
+        x2_in = torch.cat([stage1_pred, healthy, p_broadcast], dim=1)
+        stage2_correction = self.fno_high(x2_in)
+
+        if self.residual:
+            return stage1_pred + stage2_correction
+        return stage1_residual + stage2_correction
+
+
+# =============================================================================
 # DeepONet for GW
 # =============================================================================
 class DeepONetGW(nn.Module):
@@ -229,6 +299,15 @@ if __name__ == "__main__":
     out_fno = model_fno(params, healthy)
     print(f"FNO: params {params.shape} + healthy {healthy.shape} → {out_fno.shape}")
     print(f"  Parameters: {sum(p.numel() for p in model_fno.parameters()):,}")
+
+    # Dual-Stage FNO test
+    model_dual = DualStageFNOSurrogate(
+        n_sensors=n_sensors, n_params=3,
+        modes_low=8, modes_high=32, width=32,
+        n_layers_low=2, n_layers_high=3)
+    out_dual = model_dual(params, healthy)
+    print(f"Dual-Stage FNO: params {params.shape} + healthy {healthy.shape} → {out_dual.shape}")
+    print(f"  Parameters: {sum(p.numel() for p in model_dual.parameters()):,}")
 
     # DeepONet test
     coords = torch.rand(100, 2)
