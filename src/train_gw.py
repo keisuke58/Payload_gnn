@@ -247,7 +247,7 @@ def main():
     parser = argparse.ArgumentParser(description='GW graph-level classification')
     parser.add_argument('--data_dir', type=str, default='data/processed_gw_comprehensive')
     parser.add_argument('--arch', type=str, default='gat',
-                        choices=['gcn', 'gat', 'gin', 'sage'])
+                        choices=['gcn', 'gat', 'gin', 'sage', 'meshgnn'])
     parser.add_argument('--hidden', type=int, default=128)
     parser.add_argument('--num_layers', type=int, default=3)
     parser.add_argument('--epochs', type=int, default=200)

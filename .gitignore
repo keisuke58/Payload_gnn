@@ -47,6 +47,9 @@ doe_*.json
 test_multitype/
 verify_defect/
 
+# External repositories
+external/
+
 # Personal docs
 docs/jaxa_career_roadmap.md
 docs/jaxa_evaluation.md
