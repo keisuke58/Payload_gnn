@@ -59,9 +59,10 @@ def train_fno(args):
                             shuffle=False, num_workers=2, pin_memory=True)
 
     # Model
+    n_params = meta.get('n_params', 3)
     model = FNOGWSurrogate(
         n_sensors=meta['n_sensors'],
-        n_params=3,
+        n_params=n_params,
         modes=args.modes,
         width=args.width,
         n_layers=args.n_layers,
@@ -199,8 +200,9 @@ def train_deeponet(args):
     val_loader = DataLoader(val_ds, batch_size=args.batch_size,
                             shuffle=False, num_workers=2, pin_memory=True)
 
+    n_params = meta.get('n_params', 3)
     model = DeepONetGW(
-        n_params=3,
+        n_params=n_params,
         coord_dim=2,
         hidden_dim=args.hidden_dim,
         basis_dim=args.basis_dim,
@@ -299,9 +301,10 @@ def generate_surrogate_data(args):
         max_timesteps=args.max_timesteps,
     )
 
+    n_params = meta.get('n_params', 3)
     model = FNOGWSurrogate(
         n_sensors=meta['n_sensors'],
-        n_params=3,
+        n_params=n_params,
         modes=checkpoint['args']['modes'],
         width=checkpoint['args']['width'],
         n_layers=checkpoint['args']['n_layers'],
