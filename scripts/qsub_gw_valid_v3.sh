@@ -35,11 +35,18 @@ case "$MODEL_TYPE" in
         ;;
     debond30)
         JOB_NAME=Job-GW-Valid-Debond30-v3
-        # Defect at center of sector, radius=30mm
         DEFECT_ARG="--defect {\"z_center\":1500,\"theta_deg\":15,\"radius\":30}"
         ;;
+    debond50)
+        JOB_NAME=Job-GW-Valid-Debond50-v3
+        DEFECT_ARG="--defect {\"z_center\":1500,\"theta_deg\":15,\"radius\":50}"
+        ;;
+    debond80)
+        JOB_NAME=Job-GW-Valid-Debond80-v3
+        DEFECT_ARG="--defect {\"z_center\":1500,\"theta_deg\":15,\"radius\":80}"
+        ;;
     *)
-        echo "ERROR: Unknown MODEL_TYPE=$MODEL_TYPE (use: healthy, debond30)"
+        echo "ERROR: Unknown MODEL_TYPE=$MODEL_TYPE (use: healthy, debond30, debond50, debond80)"
         exit 1
         ;;
 esac
