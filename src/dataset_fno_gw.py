@@ -78,40 +78,69 @@ class GWOperatorDataset(Dataset):
 
     Each sample: (defect_params, healthy_waveform, defect_waveform)
     where:
-        defect_params: (3,) normalized — z_center, theta_deg, radius
+        defect_params: (n_params,) normalized — z_center, theta_deg, radius[, defect_type]
         healthy_waveform: (n_sensors, T)
         defect_waveform: (n_sensors, T)
 
     For residual mode: target = defect - healthy (scattering signal).
+
+    Supports multiple DOE formats:
+      - v1 (fairing): Job-GW-Fair-XXXX, 3 params (z, theta, radius)
+      - v3 (barrel):  Job-GW-v3-XXXX, 4+ params (z, theta, radius, defect_type)
+      - junction:     Job-Junc-XXXX, 4+ params
     """
+
+    # Defect type encoding (one-hot index)
+    DEFECT_TYPES = [
+        'debonding', 'fod', 'impact', 'delamination',
+        'inner_debond', 'thermal_progression', 'acoustic_fatigue',
+    ]
 
     def __init__(self, data_dir, doe_path, residual=True,
                  max_timesteps=None, downsample=1,
-                 healthy_pattern='Job-GW-Fair-Healthy_sensors.csv'):
+                 healthy_pattern=None, encode_defect_type=True):
         self.data_dir = data_dir
         self.residual = residual
         self.downsample = downsample
+        self.encode_defect_type = encode_defect_type
 
         # Load DOE
         with open(doe_path) as f:
             doe = json.load(f)
-        self.n_samples_doe = doe['n_samples']
-        self.bounds = doe['bounds']
+        self.n_samples_doe = doe.get('n_samples', len(doe.get('samples', [])))
+        self.bounds = doe.get('bounds', {})
 
         # Normalization bounds for defect params
-        self.z_min, self.z_max = self.bounds['z_center']
-        self.theta_min, self.theta_max = self.bounds['theta_deg']
-        # radius: use tier extremes
-        r_min = min(t['min'] for t in self.bounds['radius_tiers'])
-        r_max = max(t['max'] for t in self.bounds['radius_tiers'])
+        if 'z_center' in self.bounds:
+            self.z_min, self.z_max = self.bounds['z_center']
+        else:
+            self.z_min, self.z_max = 500, 2500  # fallback
+        if 'theta_deg' in self.bounds:
+            self.theta_min, self.theta_max = self.bounds['theta_deg']
+        else:
+            self.theta_min, self.theta_max = 2, 28
+        # radius: use tier extremes or flat range
+        if 'radius_tiers' in self.bounds:
+            r_min = min(t['min'] for t in self.bounds['radius_tiers'])
+            r_max = max(t['max'] for t in self.bounds['radius_tiers'])
+        elif 'radius' in self.bounds:
+            r_min, r_max = self.bounds['radius']
+        else:
+            r_min, r_max = 20, 80
         self.r_min, self.r_max = r_min, r_max
 
-        # Load healthy reference
+        # Auto-detect healthy CSV pattern from DOE
+        if healthy_pattern is None:
+            healthy_pattern = self._detect_healthy_pattern(doe, data_dir)
         healthy_path = os.path.join(data_dir, healthy_pattern)
         if not os.path.exists(healthy_path):
-            # Try augmented A000 as reference
-            healthy_path = os.path.join(
-                data_dir, 'Job-GW-Fair-Healthy-A000_sensors.csv')
+            # Try augmented A000 variants
+            for suffix in ['A000', 'A0', 'A00']:
+                base = healthy_pattern.replace('_sensors.csv', '')
+                alt = os.path.join(data_dir, f'{base}-{suffix}_sensors.csv')
+                if os.path.exists(alt):
+                    healthy_path = alt
+                    break
         self.times, self.healthy_waveform, self.positions = \
             load_sensor_csv(healthy_path)
         if self.times is None:
@@ -119,6 +148,9 @@ class GWOperatorDataset(Dataset):
 
         self.n_sensors = self.healthy_waveform.shape[0]
         self.T_full = len(self.times)
+
+        # Number of params: 3 (z, theta, r) + 7 (defect_type one-hot) if enabled
+        self.n_params = 3 + (len(self.DEFECT_TYPES) if encode_defect_type else 0)
 
         # Downsample
         if downsample > 1:
@@ -131,31 +163,57 @@ class GWOperatorDataset(Dataset):
         self.T = len(self.times)
         self.dt = self.times[1] - self.times[0] if self.T > 1 else 1e-6
 
-        # Collect defect samples
+        # Collect defect samples (auto-detect job name from DOE)
         self.samples = []  # list of (defect_params_norm, csv_path)
-        for i, sample in enumerate(doe['samples']):
-            job = f"Job-GW-Fair-{i:04d}"
+        for sample in doe.get('samples', []):
+            job = sample.get('job_name', None)
+            if job is None:
+                # Legacy format: index-based
+                continue
             csv_path = os.path.join(data_dir, f"{job}_sensors.csv")
             if not os.path.exists(csv_path):
                 continue
-            p = sample['defect_params']
+            p = sample.get('defect_params', sample.get('defect', {}))
             params_norm = self._normalize_params(
-                p['z_center'], p['theta_deg'], p['radius'])
+                p.get('z_center', 0), p.get('theta_deg', 0),
+                p.get('radius', 0), p.get('defect_type', 'debonding'))
             self.samples.append((params_norm, csv_path))
 
         # Also add healthy as "no defect" samples (params = 0)
-        self.healthy_csvs = sorted(glob.glob(
-            os.path.join(data_dir, 'Job-GW-Fair-Healthy-A*_sensors.csv')))
+        healthy_glob = os.path.join(data_dir, '*Healthy*_sensors.csv')
+        self.healthy_csvs = sorted(glob.glob(healthy_glob))
 
         # Normalization stats (computed from healthy reference)
         self.waveform_scale = np.max(np.abs(self.healthy_waveform)) + 1e-12
 
-    def _normalize_params(self, z, theta, radius):
-        """Normalize defect params to [0, 1]."""
+    def _detect_healthy_pattern(self, doe, data_dir):
+        """Auto-detect healthy CSV filename from DOE or data_dir."""
+        # Check healthy_samples in DOE
+        for hs in doe.get('healthy_samples', []):
+            job = hs.get('job_name', '')
+            csv = os.path.join(data_dir, f"{job}_sensors.csv")
+            if os.path.exists(csv):
+                return f"{job}_sensors.csv"
+        # Fallback: glob for any healthy CSV
+        for pattern in ['*-H0_sensors.csv', '*-H0000_sensors.csv',
+                        '*Healthy_sensors.csv', '*-H00_sensors.csv']:
+            matches = glob.glob(os.path.join(data_dir, pattern))
+            if matches:
+                return os.path.basename(matches[0])
+        return 'Job-GW-Fair-Healthy_sensors.csv'
+
+    def _normalize_params(self, z, theta, radius, defect_type='debonding'):
+        """Normalize defect params to [0, 1], optionally with defect type one-hot."""
         z_n = (z - self.z_min) / (self.z_max - self.z_min + 1e-8)
         t_n = (theta - self.theta_min) / (self.theta_max - self.theta_min + 1e-8)
         r_n = (radius - self.r_min) / (self.r_max - self.r_min + 1e-8)
-        return np.array([z_n, t_n, r_n], dtype=np.float32)
+        base = [z_n, t_n, r_n]
+        if self.encode_defect_type:
+            one_hot = [0.0] * len(self.DEFECT_TYPES)
+            if defect_type in self.DEFECT_TYPES:
+                one_hot[self.DEFECT_TYPES.index(defect_type)] = 1.0
+            base.extend(one_hot)
+        return np.array(base, dtype=np.float32)
 
     def __len__(self):
         return len(self.samples)
@@ -192,6 +250,7 @@ class GWOperatorDataset(Dataset):
     def get_metadata(self):
         return {
             'n_sensors': self.n_sensors,
+            'n_params': self.n_params,
             'T': self.T,
             'dt': float(self.dt),
             'n_defect_samples': len(self.samples),

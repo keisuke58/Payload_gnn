@@ -437,6 +437,10 @@ python src/augment_gw_healthy.py \
 - [x] Junction モデル設計・実装（バレル・ノーズコーン接合部 z=3500–6500mm）
 - [ ] Junction Static 形状検証 → GW Explicit 検証
 - [ ] Junction DOE 33 ジョブ（30 欠陥 + 3 健全）の FEM 実行
+- [ ] FNO/DeepONet GW サロゲートによる大規模データ生成 (Phase 2)
+- [ ] マルチフィデリティ学習 (平板→粗メッシュ→精密 FEM)
+- [ ] サロゲート生成データ + FEM で GNN 本格学習 (Phase 3)
+- [ ] 360° 全周モデル検証 (Phase 4)
 - [ ] PZT ネットワークのトポロジ最適化
 
 ---
@@ -578,3 +582,79 @@ doe_gw_junction.json
 | `doe_gw_junction.json` | DOE 定義 (30 defective + 3 healthy) |
 | `scripts/qsub_junction_single.sh` | PBS 単一ジョブスクリプト |
 | `scripts/qsub_junction_batch.sh` | バッチ投入・状態確認 |
+
+---
+
+## FEM-Surrogate-Accelerated GNN-SHM ロードマップ
+
+### 目標
+
+FEM 単独では計算量的に不可能な **360° 全周フェアリング** の GW-SHM を、
+ML サロゲート（FNO/DeepONet）で FEM を近似することで実現する。
+
+### 全体アーキテクチャ
+
+```
+Phase 1: FEM Ground Truth (~88 jobs, ~450h)
+  ├─ Barrel v3: 55 jobs (104 sensors, seed=5.0)
+  └─ Junction: 33 jobs (40 sensors, seed=7.5)
+       ↓
+Phase 2: FNO/DeepONet Surrogate (~数時間 GPU)
+  ├─ 入力: 欠陥パラメータ (type, z, θ, radius)
+  ├─ 出力: センサー波形 (N_sensors × T_steps)
+  └─ 学習データ: Phase 1 FEM + 回転対称性 (×12) = ~1,000 実効サンプル
+       ↓
+Phase 3: 大規模 GNN 学習
+  ├─ サロゲート生成: 10,000+ 波形 (数分)
+  ├─ FEM ground truth: ~88 波形
+  └─ GNN 検出器: graph-level 2 値分類
+       ↓
+Phase 4: 360° 全周検証
+  ├─ 回転対称性でセクター → 全周拡張
+  └─ 非対称要素 (HVAC ドア等) は位置条件で分離
+```
+
+### マルチフィデリティ戦略
+
+| Level | モデル | seed | 計算時間/job | 目的 |
+|-------|--------|------|-------------|------|
+| 0 | 分散曲線 (解析解) | — | 0 | Physics prior |
+| 1 | 平板 GW | 3.0 mm | ~12 min | Pretrain (~200 jobs) |
+| 2 | フェアリング粗 | 15.0 mm | ~15 min | 中精度 (~300 jobs) |
+| 3 | フェアリング精密 (v3) | 5.0 mm | ~7 h | Ground truth (~55 jobs) |
+
+Level 1-3 を Multi-Fidelity Neural Operator で統合学習。
+Level 3 が 55 ケースでも、低フィデリティデータで補完し高精度を達成。
+
+### 既存コード
+
+| ファイル | 用途 | 状態 |
+|----------|------|------|
+| `src/models_fno_gw.py` | FNO1d + DeepONetGW (GW 波形用) | 実装済み |
+| `src/train_fno_gw.py` | サロゲート学習スクリプト | 実装済み |
+| `src/dataset_fno_gw.py` | GW CSV → Dataset 変換 | 実装済み |
+| `src/models_fno.py` | FNO2d (応力場用, 参考) | 実装済み |
+| `src/models_deeponet.py` | DeepONet コア実装 | 実装済み |
+| `src/prototype_fno.py` | FNO 概念検証 (合成データ) | 実装済み |
+| `src/prototype_deeponet.py` | DeepONet 概念検証 | 実装済み |
+
+### 計算コスト比較
+
+| 手法 | データ数 | 計算時間 | 備考 |
+|------|---------|---------|------|
+| FEM のみ (360°) | 88 × 12 = 1,056 | ~7,400 h | 非現実的 |
+| FEM (30° sector) | 88 | ~450 h | Phase 1 (現計画) |
+| **FEM + Surrogate** | 88 FEM + 10,000 生成 | ~450h + 数時間 GPU | **採用** |
+
+### 論文構成案
+
+```
+"FEM-Surrogate-Accelerated GNN-SHM for Rocket Fairing Debonding Detection"
+
+1. Introduction: GW-SHM for CFRP/HC sandwich, computational challenge
+2. FEM Model: Abaqus/Explicit, CZM, 7 defect types, barrel + junction
+3. Neural Operator Surrogate: FNO/DeepONet, multi-fidelity training
+4. GNN Detector: graph-level classification, 24-dim features
+5. Results: surrogate accuracy, GNN performance, 360° validation
+6. Conclusion: 1000x computational speedup, practical SHM deployment
+```
