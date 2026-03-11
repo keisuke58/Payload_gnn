@@ -1,0 +1,432 @@
+{
+  "description": "H3 fairing barrel-nosecone junction DOE",
+  "model": "nosecone_junction",
+  "format": "junction_v1",
+  "z_range": [
+    3500,
+    6500
+  ],
+  "sector_angle": 30,
+  "mesh_seed": 7.5,
+  "n_defective": 30,
+  "n_healthy": 3,
+  "defect_types": [
+    "debonding",
+    "fod",
+    "impact",
+    "delamination",
+    "inner_debond",
+    "thermal_progression",
+    "acoustic_fatigue"
+  ],
+  "size_tiers": {
+    "small": {
+      "min": 20,
+      "max": 40,
+      "fraction": 0.3
+    },
+    "medium": {
+      "min": 40,
+      "max": 60,
+      "fraction": 0.45
+    },
+    "large": {
+      "min": 60,
+      "max": 80,
+      "fraction": 0.25
+    }
+  },
+  "samples": [
+    {
+      "id": 0,
+      "job_name": "Job-Junc-0000",
+      "defect_params": {
+        "defect_type": "debonding",
+        "z_center": 3755.4,
+        "theta_deg": 2.7,
+        "radius": 25.5
+      },
+      "tier": "small",
+      "near_junction": false
+    },
+    {
+      "id": 1,
+      "job_name": "Job-Junc-0001",
+      "defect_params": {
+        "defect_type": "fod",
+        "z_center": 3806.0,
+        "theta_deg": 21.1,
+        "radius": 33.5,
+        "stiffness_factor": 18.4
+      },
+      "tier": "small",
+      "near_junction": false
+    },
+    {
+      "id": 2,
+      "job_name": "Job-Junc-0002",
+      "defect_params": {
+        "defect_type": "impact",
+        "z_center": 3880.9,
+        "theta_deg": 13.0,
+        "radius": 20.6,
+        "damage_ratio": 0.27
+      },
+      "tier": "small",
+      "near_junction": false
+    },
+    {
+      "id": 3,
+      "job_name": "Job-Junc-0003",
+      "defect_params": {
+        "defect_type": "delamination",
+        "z_center": 4003.8,
+        "theta_deg": 2.7,
+        "radius": 24.0,
+        "delam_depth": 0.59
+      },
+      "tier": "small",
+      "near_junction": false
+    },
+    {
+      "id": 4,
+      "job_name": "Job-Junc-0004",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "z_center": 4093.9,
+        "theta_deg": 7.7,
+        "radius": 31.8
+      },
+      "tier": "small",
+      "near_junction": false
+    },
+    {
+      "id": 5,
+      "job_name": "Job-Junc-0005",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "z_center": 4203.5,
+        "theta_deg": 2.2,
+        "radius": 36.1
+      },
+      "tier": "small",
+      "near_junction": false
+    },
+    {
+      "id": 6,
+      "job_name": "Job-Junc-0006",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "z_center": 4280.5,
+        "theta_deg": 10.8,
+        "radius": 23.1,
+        "fatigue_severity": 0.49
+      },
+      "tier": "small",
+      "near_junction": false
+    },
+    {
+      "id": 7,
+      "job_name": "Job-Junc-0007",
+      "defect_params": {
+        "defect_type": "debonding",
+        "z_center": 4335.8,
+        "theta_deg": 4.4,
+        "radius": 21.9
+      },
+      "tier": "small",
+      "near_junction": false
+    },
+    {
+      "id": 8,
+      "job_name": "Job-Junc-0008",
+      "defect_params": {
+        "defect_type": "fod",
+        "z_center": 4466.8,
+        "theta_deg": 17.7,
+        "radius": 36.1,
+        "stiffness_factor": 15.9
+      },
+      "tier": "small",
+      "near_junction": false
+    },
+    {
+      "id": 9,
+      "job_name": "Job-Junc-0009",
+      "defect_params": {
+        "defect_type": "impact",
+        "z_center": 4526.5,
+        "theta_deg": 27.3,
+        "radius": 47.6,
+        "damage_ratio": 0.37
+      },
+      "tier": "medium",
+      "near_junction": true
+    },
+    {
+      "id": 10,
+      "job_name": "Job-Junc-0010",
+      "defect_params": {
+        "defect_type": "delamination",
+        "z_center": 4638.5,
+        "theta_deg": 18.1,
+        "radius": 57.2,
+        "delam_depth": 0.55
+      },
+      "tier": "medium",
+      "near_junction": true
+    },
+    {
+      "id": 11,
+      "job_name": "Job-Junc-0011",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "z_center": 4714.4,
+        "theta_deg": 3.2,
+        "radius": 44.6
+      },
+      "tier": "medium",
+      "near_junction": true
+    },
+    {
+      "id": 12,
+      "job_name": "Job-Junc-0012",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "z_center": 4765.1,
+        "theta_deg": 4.1,
+        "radius": 44.7
+      },
+      "tier": "medium",
+      "near_junction": true
+    },
+    {
+      "id": 13,
+      "job_name": "Job-Junc-0013",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "z_center": 4835.4,
+        "theta_deg": 9.2,
+        "radius": 52.7,
+        "fatigue_severity": 0.31
+      },
+      "tier": "medium",
+      "near_junction": true
+    },
+    {
+      "id": 14,
+      "job_name": "Job-Junc-0014",
+      "defect_params": {
+        "defect_type": "debonding",
+        "z_center": 4945.4,
+        "theta_deg": 7.4,
+        "radius": 45.3
+      },
+      "tier": "medium",
+      "near_junction": true
+    },
+    {
+      "id": 15,
+      "job_name": "Job-Junc-0015",
+      "defect_params": {
+        "defect_type": "fod",
+        "z_center": 5081.2,
+        "theta_deg": 18.8,
+        "radius": 52.2,
+        "stiffness_factor": 7.6
+      },
+      "tier": "medium",
+      "near_junction": true
+    },
+    {
+      "id": 16,
+      "job_name": "Job-Junc-0016",
+      "defect_params": {
+        "defect_type": "impact",
+        "z_center": 5149.9,
+        "theta_deg": 6.2,
+        "radius": 47.6,
+        "damage_ratio": 0.5
+      },
+      "tier": "medium",
+      "near_junction": true
+    },
+    {
+      "id": 17,
+      "job_name": "Job-Junc-0017",
+      "defect_params": {
+        "defect_type": "delamination",
+        "z_center": 5228.8,
+        "theta_deg": 16.5,
+        "radius": 53.7,
+        "delam_depth": 0.71
+      },
+      "tier": "medium",
+      "near_junction": true
+    },
+    {
+      "id": 18,
+      "job_name": "Job-Junc-0018",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "z_center": 5327.3,
+        "theta_deg": 8.0,
+        "radius": 40.6
+      },
+      "tier": "medium",
+      "near_junction": true
+    },
+    {
+      "id": 19,
+      "job_name": "Job-Junc-0019",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "z_center": 5374.0,
+        "theta_deg": 9.0,
+        "radius": 44.2
+      },
+      "tier": "medium",
+      "near_junction": true
+    },
+    {
+      "id": 20,
+      "job_name": "Job-Junc-0020",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "z_center": 5515.1,
+        "theta_deg": 24.8,
+        "radius": 46.3,
+        "fatigue_severity": 0.4
+      },
+      "tier": "medium",
+      "near_junction": false
+    },
+    {
+      "id": 21,
+      "job_name": "Job-Junc-0021",
+      "defect_params": {
+        "defect_type": "debonding",
+        "z_center": 5554.3,
+        "theta_deg": 25.8,
+        "radius": 49.2
+      },
+      "tier": "medium",
+      "near_junction": false
+    },
+    {
+      "id": 22,
+      "job_name": "Job-Junc-0022",
+      "defect_params": {
+        "defect_type": "fod",
+        "z_center": 5629.6,
+        "theta_deg": 8.4,
+        "radius": 71.2,
+        "stiffness_factor": 8.9
+      },
+      "tier": "large",
+      "near_junction": false
+    },
+    {
+      "id": 23,
+      "job_name": "Job-Junc-0023",
+      "defect_params": {
+        "defect_type": "impact",
+        "z_center": 5744.0,
+        "theta_deg": 25.3,
+        "radius": 68.0,
+        "damage_ratio": 0.27
+      },
+      "tier": "large",
+      "near_junction": false
+    },
+    {
+      "id": 24,
+      "job_name": "Job-Junc-0024",
+      "defect_params": {
+        "defect_type": "delamination",
+        "z_center": 5866.5,
+        "theta_deg": 15.2,
+        "radius": 61.8,
+        "delam_depth": 0.23
+      },
+      "tier": "large",
+      "near_junction": false
+    },
+    {
+      "id": 25,
+      "job_name": "Job-Junc-0025",
+      "defect_params": {
+        "defect_type": "inner_debond",
+        "z_center": 5876.2,
+        "theta_deg": 18.3,
+        "radius": 75.8
+      },
+      "tier": "large",
+      "near_junction": false
+    },
+    {
+      "id": 26,
+      "job_name": "Job-Junc-0026",
+      "defect_params": {
+        "defect_type": "thermal_progression",
+        "z_center": 5989.9,
+        "theta_deg": 3.7,
+        "radius": 67.6
+      },
+      "tier": "large",
+      "near_junction": false
+    },
+    {
+      "id": 27,
+      "job_name": "Job-Junc-0027",
+      "defect_params": {
+        "defect_type": "acoustic_fatigue",
+        "z_center": 6126.3,
+        "theta_deg": 15.8,
+        "radius": 79.4,
+        "fatigue_severity": 0.46
+      },
+      "tier": "large",
+      "near_junction": false
+    },
+    {
+      "id": 28,
+      "job_name": "Job-Junc-0028",
+      "defect_params": {
+        "defect_type": "debonding",
+        "z_center": 6127.7,
+        "theta_deg": 20.7,
+        "radius": 73.6
+      },
+      "tier": "large",
+      "near_junction": false
+    },
+    {
+      "id": 29,
+      "job_name": "Job-Junc-0029",
+      "defect_params": {
+        "defect_type": "fod",
+        "z_center": 6259.9,
+        "theta_deg": 8.9,
+        "radius": 72.8,
+        "stiffness_factor": 6.7
+      },
+      "tier": "large",
+      "near_junction": false
+    }
+  ],
+  "healthy_samples": [
+    {
+      "id": 30,
+      "job_name": "Job-Junc-H0000"
+    },
+    {
+      "id": 31,
+      "job_name": "Job-Junc-H0001"
+    },
+    {
+      "id": 32,
+      "job_name": "Job-Junc-H0002"
+    }
+  ]
+}
