@@ -37,9 +37,17 @@ except ImportError:
 # Import the base generator
 # __file__ is not defined in Abaqus CAE noGUI mode
 try:
-    _this_dir = os.path.dirname(__file__)
+    _this_dir = os.path.dirname(os.path.abspath(__file__))
 except NameError:
-    _this_dir = os.path.dirname(os.path.abspath(sys.argv[-1]))
+    # Abaqus CAE noGUI: find script path from sys.argv
+    _this_dir = None
+    for arg in sys.argv:
+        if arg.endswith('.py') and os.path.exists(arg):
+            _this_dir = os.path.dirname(os.path.abspath(arg))
+            break
+    if _this_dir is None:
+        # Fallback: assume src/ is sibling of cwd
+        _this_dir = os.path.join(os.getcwd(), '..', 'src')
 sys.path.insert(0, _this_dir)
 from generate_gw_fairing import (
     generate_model,
