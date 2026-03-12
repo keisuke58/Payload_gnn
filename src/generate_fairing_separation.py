@@ -53,6 +53,13 @@ FAIRING_DIAMETER = 5200.0 # mm
 ADAPTER_HEIGHT = 100.0    # mm
 ADAPTER_T = 10.0          # mm, shell thickness
 
+# PSS (Payload Support Structure) — CFRP/Al-HC sandwich cylinder
+PSS_RADIUS = 833.0        # mm, inner radius (PAF-1666SC)
+PSS_HEIGHT = 600.0        # mm, cylinder height
+PSS_CORE_T = 25.0         # mm, honeycomb core thickness
+PSS_FACE_T = 1.0          # mm, CFRP skin thickness (each)
+PSS_Z_BOTTOM = 200.0      # mm, bottom of PSS above adapter base
+
 # ==============================================================================
 # CONSTANTS — Materials (same as generate_gw_fairing.py)
 # ==============================================================================
@@ -341,12 +348,68 @@ def create_adapter_ring(model, z_bottom=0.0, sweep_angle=180.0):
     return p_adapter
 
 
+def create_pss(model, sweep_angle=360.0):
+    """Create PSS (Payload Support Structure) as sandwich cylinder.
+
+    The PSS carries the satellite. In the F8 accident, pre-existing
+    debonding propagated under separation shock → structural failure
+    within 62 ms.
+
+    Returns:
+        (p_inner, p_core, p_outer) Part objects
+    """
+    r_inner = PSS_RADIUS
+    r_core_inner = r_inner + PSS_FACE_T
+    r_core_outer = r_core_inner + PSS_CORE_T
+    z_min = PSS_Z_BOTTOM
+    z_max = PSS_Z_BOTTOM + PSS_HEIGHT
+
+    # Inner skin (shell)
+    s1 = model.ConstrainedSketch(name='sk-pss-inner', sheetSize=20000.0)
+    s1.setPrimaryObject(option=STANDALONE)
+    s1.ConstructionLine(point1=(0.0, -100.0), point2=(0.0, z_max + 100.0))
+    s1.Line(point1=(r_inner, z_min), point2=(r_inner, z_max))
+    p_inner = model.Part(name='PSS-InnerSkin', dimensionality=THREE_D,
+                         type=DEFORMABLE_BODY)
+    p_inner.BaseShellRevolve(sketch=s1, angle=sweep_angle,
+                             flipRevolveDirection=OFF)
+    s1.unsetPrimaryObject()
+
+    # Core (solid)
+    s2 = model.ConstrainedSketch(name='sk-pss-core', sheetSize=20000.0)
+    s2.setPrimaryObject(option=STANDALONE)
+    s2.ConstructionLine(point1=(0.0, -100.0), point2=(0.0, z_max + 100.0))
+    s2.Line(point1=(r_core_inner, z_min), point2=(r_core_inner, z_max))
+    s2.Line(point1=(r_core_inner, z_max), point2=(r_core_outer, z_max))
+    s2.Line(point1=(r_core_outer, z_max), point2=(r_core_outer, z_min))
+    s2.Line(point1=(r_core_outer, z_min), point2=(r_core_inner, z_min))
+    p_core = model.Part(name='PSS-Core', dimensionality=THREE_D,
+                        type=DEFORMABLE_BODY)
+    p_core.BaseSolidRevolve(sketch=s2, angle=sweep_angle,
+                            flipRevolveDirection=OFF)
+    s2.unsetPrimaryObject()
+
+    # Outer skin (shell)
+    s3 = model.ConstrainedSketch(name='sk-pss-outer', sheetSize=20000.0)
+    s3.setPrimaryObject(option=STANDALONE)
+    s3.ConstructionLine(point1=(0.0, -100.0), point2=(0.0, z_max + 100.0))
+    s3.Line(point1=(r_core_outer, z_min), point2=(r_core_outer, z_max))
+    p_outer = model.Part(name='PSS-OuterSkin', dimensionality=THREE_D,
+                         type=DEFORMABLE_BODY)
+    p_outer.BaseShellRevolve(sketch=s3, angle=sweep_angle,
+                             flipRevolveDirection=OFF)
+    s3.unsetPrimaryObject()
+
+    return p_inner, p_core, p_outer
+
+
 # ==============================================================================
 # ASSEMBLY
 # ==============================================================================
 
-def create_assembly(model, parts_Q1, parts_Q2, p_adapter, sector_angle=90.0):
-    """Assemble two quarter-shells and adapter ring.
+def create_assembly(model, parts_Q1, parts_Q2, p_adapter, p_pss=None,
+                    sector_angle=90.0):
+    """Assemble two quarter-shells, adapter ring, and optionally PSS.
 
     Quarter Q1: theta = [0, sector_angle] (default orientation)
     Quarter Q2: theta = [sector_angle, 2*sector_angle] (rotated)
@@ -383,6 +446,13 @@ def create_assembly(model, parts_Q1, parts_Q2, p_adapter, sector_angle=90.0):
     inst_adapter = assembly.Instance(name='Adapter', part=p_adapter,
                                      dependent=ON)
     instances['Adapter'] = inst_adapter
+
+    # PSS (Payload Support Structure) — no rotation, sits at center
+    if p_pss is not None:
+        for i, suffix in enumerate(['InnerSkin', 'Core', 'OuterSkin']):
+            name = 'PSS-%s' % suffix
+            inst = assembly.Instance(name=name, part=p_pss[i], dependent=ON)
+            instances[name] = inst
 
     return assembly, instances
 
@@ -423,6 +493,28 @@ def create_skin_core_ties(model, assembly, instances):
                   secondary=surf_outer,
                   positionToleranceMethod=COMPUTED,
                   adjust=ON,
+                  tieRotations=ON)
+
+    # PSS ties (if PSS exists)
+    if 'PSS-Core' in instances:
+        inst_pi = instances['PSS-InnerSkin']
+        inst_pc = instances['PSS-Core']
+        inst_po = instances['PSS-OuterSkin']
+
+        surf_pi = assembly.Surface(name='Surf-PSS-InnerSkin',
+                                   side1Faces=inst_pi.faces)
+        surf_pc = assembly.Surface(name='Surf-PSS-Core',
+                                   side1Faces=inst_pc.faces)
+        model.Tie(name='Tie-PSS-InnerToCore',
+                  main=surf_pc, secondary=surf_pi,
+                  positionToleranceMethod=COMPUTED, adjust=ON,
+                  tieRotations=ON)
+
+        surf_po = assembly.Surface(name='Surf-PSS-OuterSkin',
+                                   side1Faces=inst_po.faces)
+        model.Tie(name='Tie-PSS-OuterToCore',
+                  main=surf_pc, secondary=surf_po,
+                  positionToleranceMethod=COMPUTED, adjust=ON,
                   tieRotations=ON)
 
 
@@ -625,13 +717,28 @@ def apply_gravity(model, assembly, step_name='Step-Preload'):
 
 
 def apply_adapter_bc(model, assembly, instances):
-    """Fix adapter ring (represents vehicle body)."""
+    """Fix adapter ring and PSS bottom (represents vehicle body)."""
     inst_adapter = instances['Adapter']
     region = regionToolset.Region(faces=inst_adapter.faces)
     model.EncastreBC(
         name='BC-Adapter-Fixed',
         createStepName='Initial',
         region=region)
+
+    # Fix PSS bottom edge (attached to 2nd stage)
+    if 'PSS-Core' in instances:
+        for suffix in ['InnerSkin', 'Core', 'OuterSkin']:
+            inst = instances['PSS-%s' % suffix]
+            bottom_nodes = inst.nodes.getByBoundingBox(
+                xMin=-5000.0, xMax=5000.0,
+                yMin=PSS_Z_BOTTOM - 1.0, yMax=PSS_Z_BOTTOM + 1.0,
+                zMin=-5000.0, zMax=5000.0)
+            if len(bottom_nodes) > 0:
+                region = regionToolset.Region(nodes=bottom_nodes)
+                model.EncastreBC(
+                    name='BC-PSS-%s-Fixed' % suffix,
+                    createStepName='Initial',
+                    region=region)
 
 
 def apply_symmetry_bcs(model, assembly, instances, sector_angle=90.0):
@@ -776,6 +883,7 @@ def generate_model(job_name,
                    spring_stiffness=SPRING_STIFFNESS,
                    n_stuck_bolts=0, stuck_bolt_indices=None,
                    pyro_asymmetry=1.0,
+                   include_pss=False,
                    no_run=False):
     """Generate fairing separation dynamics model.
 
@@ -829,14 +937,21 @@ def generate_model(job_name,
     parts_Q2 = create_quarter_shell(model, 'Q2', sector_angle, z_min, z_max)
 
     # 3. Adapter ring (covers both quarters = 2 * sector_angle)
-    print("[3/8] Creating adapter ring...")
+    print("[3/9] Creating adapter ring...")
     p_adapter = create_adapter_ring(model, z_bottom=z_min,
                                      sweep_angle=2.0 * sector_angle)
 
+    # 3b. PSS (Payload Support Structure) — full 360° cylinder
+    p_pss = None
+    if include_pss:
+        print("[3b/9] Creating PSS (R=%.0f mm, H=%.0f mm)..." % (
+            PSS_RADIUS, PSS_HEIGHT))
+        p_pss = create_pss(model, sweep_angle=360.0)
+
     # 4. Assembly
-    print("[4/8] Assembling...")
+    print("[4/9] Assembling...")
     assembly, instances = create_assembly(
-        model, parts_Q1, parts_Q2, p_adapter, sector_angle)
+        model, parts_Q1, parts_Q2, p_adapter, p_pss, sector_angle)
 
     # 5. Mesh
     print("[5/8] Meshing (seed=%.0f mm)..." % mesh_seed)
@@ -905,6 +1020,8 @@ if __name__ == '__main__':
                         help='Pyro-cord energy asymmetry (1.0=symmetric)')
     parser.add_argument('--t_separation', type=float, default=T_SEPARATION,
                         help='Separation step duration (s)')
+    parser.add_argument('--include_pss', action='store_true',
+                        help='Include PSS (Payload Support Structure)')
     parser.add_argument('--no_run', action='store_true',
                         help='Write INP only, do not submit')
 
@@ -920,5 +1037,6 @@ if __name__ == '__main__':
         n_stuck_bolts=args.n_stuck_bolts,
         pyro_asymmetry=args.pyro_asymmetry,
         t_separation=args.t_separation,
+        include_pss=args.include_pss,
         no_run=args.no_run,
     )
