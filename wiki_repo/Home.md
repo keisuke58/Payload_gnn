@@ -1,7 +1,7 @@
 # Project Wiki: JAXA H3 Rocket — CFRP Fairing SHM
 
 > **本プロジェクトの技術的根拠・背景情報を集約したドキュメント**
-> 最終更新: 2026-03-07
+> 最終更新: 2026-03-12
 
 ---
 
@@ -18,7 +18,7 @@
 | **先端技術** | [最先端ML](Cutting-Edge-ML) · [**PRAD (Physics-Residual AD)**](Physics-Residual-Anomaly-Detection) · [**文献調査 2024–2026**](Advanced-SHM-Literature-2024-2026) |
 | **研究計画** | [**2年目標 (World-Class)**](2-Year-Goals) · [ロードマップ](Roadmap) · [**Roadmap-2028**](Roadmap-2028) · [ベンチマーク目標](Benchmark-Targets) · [文献レビュー](Literature-Review) · [投稿先](Publication-Venues) · [研究レポート](Research-Report) · [理想vs実装](Ideal-vs-Implementation) · [想定Q&A](Anticipated-QA) |
 | **次世代技術** | [**Physics Foundation Model**](Foundation-Model) · [**自律損傷管理 (ADM)**](Autonomous-Damage-Management) · [量子コンピューティング](Quantum-Integration) |
-| **ロケットシミュレーション** | [**打ち上げ軌道シミュレーション**](Rocket-Launch-Simulation) (H3-22S 軌道投入 / RocketPy / Google Earth KML) |
+| **ロケットシミュレーション** | [**打ち上げ軌道シミュレーション**](Rocket-Launch-Simulation) (H3-22S 軌道投入 / RocketPy / Google Earth KML) · [**フェアリング分離ダイナミクス**](Fairing-Separation-Dynamics) (Abaqus/Explicit 1/4 モデル) |
 | **リファレンス** | [英単語集](Vocabulary) · [外部データセット調査](Dataset-Survey) · [データセット比較](Dataset-Comparison) · [**外部リソース (OSS/公開データ)**](External-Resources) · [GitHub Issues](https://github.com/keisuke58/Payload_gnn/issues) |
 
 ---
