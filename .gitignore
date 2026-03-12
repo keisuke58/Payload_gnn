@@ -50,6 +50,17 @@ verify_defect/
 # External repositories
 external/
 
+# Cloned repos (keep scripts/results, exclude repo internals)
+papers/repos/RocketPy/.git/
+papers/repos/RocketPy/rocketpy/
+papers/repos/RocketPy/docs/
+papers/repos/RocketPy/tests/
+papers/repos/RocketPy/data/
+papers/repos/RocketPy/.github/
+papers/repos/poliastro/
+papers/repos/MAPLEAF/
+papers/repos/awesome-space/
+
 # Personal docs
 docs/jaxa_career_roadmap.md
 docs/jaxa_evaluation.md
