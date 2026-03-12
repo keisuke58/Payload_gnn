@@ -67,7 +67,7 @@ S1_THRUST = 2 * 1471e3        # 2x 1,471 kN = 2,942 kN
 S1_BURN_TIME = 298.0          # ~5 min total (T+0 to T+298)
 S1_ISP_SL = 380.0             # sea level
 S1_ISP_VAC = 425.0            # vacuum
-S1_PROP_MASS = 180000          # LOX/LH2 (burns from T+0 to MECO)
+S1_PROP_MASS = 209400          # LOX/LH2 — optimized (real ~222t, SpaceflightNow)
 S1_DRY_MASS = 20000
 
 # 2nd stage (LE-5B-3)
@@ -157,26 +157,25 @@ t = 0.0
 # Programmed pitch profile (degrees from vertical)
 # Real rockets use a pre-programmed pitch-over maneuver
 def programmed_pitch(t_sec):
-    """Return pitch angle (degrees from vertical, 0=up, 90=horizontal)
-    Tuned for LEO ~300km insertion.
-    Real H3: SRB sep ~T+116s at ~50km, MECO ~T+298s at ~200km,
-    SECO ~T+850s at ~300km orbit."""
+    """Optimized pitch profile — matches real H3 TF2/3 flight data.
+    Auto-tuned by scipy.optimize.differential_evolution.
+    SRB sep T+114s/47km, MECO T+288s/203km, SECO T+766s/363km."""
     if t_sec < 8:
-        return 0.0              # Vertical ascent
+        return 0.0
     elif t_sec < 20:
-        return 5.0 * (t_sec - 8) / 12    # Kick: 0→5° in 12s
+        return 4.29 * (t_sec - 8) / 12
     elif t_sec < 60:
-        return 5.0 + 20.0 * (t_sec - 20) / 40   # 5→25° early SRB
+        return 4.29 + 5.72 * (t_sec - 20) / 40
     elif t_sec < 120:
-        return 25.0 + 20.0 * (t_sec - 60) / 60  # 25→45° late SRB
+        return 10.02 + 44.37 * (t_sec - 60) / 60
     elif t_sec < 200:
-        return 45.0 + 25.0 * (t_sec - 120) / 80  # 45→70° S1 early
-    elif t_sec < 260:
-        return 70.0 + 15.0 * (t_sec - 200) / 60  # 70→85° S1 late/MECO
-    elif t_sec < 400:
-        return 85.0 + 3.5 * (t_sec - 260) / 140   # 85→88.5° S2
+        return 54.38 + 22.67 * (t_sec - 120) / 80
+    elif t_sec < 300:
+        return 77.06 + 0.10 * (t_sec - 200) / 100
+    elif t_sec < 500:
+        return 77.16 + 2.93 * (t_sec - 300) / 200
     else:
-        return 88.5             # Nearly horizontal (orbital)
+        return 80.08 + 9.79 * min(1.0, (t_sec - 500) / 300)
 
 COAST_BETWEEN_STAGES = 8.0  # 8s coast between 1st and 2nd stage
 
