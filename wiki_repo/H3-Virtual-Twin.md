@@ -56,17 +56,17 @@
 | 6 | **Fairing Separation** | WIP | `generate_fairing_separation.py` (Explicit) | Phase 2-3 |
 | 7 | **Landing Guidance** | Done | G-FOLD (cvxpy SOCP) | — |
 | 8 | **RL Landing Control** | WIP | PPO (PyTorch), rl-attitude-control | GPU 学習完了待ち |
-| 9 | **Attitude Control** | TODO | `gncpy`, `rl-attitude-control` | PID/MPC 設計 |
-| 10 | **Propulsion: LE-9** | TODO | `cea`, `bamboo` | 1D サイクル解析 |
-| 11 | **Propulsion: SRB-3** | TODO | `PyBurn` | 推力プロファイル |
-| 12 | **Propulsion: LE-5B-3** | TODO | `cea` | 2段エンジン特性 |
-| 13 | **Nozzle Design** | TODO | `Bell-Nozzle`, `RD_107` | LE-9 ベルノズル |
-| 14 | **External Aerodynamics** | TODO | `OpenFOAM-ToolChain`, `SU2` | H3 形状 Cd/Cn |
-| 15 | **Aerothermal (TPS)** | TODO | SU2-NEMO | フェアリング先端 |
-| 16 | **SRB Separation** | TODO | `EXUDYN`, Abaqus | 衝撃 + マルチボディ |
-| 17 | **Stage Separation** | TODO | `EXUDYN`, `pydy` | 段間分離ダイナミクス |
+| 9 | **Attitude Control** | Done | `src/vt/attitude_control.py` | MPC 高度化 |
+| 10 | **Propulsion: LE-9** | Done | `src/vt/propulsion.py` | CEA 連携 |
+| 11 | **Propulsion: SRB-3** | Done | `src/vt/propulsion.py` | grain shape 詳細化 |
+| 12 | **Propulsion: LE-5B-3** | Done | `src/vt/propulsion.py` | — |
+| 13 | **Nozzle Design** | Done | `src/vt/propulsion.py` | CFD 検証 (Phase C) |
+| 14 | **External Aerodynamics** | Done | `src/vt/aerodynamics.py` | CFD テーブル差替 |
+| 15 | **Aerothermal (TPS)** | Done | `src/vt/aerothermal.py` | CFD 連成 (Phase C) |
+| 16 | **SRB Separation** | Done | `src/vt/orchestrator.py` (簡易) | EXUDYN 詳細化 |
+| 17 | **Stage Separation** | Done | `src/vt/orchestrator.py` (簡易) | EXUDYN 詳細化 |
 | 18 | **Sloshing** | TODO | OpenFOAM VOF | タンク内液体動揺 |
-| 19 | **Flight Orchestrator** | TODO | — | **新規開発** (統合層) |
+| 19 | **Flight Orchestrator** | Done | `src/vt/orchestrator.py` | 軌道最適化 |
 | 20 | **Quantum SHM** | TODO | PennyLane prototype | VQC ハイブリッド |
 
 ---
