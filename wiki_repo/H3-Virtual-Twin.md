@@ -48,7 +48,7 @@
 
 | # | サブシステム | 状態 | 既存資産 | 追加作業 |
 |---|-------------|------|---------|---------|
-| 1 | **Trajectory (軌道)** | Done | `jaxa_h3_orbital.py`, `optimize_h3_trajectory.py` | Monte Carlo 分散解析 |
+| 1 | **Trajectory (軌道)** | Done | `jaxa_h3_orbital.py`, `optimize_h3_trajectory.py` | — |
 | 2 | **Orbital Transfer** | Done | `h3_orbital_transfer.py` (poliastro) | — |
 | 3 | **Structure: Fairing FEM** | Done | 250+ INP, CZM debonding model | — |
 | 4 | **Structure: GNN-SHM** | Done | `train_gw.py`, 4 GNN architectures | Foundation Model |
@@ -60,14 +60,17 @@
 | 10 | **Propulsion: LE-9** | Done | `src/vt/propulsion.py` | CEA 連携 |
 | 11 | **Propulsion: SRB-3** | Done | `src/vt/propulsion.py` | grain shape 詳細化 |
 | 12 | **Propulsion: LE-5B-3** | Done | `src/vt/propulsion.py` | — |
-| 13 | **Nozzle Design** | Done | `src/vt/propulsion.py` | CFD 検証 (Phase C) |
+| 13 | **Nozzle Design** | Done | `src/vt/propulsion.py` | CFD 検証 |
 | 14 | **External Aerodynamics** | Done | `src/vt/aerodynamics.py` | CFD テーブル差替 |
-| 15 | **Aerothermal (TPS)** | Done | `src/vt/aerothermal.py` | CFD 連成 (Phase C) |
+| 15 | **Aerothermal (TPS)** | Done | `src/vt/aerothermal.py` | CFD 連成 |
 | 16 | **SRB Separation** | Done | `src/vt/orchestrator.py` (簡易) | EXUDYN 詳細化 |
 | 17 | **Stage Separation** | Done | `src/vt/orchestrator.py` (簡易) | EXUDYN 詳細化 |
 | 18 | **Sloshing** | TODO | OpenFOAM VOF | タンク内液体動揺 |
 | 19 | **Flight Orchestrator** | Done | `src/vt/orchestrator.py` | 軌道最適化 |
-| 20 | **Quantum SHM** | TODO | PennyLane prototype | VQC ハイブリッド |
+| 20 | **6DOF Simulator** | Done | `src/vt/sixdof.py` | クォータニオン + WGS84/J2 |
+| 21 | **Monte Carlo Dispersion** | Done | `src/vt/sixdof.py` | 30 runs 完了 |
+| 22 | **CesiumJS 3D Dashboard** | WIP | `src/vt/dashboard_3d.py` | Ion-free 構成調整中 |
+| 23 | **Quantum SHM** | TODO | PennyLane prototype | VQC ハイブリッド |
 
 ---
 
@@ -174,47 +177,42 @@ B3. 段間分離イベント                   ✅ (2段質量設定 + 姿勢再
 B4. 全段統合テスト                     ✅ H3-22S: Max-Q 46.5kPa, V_SECO=8.4km/s
 ```
 
-### Phase C: 高忠実度化 + OSS 活用 (2026 Q3-Q4)
+### Phase C: 6DOF 高忠実度シミュレータ — ✅ 完了
 
 ```
-C1. RocketPy 6DOF 統合               [RocketPy]            2週間
-    └ 現行 3DOF → RocketPy 6DOF に差替え、風・モンテカルロ
-C2. JSBSim 飛行力学                   [jsbsim]              2週間
+C1. クォータニオン 6DOF シミュレータ     ✅ src/vt/sixdof.py (1274行)
+    └ 13状態変数 (位置/速度/クォータニオン/角速度) の RK4 積分
+    └ WGS84 楕円体 + J2 重力摂動 (ECEF 回転座標系)
+    └ ピッチスケジュール姿勢誘導 (重力ターン近似)
+    └ Phase A 推進系・空力モジュールと統合
+    └ H3-22S: Max-Q 49.5kPa, V_SECO 7.8km/s, h_SECO 204km
+C2. Monte Carlo 分散解析               ✅ src/vt/sixdof.py
+    └ 推力±2%, Isp±1%, Cd±5%, 質量±0.5%, 方位角±0.5°
+    └ 30 runs: h_SECO 204±39km, V_SECO 7.80±0.00km/s
+C3. CesiumJS 3D ダッシュボード          WIP src/vt/dashboard_3d.py (868行)
+    └ CesiumJS 3D 地球儀 + Plotly 飛行プロファイル
+    └ Mach 色分け軌道 (青/緑/橙/赤) + MC 分散コリドー
+    └ OSM タイル (Ion トークン不要)、レンダリング問題調整中
+```
+
+### Phase D: 高忠実度化 + 可視化 (2026 Q3-Q4)
+
+```
+D1. JSBSim 飛行力学                   [jsbsim]              2週間
     └ NASA 由来の高忠実度飛行力学エンジン (Python binding)
-C3. OpenTsiolkovsky 参考実装          [OpenTsiolkovsky]     1週間
-    └ インターステラテクノロジズの 3DOF/6DOF (Rust+WASM)
-C4. 確率的 SHM デジタルツイン          [UAV-Digital-Twin]    3週間
+D2. 確率的 SHM デジタルツイン          [UAV-Digital-Twin]    3週間
     └ ベイズ推論で GNN-SHM 結果を飛行中に逐次更新
-C5. LE-9 ノズル CFD                   [OpenFOAM/SU2]       1ヶ月
+D3. LE-9 ノズル CFD                   [OpenFOAM/SU2]       1ヶ月
     └ 3D RANS → 推力補正テーブル
-C6. フェアリング分離 CFD-Structure     [Abaqus+OpenFOAM]    1ヶ月
+D4. フェアリング分離 CFD-Structure     [Abaqus+OpenFOAM]    1ヶ月
     └ 空力荷重 + 構造応答の連成
-C7. AeroVECTOR TVC 検証               [AeroVECTOR]         1週間
-    └ アクティブ制御 SIL テスト
-C8. Monte Carlo 落下分散              [RocketPy/MAPLEAF]    2週間
-    └ 風・推力偏差・分離タイミング不確実性
-C9. SHM リアルタイム統合              [GNN + FNO]           2週間
-    └ 飛行中の構造診断パイプライン
-```
-
-### Phase D: ダッシュボード + 可視化 (2027 Q1)
-
-```
-D1. NASA Open MCT ダッシュボード       [openmct]            3週間 ★
-    └ NASA 公式ミッション管制フレームワーク (12,830★)
-    └ テレメトリ表示、タイムライン、プラグイン拡張
-    └ 推進/空力/構造/熱のリアルタイムパネル
-D2. CesiumJS 3D 軌道可視化            [CesiumJS]           2週間
-    └ 3D 地球上に軌道表示 (FlightClub 方式)
-    └ CZML で時系列アニメーション
-D3. Three.js 構造 3D モデル            [Three.js]           2週間
-    └ フェアリング断面の応力/温度マップ
-    └ GNN-SHM 推論結果のリアルタイム表示
-D4. Takram H3 FIP 参考実装            [参考: JAXA実機]      ─
-    └ 速度/高度/軌道の統合表示 (計画 vs 実績)
-D5. 再利用シナリオ                     [G-FOLD + RL]        2週間
+D5. NASA Open MCT ダッシュボード       [openmct]            3週間 ★
+    └ NASA 公式ミッション管制フレームワーク
+D6. Three.js 構造 3D モデル            [Three.js]           2週間
+    └ フェアリング断面の応力/温度マップ + GNN-SHM 表示
+D7. 再利用シナリオ                     [G-FOLD + RL]        2週間
     └ 1段回収のバーチャルツイン拡張
-D6. ForRocket 比較検証                [ForRocket]           1週間
+D8. ForRocket 比較検証                [ForRocket]           1週間
     └ 日本人開発 6DOF で結果クロスチェック
 ```
 
@@ -289,8 +287,9 @@ D6. ForRocket 比較検証                [ForRocket]           1週間
 | フェアリング FEM (1ケース) | ~8分 | frontale | C3D10, 2.7M DOF |
 | GNN 学習 (100 epochs) | ~30分 | vancouver02 | RTX 4090 |
 | FNO 学習 (200 epochs) | ~2時間 | vancouver02 | RTX 4090 |
-| 全段統合シミュ (1回) | ~10秒 | ローカル | サロゲート使用時 |
-| Monte Carlo (1000回) | ~3時間 | ローカル | 並列化可能 |
+| 6DOF シミュ (1回, dt=0.1) | ~3秒 | ローカル | RK4, 1274行 |
+| Monte Carlo (30回, dt=0.1) | ~90秒 | ローカル | 並列化可能 |
+| Monte Carlo (1000回) | ~50分 | ローカル | 並列化可能 |
 
 ---
 
@@ -302,12 +301,14 @@ D6. ForRocket 比較検証                [ForRocket]           1週間
 | **Lv2** | イベント再現: SRB/フェアリング/段間分離 | ✅ 達成 (Phase B) |
 | **Lv3** | Max-Q ±20%: 46.5 kPa (実機 ~40-50 kPa) | ✅ 達成 |
 | **Lv4** | 推進忠実度: LE-9 推力・Isp が公称値 ±3% | ✅ 達成 |
-| **Lv5** | 6DOF 高忠実度: RocketPy/JSBSim 統合 | TODO (Phase C) |
-| **Lv6** | 空力忠実度: CFD テーブル差替え ±10% | TODO (Phase C) |
-| **Lv7** | SHM 統合: GNN → ベイズ推論リアルタイム | TODO (Phase C) |
-| **Lv8** | Open MCT ダッシュボード動作 | TODO (Phase D) ★ |
-| **Lv9** | CesiumJS 3D 軌道 + Three.js 構造可視化 | TODO (Phase D) |
-| **Lv10** | 再利用拡張: 1段回収シナリオ | TODO (Phase D) |
+| **Lv5** | 6DOF 高忠実度: クォータニオン + WGS84/J2 | ✅ 達成 (Phase C) |
+| **Lv6** | Monte Carlo 分散: 推力/Isp/Cd/質量/方位角 | ✅ 達成 (Phase C) |
+| **Lv7** | 3D ダッシュボード: CesiumJS + Plotly | WIP (Phase C) |
+| **Lv8** | 空力忠実度: CFD テーブル差替え ±10% | TODO (Phase D) |
+| **Lv9** | SHM 統合: GNN → ベイズ推論リアルタイム | TODO (Phase D) |
+| **Lv10** | Open MCT ダッシュボード動作 | TODO (Phase D) ★ |
+| **Lv11** | Three.js 構造 3D + GNN-SHM 可視化 | TODO (Phase D) |
+| **Lv12** | 再利用拡張: 1段回収シナリオ | TODO (Phase D) |
 
 ---
 
