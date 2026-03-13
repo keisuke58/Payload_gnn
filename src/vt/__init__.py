@@ -5,6 +5,7 @@ from .aerodynamics import H3Aerodynamics, H3Geometry, atmosphere_isa
 from .aerothermal import H3Aerothermal, FairingGeometry, TPSMaterial
 from .attitude_control import H3AttitudeController, PIDController, GravityTurnProfile
 from .orchestrator import H3FlightOrchestrator, FlightState, FlightEvent
+from .sixdof import H3SixDOF, H3MonteCarlo, MCDispersion
 
 __all__ = [
     # Propulsion (A1-A4)
@@ -17,4 +18,6 @@ __all__ = [
     "H3AttitudeController", "PIDController", "GravityTurnProfile",
     # Orchestrator (B1-B4)
     "H3FlightOrchestrator", "FlightState", "FlightEvent",
+    # 6DOF Simulator (C1-C3)
+    "H3SixDOF", "H3MonteCarlo", "MCDispersion",
 ]
