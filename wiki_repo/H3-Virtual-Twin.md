@@ -147,61 +147,75 @@ class H3VirtualTwin:
 
 ## 4. 開発ロードマップ
 
-### Phase A: 基盤モジュール (2026 Q2) — 3ヶ月
+### Phase A: 基盤モジュール — ✅ 完了
 
 ```
-A1. LE-9 1D サイクル解析              [cea + bamboo]        2週間
-    └ エキスパンダーブリード、推力・Isp・温度プロファイル
-A2. SRB-3 推力プロファイル             [PyBurn or table]     1週間
-    └ 推力-時間曲線、燃焼圧力
-A3. LE-5B-3 特性                     [cea]                 1週間
-A4. H3 外部空力テーブル               [OpenFOAM-ToolChain]  3週間
-    └ Cd, Cn vs Mach, alpha (亜音速〜超音速)
-A5. 1D 空力加熱モデル                 [Sutton-Graves]       1週間
-    └ ノーズコーン/フェアリング表面温度
-A6. 姿勢制御 (PID baseline)           [gncpy]              2週間
-    └ ピッチ/ヨー PID + ジンバル角制限
+A1. LE-9 1D サイクル解析              ✅ src/vt/propulsion.py
+    └ エキスパンダーブリード、推力・Isp・温度プロファイル、Bartz熱解析
+A2. SRB-3 推力プロファイル             ✅ src/vt/propulsion.py
+    └ 台形推力プロファイル、高度 Isp 補間
+A3. LE-5B-3 特性                     ✅ src/vt/propulsion.py
+    └ 再着火可能、真空エンジンモデル
+A4. H3 外部空力テーブル               ✅ src/vt/aerodynamics.py
+    └ Cd/Cn/Cp vs Mach×α (33点×11点)、ISA大気モデル
+A5. 1D 空力加熱モデル                 ✅ src/vt/aerothermal.py
+    └ Sutton-Graves + Tauber-Sutton + lumped capacitance
+A6. 姿勢制御 PID                     ✅ src/vt/attitude_control.py
+    └ 3軸PID + TVC ジンバル + 重力ターン + RCS
 ```
 
-**成果物**: 各モジュールの Python クラス + 単体テスト
-
-### Phase B: 統合オーケストレーター (2026 Q3) — 2ヶ月
+### Phase B: 統合オーケストレーター — ✅ 完了
 
 ```
-B1. Flight Orchestrator 実装          [新規]               3週間
-    └ 時系列イベント管理 + 状態遷移
-B2. イベント: SRB 分離                 [EXUDYN]             2週間
-    └ 衝撃応答 + 姿勢外乱
-B3. イベント: 段間分離                  [pydy/EXUDYN]        2週間
-B4. 全段統合テスト                     [統合]               1週間
-    └ T-0 → SECO の一気通貫実行
+B1. Flight Orchestrator               ✅ src/vt/orchestrator.py
+    └ 7イベント管理 + テレメトリ記録 + ミッションサマリー
+B2. SRB 分離イベント                   ✅ (質量投棄 + 姿勢外乱)
+B3. 段間分離イベント                   ✅ (2段質量設定 + 姿勢再同期)
+B4. 全段統合テスト                     ✅ H3-22S: Max-Q 46.5kPa, V_SECO=8.4km/s
 ```
 
-**成果物**: `h3_virtual_twin.py` 動作
-
-### Phase C: 高忠実度化 (2026 Q4) — 3ヶ月
+### Phase C: 高忠実度化 + OSS 活用 (2026 Q3-Q4)
 
 ```
-C1. LE-9 ノズル CFD                   [OpenFOAM/RD_107]    1ヶ月
-    └ 3D RANS ノズル内流れ → 推力補正
-C2. フェアリング分離 CFD-Structure      [Abaqus+OpenFOAM]    1ヶ月
+C1. RocketPy 6DOF 統合               [RocketPy]            2週間
+    └ 現行 3DOF → RocketPy 6DOF に差替え、風・モンテカルロ
+C2. JSBSim 飛行力学                   [jsbsim]              2週間
+    └ NASA 由来の高忠実度飛行力学エンジン (Python binding)
+C3. OpenTsiolkovsky 参考実装          [OpenTsiolkovsky]     1週間
+    └ インターステラテクノロジズの 3DOF/6DOF (Rust+WASM)
+C4. 確率的 SHM デジタルツイン          [UAV-Digital-Twin]    3週間
+    └ ベイズ推論で GNN-SHM 結果を飛行中に逐次更新
+C5. LE-9 ノズル CFD                   [OpenFOAM/SU2]       1ヶ月
+    └ 3D RANS → 推力補正テーブル
+C6. フェアリング分離 CFD-Structure     [Abaqus+OpenFOAM]    1ヶ月
     └ 空力荷重 + 構造応答の連成
-C3. スロッシング                       [OpenFOAM VOF]       2週間
-    └ LOX/LH2 タンク内動揺 → 重心移動
-C4. Monte Carlo 落下分散               [RocketPy]           2週間
+C7. AeroVECTOR TVC 検証               [AeroVECTOR]         1週間
+    └ アクティブ制御 SIL テスト
+C8. Monte Carlo 落下分散              [RocketPy/MAPLEAF]    2週間
     └ 風・推力偏差・分離タイミング不確実性
-C5. SHM リアルタイム統合               [GNN + FNO]          2週間
-    └ 飛行中の構造診断ダッシュボード
+C9. SHM リアルタイム統合              [GNN + FNO]           2週間
+    └ 飛行中の構造診断パイプライン
 ```
 
-### Phase D: 可視化 + デモ (2027 Q1)
+### Phase D: ダッシュボード + 可視化 (2027 Q1)
 
 ```
-D1. 3D リアルタイム可視化              [Three.js or Unity]
-    └ 飛行状態のウェブダッシュボード
-D2. Google Earth 連動                  [KML リアルタイム]
-D3. 再利用シナリオ                     [G-FOLD + RL]
+D1. NASA Open MCT ダッシュボード       [openmct]            3週間 ★
+    └ NASA 公式ミッション管制フレームワーク (12,830★)
+    └ テレメトリ表示、タイムライン、プラグイン拡張
+    └ 推進/空力/構造/熱のリアルタイムパネル
+D2. CesiumJS 3D 軌道可視化            [CesiumJS]           2週間
+    └ 3D 地球上に軌道表示 (FlightClub 方式)
+    └ CZML で時系列アニメーション
+D3. Three.js 構造 3D モデル            [Three.js]           2週間
+    └ フェアリング断面の応力/温度マップ
+    └ GNN-SHM 推論結果のリアルタイム表示
+D4. Takram H3 FIP 参考実装            [参考: JAXA実機]      ─
+    └ 速度/高度/軌道の統合表示 (計画 vs 実績)
+D5. 再利用シナリオ                     [G-FOLD + RL]        2週間
     └ 1段回収のバーチャルツイン拡張
+D6. ForRocket 比較検証                [ForRocket]           1週間
+    └ 日本人開発 6DOF で結果クロスチェック
 ```
 
 ---
@@ -209,28 +223,57 @@ D3. 再利用シナリオ                     [G-FOLD + RL]
 ## 5. 技術スタック
 
 ```
-   Simulation Core           ML/AI Layer           Visualization
-┌────────────────┐    ┌──────────────────┐    ┌─────────────┐
-│ Abaqus 2024    │    │ PyTorch 2.10     │    │ Google Earth│
-│ OpenFOAM       │    │ PyG 2.7          │    │ ParaView    │
-│ SU2            │    │ FNO (neuralop)   │    │ Matplotlib  │
-│ NASA CEA       │    │ PennyLane (QC)   │    │ TensorBoard │
-│ CVXPY          │    │ GNN (GCN/GAT)    │    │ Three.js    │
-│ scipy          │    │ PINN             │    │ KML/KMZ     │
-│ poliastro      │    │ Foundation Model │    └─────────────┘
-│ RocketPy       │    └──────────────────┘
-│ EXUDYN         │
-└────────────────┘
+   Simulation Core            ML/AI Layer            Dashboard / Viz
+┌──────────────────┐    ┌──────────────────┐    ┌───────────────────┐
+│ Abaqus 2024      │    │ PyTorch 2.10     │    │ NASA Open MCT ★   │
+│ OpenFOAM / SU2   │    │ PyG 2.7          │    │ CesiumJS (3D地球) │
+│ NASA CEA         │    │ FNO (neuralop)   │    │ Three.js (構造3D) │
+│ CVXPY            │    │ GNN (GCN/GAT)    │    │ Plotly / Dash     │
+│ RocketPy (6DOF)  │    │ PennyLane (QC)   │    │ Google Earth/KML  │
+│ JSBSim (6DOF)    │    │ PINN             │    │ ParaView          │
+│ EXUDYN           │    │ Foundation Model │    │ TensorBoard       │
+│ poliastro        │    │ Bayesian SHM     │    └───────────────────┘
+│ ForRocket        │    └──────────────────┘
+│ OpenTsiolkovsky  │
+│ AeroVECTOR (TVC) │
+│ MAPLEAF (batch)  │
+└──────────────────┘
+
+   OSS リポジトリ (papers/repos/ : 37 個)
+┌──────────────────────────────────────────────────────┐
+│ ★ openmct (NASA, 12,830★)  : ミッション管制ダッシュボード │
+│ ★ jsbsim (NASA, 1,938★)    : 飛行力学エンジン          │
+│ ★ RocketPy (898★)          : 6DOF + Monte Carlo       │
+│ ★ UAV-Digital-Twin (MIT)    : 確率的 SHM デジタルツイン  │
+│ ★ OpenTsiolkovsky (IST)     : 日本ロケット会社 OSS      │
+│ ★ ForRocket (日本)          : 6DOF シミュレータ         │
+│ ★ AeroVECTOR (166★)        : TVC + アクティブ制御       │
+│   simupy-flight (NASA)      : SimuPy 飛行力学          │
+│   Launch-Dashboard-API       : テレメトリ API 参考       │
+│   MAPLEAF, EXUDYN, gncpy, gfold-py, SU2, ...         │
+└──────────────────────────────────────────────────────┘
 
    Compute                    Data Flow
-┌────────────────┐    ┌──────────────────────────┐
-│ frontale01-04  │    │ INP → ODB → CSV → Graph  │
-│  (Abaqus, CFD) │    │        → PyG → GNN/FNO   │
-│ vancouver01-02 │    │                           │
-│  (GPU×4 学習)   │    │ CEA → thrust table → ODE │
-│ fifawc (local) │    │ CFD → aero table → lookup │
-└────────────────┘    └──────────────────────────┘
+┌────────────────┐    ┌──────────────────────────────────┐
+│ frontale01-04  │    │ INP → ODB → CSV → Graph          │
+│  (Abaqus, CFD) │    │        → PyG → GNN/FNO           │
+│ vancouver01-02 │    │                                   │
+│  (GPU×4 学習)   │    │ CEA → thrust table → ODE         │
+│ fifawc (local) │    │ CFD → aero table → lookup         │
+│                │    │ GNN inference → Bayesian update   │
+│                │    │ All telemetry → Open MCT → web    │
+└────────────────┘    └──────────────────────────────────┘
 ```
+
+### 参考システム
+
+| 名称 | 開発元 | 概要 | 参考度 |
+|------|--------|------|--------|
+| **H3 FIP** | Takram + JAXA | H3 実機の飛行状態表示システム。3D地球+軌道+テレメトリ | ★★★ |
+| **FlightClub.io** | Community | CesiumJS ベースの打上げ軌道シミュレータ・可視化 | ★★★ |
+| **NASA DT Paradigm** | NASA/USAF (AIAA 2012-1818) | デジタルツイン概念の原典論文 | ★★★ |
+| **JAXA JEDI** | JAXA | LS-Flow CFD + JSS スパコンによる H3 数値シミュレーション | ★★ |
+| **DLR MODELICA** | DLR/ESA | 再利用ロケットのマルチボディ統合シミュレーション | ★★ |
 
 ---
 
@@ -253,15 +296,18 @@ D3. 再利用シナリオ                     [G-FOLD + RL]
 
 ## 7. 成功指標
 
-| レベル | 基準 | 目標時期 |
-|--------|------|---------|
-| **Lv1** | 全段統合: T-0→SECO の軌道が実機データに ±5% | 2026 Q3 |
-| **Lv2** | イベント再現: SRB/フェアリング分離の動的応答 | 2026 Q4 |
-| **Lv3** | 推進忠実度: LE-9 推力・Isp が公称値 ±3% | 2026 Q4 |
-| **Lv4** | 空力忠実度: Cd が風洞データ ±10% | 2026 Q4 |
-| **Lv5** | SHM 統合: 飛行中の構造健全性リアルタイム推定 | 2027 Q1 |
-| **Lv6** | 再利用拡張: 1段回収シナリオの統合シミュ | 2027 Q1 |
-| **Lv7** | デモ: ウェブダッシュボードでの3D可視化 | 2027 Q1 |
+| レベル | 基準 | 状態 |
+|--------|------|------|
+| **Lv1** | 全段統合: T-0→SECO 一気通貫実行 | ✅ 達成 (Phase B) |
+| **Lv2** | イベント再現: SRB/フェアリング/段間分離 | ✅ 達成 (Phase B) |
+| **Lv3** | Max-Q ±20%: 46.5 kPa (実機 ~40-50 kPa) | ✅ 達成 |
+| **Lv4** | 推進忠実度: LE-9 推力・Isp が公称値 ±3% | ✅ 達成 |
+| **Lv5** | 6DOF 高忠実度: RocketPy/JSBSim 統合 | TODO (Phase C) |
+| **Lv6** | 空力忠実度: CFD テーブル差替え ±10% | TODO (Phase C) |
+| **Lv7** | SHM 統合: GNN → ベイズ推論リアルタイム | TODO (Phase C) |
+| **Lv8** | Open MCT ダッシュボード動作 | TODO (Phase D) ★ |
+| **Lv9** | CesiumJS 3D 軌道 + Three.js 構造可視化 | TODO (Phase D) |
+| **Lv10** | 再利用拡張: 1段回収シナリオ | TODO (Phase D) |
 
 ---
 
