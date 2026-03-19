@@ -878,8 +878,294 @@ def setup_outputs(model):
 
 
 # ==============================================================================
-# INP POST-PROCESSING
+# INP POST-PROCESSING — SEPARATION MECHANISM
 # ==============================================================================
+
+def add_separation_to_inp(assembly, instances, inp_path,
+                           n_stuck_bolts=0, stuck_bolt_indices=None):
+    """Post-process INP: add CONN3D2 connector elements for separation.
+
+    Creates:
+    1. Seam connectors (Q1 ↔ Q2 at theta=0°) — pyro-cord
+    2. Bottom bolt connectors (Q1/Q2 InnerSkin ↔ Adapter) — frangible bolts
+    3. MODEL CHANGE in Step-Separation to remove them
+    4. CLOAD opening forces in Step-Separation
+
+    Uses CONN3D2 'Join' connectors (rigid link, all DOFs constrained).
+    These can be removed via *MODEL CHANGE, TYPE=ELEMENT, REMOVE.
+    """
+
+    # --- 1. Find seam node pairs (Q1 ↔ Q2 at shared edge) ---
+    # Seam is at theta=0° in global: x ≈ R, z ≈ 0
+    seam_pairs = []
+    for suffix in ['InnerSkin', 'OuterSkin']:
+        q1 = instances['Q1-%s' % suffix]
+        q2 = instances['Q2-%s' % suffix]
+
+        # Q1 edge nodes at theta=0°: x > 0.8*R, |z| < mesh_seed
+        q1_by_y = {}
+        for node in q1.nodes:
+            x, y, z = node.coordinates
+            if x > RADIUS * 0.8 and abs(z) < MESH_SEED_DEFAULT:
+                y_key = int(round(y))
+                if y_key not in q1_by_y or abs(z) < abs(q1_by_y[y_key][3]):
+                    q1_by_y[y_key] = (node.label, x, y, z)
+
+        # Q2 edge nodes (after 90° rotation, its end is also at x ≈ R, z ≈ 0)
+        q2_by_y = {}
+        for node in q2.nodes:
+            x, y, z = node.coordinates
+            if x > RADIUS * 0.8 and abs(z) < MESH_SEED_DEFAULT:
+                y_key = int(round(y))
+                if y_key not in q2_by_y or abs(z) < abs(q2_by_y[y_key][3]):
+                    q2_by_y[y_key] = (node.label, x, y, z)
+
+        for y_key in sorted(q1_by_y.keys()):
+            if y_key in q2_by_y:
+                seam_pairs.append(('Q1-%s' % suffix, q1_by_y[y_key][0],
+                                   'Q2-%s' % suffix, q2_by_y[y_key][0]))
+
+    print("    Seam pairs: %d" % len(seam_pairs))
+
+    # --- 2. Find bolt node pairs (Q1/Q2 bottom ↔ Adapter) ---
+    bolt_pairs = []
+
+    if 'Adapter' in instances:
+        adapter = instances['Adapter']
+        # Adapter top edge (y ≈ BARREL_Z_MIN = 0)
+        ad_nodes = []
+        for node in adapter.nodes:
+            x, y, z = node.coordinates
+            if abs(y - BARREL_Z_MIN) < 5.0:
+                ad_nodes.append((node.label, x, y, z))
+
+        for qid in ['Q1', 'Q2']:
+            inst = instances['%s-InnerSkin' % qid]
+            used_adapter = set()
+            for node in inst.nodes:
+                x, y, z = node.coordinates
+                if abs(y - BARREL_Z_MIN) < 5.0:
+                    # Find closest adapter node
+                    best_d = 1e30
+                    best_ad = None
+                    for ad_l, ad_x, ad_y, ad_z in ad_nodes:
+                        if ad_l in used_adapter:
+                            continue
+                        d = math.sqrt((x - ad_x)**2 +
+                                      (y - ad_y)**2 +
+                                      (z - ad_z)**2)
+                        if d < best_d:
+                            best_d = d
+                            best_ad = ad_l
+                    if best_ad and best_d < MESH_SEED_DEFAULT * 2:
+                        bolt_pairs.append(('%s-InnerSkin' % qid, node.label,
+                                          'Adapter', best_ad))
+                        used_adapter.add(best_ad)
+
+    print("    Bolt pairs: %d" % len(bolt_pairs))
+
+    # --- 3. Determine stuck bolts ---
+    stuck_set = set()
+    if n_stuck_bolts > 0 and len(bolt_pairs) > 0:
+        if stuck_bolt_indices is None:
+            step = max(1, len(bolt_pairs) // (n_stuck_bolts + 1))
+            stuck_bolt_indices = [min((i + 1) * step, len(bolt_pairs) - 1)
+                                  for i in range(n_stuck_bolts)]
+        stuck_set = set(stuck_bolt_indices)
+        print("    Stuck bolt indices: %s" % list(stuck_set))
+
+    # --- 4. Find opening force nodes ---
+    spring_nodes = []  # (instance_name, node_label, force_z)
+    total_force = SPRING_PRELOAD * N_SPRINGS_PER_HALF
+
+    for qid, force_sign in [('Q1', 1.0), ('Q2', -1.0)]:
+        inst = instances['%s-InnerSkin' % qid]
+        bottom = []
+        for node in inst.nodes:
+            x, y, z = node.coordinates
+            if abs(y - BARREL_Z_MIN) < 5.0:
+                theta = math.atan2(z, x)
+                bottom.append((node.label, theta, z))
+
+        if bottom:
+            # Sort by theta, pick nodes away from seam (near sector midpoint)
+            bottom.sort(key=lambda n: n[1])
+            n_force = min(4, len(bottom))
+            step_f = max(1, len(bottom) // (n_force + 1))
+            force_per_node = total_force / n_force
+            for i in range(n_force):
+                idx = min((i + 1) * step_f, len(bottom) - 1)
+                nid = bottom[idx][0]
+                spring_nodes.append(('%s-InnerSkin' % qid, nid,
+                                     force_sign * force_per_node))
+
+    print("    Opening force nodes: %d (%.0f N total per half)" % (
+        len(spring_nodes), total_force))
+
+    # --- 5. Build element definitions ---
+    eid = 200001
+    all_conn_lines = []
+    release_ids = []
+
+    # Bolt elements
+    for i, (i1, n1, i2, n2) in enumerate(bolt_pairs):
+        all_conn_lines.append('%d, %s.%d, %s.%d\n' % (eid, i1, n1, i2, n2))
+        if i not in stuck_set:
+            release_ids.append(eid)
+        eid += 1
+
+    # Pyro/seam elements (all released)
+    for i1, n1, i2, n2 in seam_pairs:
+        all_conn_lines.append('%d, %s.%d, %s.%d\n' % (eid, i1, n1, i2, n2))
+        release_ids.append(eid)
+        eid += 1
+
+    n_total = len(all_conn_lines)
+    n_release = len(release_ids)
+    print("    Total connectors: %d (release: %d, stuck: %d)" % (
+        n_total, n_release, n_total - n_release))
+
+    if n_total == 0:
+        print("    WARNING: No connector pairs found!")
+        return
+
+    # --- 6. Build INP injection blocks ---
+
+    # Strategy for Abaqus/Explicit (no *MODEL CHANGE):
+    #   - Release connectors: use CONN-RELEASE behavior with DAMAGE
+    #     (force-based damage initiation → break under opening force)
+    #   - Stuck connectors: use CONN-STUCK behavior (no damage, rigid)
+    #
+    # *Connector Behavior goes at MODEL level (before *Assembly or after *End Assembly)
+    # *Connector Section + *Element go at ASSEMBLY level (inside *Assembly block)
+
+    # Block M: Model-level connector behaviors (after *End Assembly)
+    block_m = []
+    block_m.append('**\n')
+    block_m.append('** ========== CONNECTOR BEHAVIORS ==========\n')
+
+    # Releasable behavior: stiff spring + damage
+    block_m.append('*Connector Behavior, name=CONN-BEH-RELEASE\n')
+    block_m.append('*Connector Elasticity, component=1\n')
+    block_m.append('1.0e6\n')
+    block_m.append('*Connector Elasticity, component=2\n')
+    block_m.append('1.0e6\n')
+    block_m.append('*Connector Elasticity, component=3\n')
+    block_m.append('1.0e6\n')
+    block_m.append('*Connector Damage Initiation, component=1\n')
+    block_m.append('100.0\n')
+    block_m.append('*Connector Damage Evolution, type=energy\n')
+    block_m.append('0.001\n')
+    block_m.append('*Connector Damage Initiation, component=2\n')
+    block_m.append('100.0\n')
+    block_m.append('*Connector Damage Evolution, type=energy\n')
+    block_m.append('0.001\n')
+    block_m.append('*Connector Damage Initiation, component=3\n')
+    block_m.append('100.0\n')
+    block_m.append('*Connector Damage Evolution, type=energy\n')
+    block_m.append('0.001\n')
+
+    # Stuck behavior: very stiff, no damage
+    block_m.append('*Connector Behavior, name=CONN-BEH-STUCK\n')
+    block_m.append('*Connector Elasticity, component=1\n')
+    block_m.append('1.0e8\n')
+    block_m.append('*Connector Elasticity, component=2\n')
+    block_m.append('1.0e8\n')
+    block_m.append('*Connector Elasticity, component=3\n')
+    block_m.append('1.0e8\n')
+    block_m.append('** ==========================================\n')
+
+    # Block A: Assembly-level elements + sections (before *End Assembly)
+    release_conn_lines = []
+    stuck_conn_lines = []
+    release_ids_set = set(release_ids)
+    eid_check = 200001
+    for line in all_conn_lines:
+        if eid_check in release_ids_set:
+            release_conn_lines.append(line)
+        else:
+            stuck_conn_lines.append(line)
+        eid_check += 1
+
+    block_a = []
+    block_a.append('**\n')
+    block_a.append('** ========== SEPARATION CONNECTORS ==========\n')
+
+    if release_conn_lines:
+        block_a.append('*Element, type=CONN3D2, elset=CONN-RELEASE\n')
+        block_a.extend(release_conn_lines)
+        block_a.append('*Connector Section, elset=CONN-RELEASE, behavior=CONN-BEH-RELEASE\n')
+        block_a.append('Cartesian,\n')
+
+    if stuck_conn_lines:
+        block_a.append('*Element, type=CONN3D2, elset=CONN-STUCK\n')
+        block_a.extend(stuck_conn_lines)
+        block_a.append('*Connector Section, elset=CONN-STUCK, behavior=CONN-BEH-STUCK\n')
+        block_a.append('Cartesian,\n')
+
+    block_a.append('** ==========================================\n')
+
+    # Block B: Opening forces in Step-Separation (after *Dynamic)
+    # Note: *MODEL CHANGE is NOT available in Abaqus/Explicit.
+    # Instead, we use *CONNECTOR DAMAGE to break connectors at separation.
+    # The damage is defined in Block A with the connector section.
+    block_b = []
+    if spring_nodes:
+        block_b.append('**\n')
+        block_b.append('** --- Opening spring forces ---\n')
+        block_b.append('*Cload\n')
+        for inst_name, nid, fz in spring_nodes:
+            block_b.append('%s.%d, 3, %.1f\n' % (inst_name, nid, fz))
+    block_b.append('**\n')
+
+    # --- 7. Read and modify INP ---
+    with open(inp_path, 'r') as f:
+        lines = f.readlines()
+
+    # Find *End Assembly
+    end_asm = None
+    for i, line in enumerate(lines):
+        if '*End Assembly' in line:
+            end_asm = i
+            break
+
+    if end_asm is None:
+        print("    ERROR: *End Assembly not found")
+        return
+
+    # Insert Block A before *End Assembly
+    lines = lines[:end_asm] + block_a + lines[end_asm:]
+
+    # Insert Block M (connector behaviors) after *End Assembly
+    # *End Assembly is now shifted by len(block_a)
+    end_asm_new = end_asm + len(block_a)
+    lines = lines[:end_asm_new + 1] + block_m + lines[end_asm_new + 1:]
+
+    # Find Step-Separation and insert Block B after *Dynamic + parameters
+    if block_b:
+        for i in range(len(lines)):
+            if '*Step, name=Step-Separation' in lines[i]:
+                for j in range(i + 1, min(i + 15, len(lines))):
+                    if lines[j].strip().startswith('*Dynamic'):
+                        # Skip past *Dynamic line AND its parameter line(s)
+                        # Parameter lines start with comma or number
+                        insert_at = j + 1
+                        while insert_at < len(lines):
+                            stripped = lines[insert_at].strip()
+                            if stripped.startswith(',') or (stripped and stripped[0].isdigit()):
+                                insert_at += 1
+                            else:
+                                break
+                        lines = lines[:insert_at] + block_b + lines[insert_at:]
+                        break
+                break
+
+    with open(inp_path, 'w') as f:
+        f.writelines(lines)
+
+    print("    INP post-processed: %d connectors, %d release" % (
+        n_total, n_release))
+
 
 def inject_separation_inp(inp_path, bolt_info, pyro_info,
                           separation_params):
@@ -1059,10 +1345,10 @@ def generate_model(job_name,
     inp_path = os.path.join(inp_dir, job_name + '.inp')
     print("  INP written: %s" % inp_path)
 
-    # Note: bolt/pyro connectors are created via INP post-processing
-    # because the CAE API for assembly-level wire connectors is fragile.
-    # For Step 2a, we use direct node-to-node MPC instead.
-    # Full connector implementation will be in Phase 2.
+    # 8b. Post-process INP: add separation mechanism
+    print("[8b/9] Adding separation mechanism (INP post-processing)...")
+    add_separation_to_inp(assembly, instances, inp_path,
+                           n_stuck_bolts, stuck_bolt_indices)
 
     if not no_run:
         print("\nSubmitting job: %s" % job_name)
