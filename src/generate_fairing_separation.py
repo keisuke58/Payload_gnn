@@ -36,6 +36,7 @@ import json
 from abaqus import *
 from abaqusConstants import *
 from caeModules import *
+from section import SectionLayer
 import mesh
 import regionToolset
 
@@ -187,14 +188,12 @@ def create_materials(model):
                 CFRP_NU12, CFRP_NU12, 0.3,
                 CFRP_G12, CFRP_G13, CFRP_G23),))
 
-    # Honeycomb core
+    # Honeycomb core — isotropic approximation for separation dynamics
+    # (Anisotropic ENGINEERING_CONSTANTS requires MaterialOrientation on each
+    #  core part; we simplify here since separation kinematics dominate.)
     mat_core = model.Material(name='Mat-Honeycomb')
     mat_core.Density(table=((CORE_DENSITY,),))
-    mat_core.Elastic(
-        type=ENGINEERING_CONSTANTS,
-        table=((E_CORE_1, E_CORE_2, E_CORE_3,
-                NU_CORE_12, NU_CORE_13, NU_CORE_23,
-                G_CORE_12, G_CORE_13, G_CORE_23),))
+    mat_core.Elastic(table=((E_CORE_1, NU_CORE_12),))
 
     # Aluminum (adapter, frames)
     mat_al = model.Material(name='Mat-Al7075')
@@ -213,8 +212,8 @@ def create_materials(model):
 
 def create_sections(model):
     """Create composite shell + solid sections."""
-    # Inner skin — composite layup (assigned per part later)
-    # Outer skin — composite layup
+    # Inner skin — composite layup (assigned per part later via assign_sections)
+    # Outer skin — composite layup (assigned per part later via assign_sections)
     # Core — solid homogeneous
 
     model.HomogeneousSolidSection(
@@ -223,6 +222,80 @@ def create_sections(model):
     model.HomogeneousShellSection(
         name='Sec-Adapter', material='Mat-Al7075',
         thickness=ADAPTER_T)
+
+    # CFRP shell section (fallback for simple assignment)
+    model.HomogeneousShellSection(
+        name='Sec-CFRP-Skin', material='Mat-CFRP',
+        thickness=FACE_T)
+
+
+def assign_sections(model, parts_Q1, parts_Q2, p_adapter, p_pss=None):
+    """Assign section properties to all parts.
+
+    Must be called AFTER geometry creation and BEFORE meshing/ties.
+    Shell skins get CFRP shell section, cores get solid section,
+    adapter gets Al shell section.
+    """
+    # Quarter shell skins and cores
+    for qid, parts in [('Q1', parts_Q1), ('Q2', parts_Q2)]:
+        p_inner, p_core, p_outer = parts
+
+        # Inner skin — CFRP shell section
+        region_inner = p_inner.Set(
+            name='Set-All', faces=p_inner.faces)
+        p_inner.SectionAssignment(
+            region=region_inner, sectionName='Sec-CFRP-Skin',
+            offset=0.0, offsetType=MIDDLE_SURFACE,
+            offsetField='', thicknessAssignment=FROM_SECTION)
+
+        # Outer skin — CFRP shell section
+        region_outer = p_outer.Set(
+            name='Set-All', faces=p_outer.faces)
+        p_outer.SectionAssignment(
+            region=region_outer, sectionName='Sec-CFRP-Skin',
+            offset=0.0, offsetType=MIDDLE_SURFACE,
+            offsetField='', thicknessAssignment=FROM_SECTION)
+
+        # Core — solid section
+        region_core = p_core.Set(
+            name='Set-All', cells=p_core.cells)
+        p_core.SectionAssignment(
+            region=region_core, sectionName='Sec-Core',
+            offset=0.0, offsetType=MIDDLE_SURFACE,
+            offsetField='', thicknessAssignment=FROM_SECTION)
+
+    # Adapter ring
+    region_adapter = p_adapter.Set(
+        name='Set-All', faces=p_adapter.faces)
+    p_adapter.SectionAssignment(
+        region=region_adapter, sectionName='Sec-Adapter',
+        offset=0.0, offsetType=MIDDLE_SURFACE,
+        offsetField='', thicknessAssignment=FROM_SECTION)
+
+    # PSS (if included)
+    if p_pss is not None:
+        p_pss_inner, p_pss_core, p_pss_outer = p_pss
+
+        region_pi = p_pss_inner.Set(
+            name='Set-All', faces=p_pss_inner.faces)
+        p_pss_inner.SectionAssignment(
+            region=region_pi, sectionName='Sec-CFRP-Skin',
+            offset=0.0, offsetType=MIDDLE_SURFACE,
+            offsetField='', thicknessAssignment=FROM_SECTION)
+
+        region_po = p_pss_outer.Set(
+            name='Set-All', faces=p_pss_outer.faces)
+        p_pss_outer.SectionAssignment(
+            region=region_po, sectionName='Sec-CFRP-Skin',
+            offset=0.0, offsetType=MIDDLE_SURFACE,
+            offsetField='', thicknessAssignment=FROM_SECTION)
+
+        region_pc = p_pss_core.Set(
+            name='Set-All', cells=p_pss_core.cells)
+        p_pss_core.SectionAssignment(
+            region=region_pc, sectionName='Sec-Core',
+            offset=0.0, offsetType=MIDDLE_SURFACE,
+            offsetField='', thicknessAssignment=FROM_SECTION)
 
 
 def _create_composite_layup(part, section_name, region):
@@ -687,12 +760,13 @@ def create_pyro_connectors(model, assembly, z_min, z_max, spacing):
 def create_steps(model, t_preload, t_separation):
     """Create analysis steps."""
     # Step 1: Preload (gravity + aerodynamic pressure)
+    # Mass scaling: target dt = DT_PRELOAD_SCALE for quasi-static preload
     model.ExplicitDynamicsStep(
         name='Step-Preload',
         previous='Initial',
         timePeriod=t_preload,
         massScaling=((SEMI_AUTOMATIC, MODEL, AT_BEGINNING,
-                       DT_PRELOAD_SCALE, 0.0, None, 0, 0, 0.0, 0.0,
+                       0.0, DT_PRELOAD_SCALE, None, 0, 0, 0.0, 0.0,
                        0, None),),
         description='Quasi-static preload: gravity + pressure')
 
@@ -947,6 +1021,10 @@ def generate_model(job_name,
         print("[3b/9] Creating PSS (R=%.0f mm, H=%.0f mm)..." % (
             PSS_RADIUS, PSS_HEIGHT))
         p_pss = create_pss(model, sweep_angle=360.0)
+
+    # 3c. Assign section properties to all parts
+    print("[3c/9] Assigning section properties...")
+    assign_sections(model, parts_Q1, parts_Q2, p_adapter, p_pss)
 
     # 4. Assembly
     print("[4/9] Assembling...")
