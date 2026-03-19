@@ -144,6 +144,41 @@ def mask_features(x, mask_rate):
     return x * mask.float()
 
 
+def node_drop(data, drop_rate):
+    """Randomly drop nodes and their edges during training.
+
+    Useful for large graphs to create varied subgraph views.
+    Preserves at least 50% of nodes to maintain graph structure.
+    """
+    if drop_rate <= 0:
+        return data
+    n_nodes = data.x.size(0)
+    keep_mask = torch.rand(n_nodes, device=data.x.device) >= drop_rate
+    # Ensure at least 50% kept
+    if keep_mask.sum() < n_nodes // 2:
+        return data
+
+    keep_idx = keep_mask.nonzero(as_tuple=True)[0]
+    # Remap node indices
+    remap = torch.full((n_nodes,), -1, dtype=torch.long, device=data.x.device)
+    remap[keep_idx] = torch.arange(keep_idx.size(0), device=data.x.device)
+
+    # Filter edges
+    src, dst = data.edge_index
+    edge_mask = keep_mask[src] & keep_mask[dst]
+    new_edge_index = remap[data.edge_index[:, edge_mask]]
+
+    data = data.clone()
+    data.x = data.x[keep_idx]
+    data.y = data.y[keep_idx]
+    data.edge_index = new_edge_index
+    if data.edge_attr is not None:
+        data.edge_attr = data.edge_attr[edge_mask]
+    if hasattr(data, 'pos') and data.pos is not None:
+        data.pos = data.pos[keep_idx]
+    return data
+
+
 def circumferential_flip(data):
     """Apply circumferential flip exploiting fairing axial symmetry.
 
@@ -341,6 +376,7 @@ def train_epoch(model, loader, optimizer, criterion, device, num_classes=2,
                 boundary_weight=1.0, defect_weight=1.0,
                 drop_edge_rate=0.0, feature_noise_std=0.0,
                 feature_mask_rate=0.0, flip_prob=0.0,
+                node_drop_rate=0.0,
                 lambda_smooth=0.0, lambda_stress=0.0, lambda_connected=0.0,
                 stress_dim=18):
     model.train()
@@ -353,6 +389,9 @@ def train_epoch(model, loader, optimizer, criterion, device, num_classes=2,
     for batch in loader:
         batch = batch.to(device)
         optimizer.zero_grad()
+        # Augmentation: node drop
+        if node_drop_rate > 0:
+            batch = node_drop(batch, node_drop_rate)
         # Augmentation: circumferential flip
         if flip_prob > 0 and torch.rand(1).item() < flip_prob:
             batch = circumferential_flip(batch)
@@ -648,6 +687,8 @@ def train(args, train_data, val_data, fold=None):
             aug_parts.append("FeatureMask=%.2f" % args.feature_mask)
         if getattr(args, 'augment_flip', 0) > 0:
             aug_parts.append("CircumFlip=%.2f" % args.augment_flip)
+        if getattr(args, 'node_drop', 0) > 0:
+            aug_parts.append("NodeDrop=%.2f" % args.node_drop)
         if aug_parts:
             print("Augmentation: %s" % ', '.join(aug_parts))
         weight_parts = []
@@ -699,6 +740,7 @@ def train(args, train_data, val_data, fold=None):
         fn_std = getattr(args, 'feature_noise', 0.0)
         fm_rate = getattr(args, 'feature_mask', 0.0)
         flip_p = getattr(args, 'augment_flip', 0.0)
+        nd_rate = getattr(args, 'node_drop', 0.0)
         bw = getattr(args, 'boundary_weight', 1.0)
         dw = getattr(args, 'defect_weight', 1.0)
         ls = getattr(args, 'physics_lambda_smooth', 0.0)
@@ -720,6 +762,7 @@ def train(args, train_data, val_data, fold=None):
                                    boundary_weight=bw, defect_weight=dw,
                                    drop_edge_rate=de_rate, feature_noise_std=fn_std,
                                    feature_mask_rate=fm_rate, flip_prob=flip_p,
+                                   node_drop_rate=nd_rate,
                                    lambda_smooth=ls, lambda_stress=lst,
                                    lambda_connected=lc, stress_dim=sd)
         val_m = eval_epoch(model, val_loader, criterion, device, num_classes=num_classes)
@@ -932,6 +975,8 @@ def main():
                         help='Random feature masking rate (0=off)')
     parser.add_argument('--augment_flip', type=float, default=0.0,
                         help='Probability of circumferential flip per batch (0=off)')
+    parser.add_argument('--node_drop', type=float, default=0.0,
+                        help='Node drop rate per batch (0=off, 0.1=drop 10%% of nodes)')
     # Physics-informed loss
     parser.add_argument('--physics_lambda_smooth', type=float, default=0.0,
                         help='Laplacian smoothness loss weight (0=off)')
