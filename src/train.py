@@ -938,7 +938,7 @@ def main():
     parser.add_argument('--output_dir', type=str, default='runs')
     # Model
     parser.add_argument('--arch', type=str, default='gat',
-                        choices=['gcn', 'gat', 'gin', 'sage'])
+                        choices=['gcn', 'gat', 'gin', 'sage', 'lgsta', 'meshgnn', 'gps', 'multiscale'])
     parser.add_argument('--hidden', type=int, default=128)
     parser.add_argument('--layers', type=int, default=4)
     parser.add_argument('--dropout', type=float, default=0.1)

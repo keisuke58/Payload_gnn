@@ -527,6 +527,130 @@ except ImportError:
     _GPS_AVAILABLE = False
 
 
+# =========================================================================
+# MultiScale GNN — Hierarchical graph pooling + unpooling
+# =========================================================================
+try:
+    from torch_geometric.nn import TopKPooling
+    from torch_geometric.utils import to_dense_adj, to_dense_batch
+
+    class MultiScaleGNN(nn.Module):
+        """Multi-scale GNN with hierarchical pooling and unpooling.
+
+        Architecture:
+          Level 0 (full resolution): GATConv layers → node embeddings
+          Level 1 (coarsened 50%):   TopKPooling → GATConv → coarse embeddings
+          Level 2 (coarsened 25%):   TopKPooling → GATConv → global context
+          Unpool: interpolate coarse embeddings back to full resolution
+          Fuse: concatenate local (L0) + upsampled (L1, L2) → classifier
+
+        This captures both local defect patterns and global structural modes,
+        which is critical for detecting debonding that affects mode shapes.
+        """
+
+        def __init__(self, in_channels, hidden_channels=128, num_classes=2,
+                     num_layers=3, dropout=0.1, edge_attr_dim=0,
+                     pool_ratio=0.5, use_residual=False):
+            super().__init__()
+            self.dropout = dropout
+            self.pool_ratio = pool_ratio
+
+            # Level 0: Full resolution encoder
+            self.encoder0 = nn.Sequential(
+                nn.Linear(in_channels, hidden_channels),
+                nn.ReLU(),
+                nn.Linear(hidden_channels, hidden_channels),
+            )
+            self.convs0 = nn.ModuleList()
+            self.norms0 = nn.ModuleList()
+            for _ in range(num_layers):
+                self.convs0.append(GATConv(hidden_channels, hidden_channels // 4,
+                                           heads=4, concat=True, dropout=dropout))
+                self.norms0.append(nn.LayerNorm(hidden_channels))
+
+            # Level 1: Coarsened graph
+            self.pool1 = TopKPooling(hidden_channels, ratio=pool_ratio)
+            self.convs1 = nn.ModuleList()
+            self.norms1 = nn.ModuleList()
+            for _ in range(num_layers):
+                self.convs1.append(GATConv(hidden_channels, hidden_channels // 4,
+                                           heads=4, concat=True, dropout=dropout))
+                self.norms1.append(nn.LayerNorm(hidden_channels))
+
+            # Level 2: Further coarsened
+            self.pool2 = TopKPooling(hidden_channels, ratio=pool_ratio)
+            self.convs2 = nn.ModuleList()
+            self.norms2 = nn.ModuleList()
+            for _ in range(max(1, num_layers - 1)):
+                self.convs2.append(GATConv(hidden_channels, hidden_channels // 4,
+                                           heads=4, concat=True, dropout=dropout))
+                self.norms2.append(nn.LayerNorm(hidden_channels))
+
+            # Fusion: local + coarse1 + coarse2 → classifier
+            self.fusion = nn.Sequential(
+                nn.Linear(hidden_channels * 3, hidden_channels),
+                nn.ReLU(),
+                nn.Dropout(dropout),
+            )
+            self.head = nn.Sequential(
+                nn.Linear(hidden_channels, hidden_channels // 2),
+                nn.ReLU(),
+                nn.Dropout(dropout),
+                nn.Linear(hidden_channels // 2, num_classes),
+            )
+
+        def _apply_convs(self, x, edge_index, convs, norms):
+            for conv, norm in zip(convs, norms):
+                x_res = x
+                x = conv(x, edge_index)
+                x = norm(x)
+                x = F.relu(x) + x_res
+                x = F.dropout(x, p=self.dropout, training=self.training)
+            return x
+
+        def forward(self, x, edge_index, edge_attr=None, batch=None):
+            n_nodes = x.size(0)
+            if batch is None:
+                batch = torch.zeros(n_nodes, dtype=torch.long, device=x.device)
+
+            # Level 0: full resolution
+            h0 = self.encoder0(x)
+            h0 = self._apply_convs(h0, edge_index, self.convs0, self.norms0)
+
+            # Level 1: pool → process
+            h1, edge1, _, batch1, perm1, score1 = self.pool1(
+                h0, edge_index, batch=batch)
+            h1 = self._apply_convs(h1, edge1, self.convs1, self.norms1)
+
+            # Level 2: pool → process
+            h2, edge2, _, batch2, perm2, score2 = self.pool2(
+                h1, edge1, batch=batch1)
+            h2 = self._apply_convs(h2, edge2, self.convs2, self.norms2)
+
+            # Unpool level 2 → level 1 resolution
+            h2_up = torch.zeros_like(h1)
+            h2_up[perm2] = h2
+
+            # Unpool level 1 → level 0 resolution
+            h1_up = torch.zeros(n_nodes, h1.size(1), device=x.device)
+            h1_up[perm1] = h1
+
+            h2_full = torch.zeros(n_nodes, h2.size(1), device=x.device)
+            # Map L2 back through both unpooling steps
+            h2_temp = torch.zeros_like(h1)
+            h2_temp[perm2] = h2
+            h2_full[perm1] = h2_temp
+
+            # Fuse: concat local + coarse1 + coarse2
+            h_fused = torch.cat([h0, h1_up, h2_full], dim=1)
+            h_fused = self.fusion(h_fused)
+            return self.head(h_fused)
+
+    _MULTISCALE_AVAILABLE = True
+except ImportError:
+    _MULTISCALE_AVAILABLE = False
+
+
 MODEL_REGISTRY = {
     'gcn': GCNModel,
     'gat': GATModel,
@@ -535,6 +659,9 @@ MODEL_REGISTRY = {
     'lgsta': LocalGlobalAttentionGNN,
     'meshgnn': MeshGNNModel,
 }
+
+if _MULTISCALE_AVAILABLE:
+    MODEL_REGISTRY['multiscale'] = MultiScaleGNN
 
 if _GPS_AVAILABLE:
     MODEL_REGISTRY['gps'] = GPSTransformerModel
@@ -561,7 +688,7 @@ def build_model(arch, in_channels, edge_attr_dim=0, **kwargs):
         raise ValueError("Unknown architecture '%s'. Choose from: %s" %
                          (arch, list(MODEL_REGISTRY.keys())))
     cls = MODEL_REGISTRY[arch]
-    if arch in ('gat', 'lgsta', 'meshgnn'):
+    if arch in ('gat', 'lgsta', 'meshgnn', 'multiscale'):
         return cls(in_channels, edge_attr_dim=edge_attr_dim, **kwargs)
     # GPS: filter out edge_attr_dim from kwargs (handled internally)
     if arch == 'gps':
