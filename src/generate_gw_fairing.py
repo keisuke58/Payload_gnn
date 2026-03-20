@@ -127,7 +127,8 @@ DEFAULT_FREQ_KHZ = 50.0
 DEFAULT_CYCLES = 5
 CP_ESTIMATE = 1550.0      # m/s, A0 mode phase velocity estimate
 FORCE_MAGNITUDE = 1.0     # N, concentrated force
-FIELD_OUTPUT_INTERVAL = 1e-6  # 1 microsecond
+FIELD_OUTPUT_INTERVAL = 1e-4  # 100 microseconds (field: all nodes → keep sparse)
+HISTORY_OUTPUT_INTERVAL = 1e-6  # 1 microsecond (history: sensors only → keep dense)
 SENSOR_SPACING = 20.0     # mm between sensors (< λ/2 ≈ 15.5mm at 50kHz)
 DEFAULT_N_SENSORS = 100   # 10x10 grid (extract script can subsample)
 
@@ -1595,7 +1596,7 @@ def _place_sensor(model, assembly, inst_outer, step_name,
         variables=('U1', 'U2', 'U3'),
         region=assembly.sets[set_name],
         sectionPoints=DEFAULT, rebar=EXCLUDE,
-        timeInterval=FIELD_OUTPUT_INTERVAL)
+        timeInterval=HISTORY_OUTPUT_INTERVAL)
     return sensor_id, dist
 
 
