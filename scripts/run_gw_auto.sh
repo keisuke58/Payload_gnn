@@ -35,9 +35,18 @@ get_remaining() {
     done | sort -n
 }
 
-# 現在の qsub で走っている GW ジョブ数
+# 現在の qsub で走っている GW ジョブ数 (24h 以上のスタック除外)
 count_running() {
-    qstat 2>/dev/null | grep -c "Job-GW-Fair" || echo 0
+    local count=0
+    while IFS= read -r line; do
+        # Skip jobs running >24h (likely stuck with old settings)
+        elapsed=$(echo "$line" | awk '{print $NF}')
+        hours=$(echo "$elapsed" | cut -d: -f1)
+        if [ "${hours:-0}" -lt 24 ] 2>/dev/null; then
+            count=$((count+1))
+        fi
+    done < <(qstat -a 2>/dev/null | grep "Job-GW-Fair" | grep " R ")
+    echo $count
 }
 
 echo "[$(date)] Starting GW auto-runner (batch_size=$BATCH_SIZE, poll=${POLL_INTERVAL}s)"
