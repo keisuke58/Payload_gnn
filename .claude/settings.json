@@ -16,7 +16,8 @@
       "Bash(du -sh /home/nishioka/Payload2026/dataset_realistic_25mm_100/sample_0000/*.csv)",
       "Bash(LD_LIBRARY_PATH=\"\" /usr/bin/ssh frontale04 \"ls ~/Payload2026/abaqus_work/Job-GW-D3-r40.lck 2>/dev/null && echo ''running''; tail -1 ~/Payload2026/abaqus_work/Job-GW-D3-r40.sta 2>/dev/null\")",
       "Bash(LD_LIBRARY_PATH=\"\" /usr/bin/scp /home/nishioka/Payload2026/src/generate_czm_sector12.py frontale02:/home/nishioka/Payload2026/src/generate_czm_sector12.py)",
-      "Bash(LD_LIBRARY_PATH=\"\" /usr/bin/ssh frontale04 \"tail -5 ~/Payload2026/abaqus_work/Job-GW-Fair-Test-H3.sta 2>/dev/null\")"
+      "Bash(LD_LIBRARY_PATH=\"\" /usr/bin/ssh frontale04 \"tail -5 ~/Payload2026/abaqus_work/Job-GW-Fair-Test-H3.sta 2>/dev/null\")",
+      "Bash(ls -1d /home/nishioka/Payload2026/papers/repos/*/)"
     ]
   }
 }
