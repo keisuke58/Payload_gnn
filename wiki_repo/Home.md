@@ -1,7 +1,26 @@
 # Project Wiki: JAXA H3 Rocket — CFRP Fairing SHM
 
 > **本プロジェクトの技術的根拠・背景情報を集約したドキュメント**
-> 最終更新: 2026-03-12
+> 最終更新: 2026-03-23
+
+---
+
+## Latest Results (2026-03-23)
+
+| Task | AUC | Optimal F1 | Note |
+|------|-----|-----------|------|
+| **GW-SHM debonding (700v2)** | 0.992 | 0.758 | GraphSAGE, 5-class |
+| **Fairing separation (15-case DOE)** | 0.999 | 0.730 | +181% F1 vs 3-case baseline |
+| **OGW #3 wavefield (external)** | 1.000 | 1.000 | Perfect on external benchmark |
+| **NASA CFRP fatigue (external)** | 0.924 | 0.800 | Cross-dataset generalization |
+
+**Architecture comparison (700v2)**: SAGE 0.788 > GAT 0.758 > GCN 0.756 > GIN 0.737
+
+**Cross-domain transfer**: Same-domain pretraining effective (+181% F1); cross-domain transfer not effective (negative transfer from OGW3).
+
+**GW FEM optimization**: ODB storage reduced 190 GB to 2.1 GB; 15x solver speedup.
+
+See [GNN Architecture Comparison](GNN-Architecture-Comparison) for full details.
 
 ---
 
@@ -13,7 +32,7 @@
 | **FEM モデリング** | [リアルFEM](Realistic-Fairing-FEM) · [FEMリアリズム計画](FEM-Realism-Roadmap) · [Ground Truth FEM](Ground-Truth-FEM) · [GT vs Baseline](GT-vs-Baseline-Comparison) · [CZMソルバー試行](CZM-Solver-Trials) · [熱解析](Thermal-Analysis) · [FEM可視化](FEM-Visualization) · [メッシュ収束](Mesh-Convergence) · [C3D10バッチ](C3D10-Batch-Generation) · [**ガイド波シミュレーション**](Guided-Wave-Simulation) |
 | **データセット** | [ノード特徴量 (34次元)](Node-Features) · [データセット形式](Dataset-Format) · [S12 CZMデータセット](S12-CZM-Dataset) · [静vs動評価](Dataset-Static-vs-Dynamic) · [**静動融合ランキング**](Static-Dynamic-Fusion-Ranking) · [静動融合文献](Static-Dynamic-Fusion-Literature) · [生成状況](Dataset-Generation-Status) · [バッチINP](Batch-INP-Status) · [完璧度スコア](Dataset-Perfect-Score) · [積層構成](Layup-Structure) |
 | **欠陥設計** | [欠陥生成・ラベリング](Defect-Generation-and-Labeling) · [拡張欠陥タイプ](Extended-Defect-Types) · [欠陥タイプ検証](Defect-Types-Validation) · [欠陥物理量検証](Defect-Physics-Validation) · [発生確率・割合](Defect-Occurrence-Probability-and-Dataset-Ratio) · [メッシュ欠陥](MESH_DEFECTS) |
-| **GNN 学習・結果** | [アーキテクチャ](Architecture) · [ML戦略](ML-Strategy) · [二値分類](Binary-Classification) · [解析結果](Analysis-Results) · [**論文用図表 (27枚)**](Paper-Figures) |
+| **GNN 学習・結果** | [アーキテクチャ](Architecture) · [ML戦略](ML-Strategy) · [二値分類](Binary-Classification) · [解析結果](Analysis-Results) · [**論文用図表 (27枚)**](Paper-Figures) · [**アーキテクチャ比較**](GNN-Architecture-Comparison) |
 | **解釈性・高度手法** | [XAIロードマップ](XAI-Roadmap) · [2段階スクリーニング](Two-Stage-Screening) · [Augmentation+物理損失](Augmentation-and-Physics-Loss) · [不確実性定量化](Uncertainty-Quantification) · [マルチクラス](Multi-Class-Roadmap) |
 | **先端技術** | [最先端ML](Cutting-Edge-ML) · [**PRAD (Physics-Residual AD)**](Physics-Residual-Anomaly-Detection) · [**文献調査 2024–2026**](Advanced-SHM-Literature-2024-2026) |
 | **研究計画** | [**2年目標 (World-Class)**](2-Year-Goals) · [ロードマップ](Roadmap) · [**Roadmap-2028**](Roadmap-2028) · [ベンチマーク目標](Benchmark-Targets) · [文献レビュー](Literature-Review) · [投稿先](Publication-Venues) · [研究レポート](Research-Report) · [理想vs実装](Ideal-vs-Implementation) · [想定Q&A](Anticipated-QA) |

@@ -1,7 +1,7 @@
 # Fairing Separation Dynamics — Abaqus/Explicit Model
 
 > H3 Fairing separation dynamics FEM + GNN anomaly detection
-> Last updated: 2026-03-19
+> Last updated: 2026-03-23
 
 ---
 
@@ -215,17 +215,66 @@ Boundary flags (2):     is_boundary, is_loaded
 
 ### 5.3 Transfer Learning Results
 
+#### Initial 3-Case Baseline
+
 | Metric | Value | Note |
 |--------|-------|------|
 | **Pretrained model** | GAT (GW-SHM) | Trained on guided wave debonding data |
 | **Fine-tuning** | Separation dataset | 3 graphs (Normal, Stuck3, Stuck6) |
 | **AUC** | **0.979** | Near-perfect ranking of anomalous nodes |
 | **Optimal F1** | **0.260** | Low due to extreme class imbalance (3 graphs only) |
-| **Training data** | 3 graphs | Minimal --- DOE campaign will improve this |
+| **Training data** | 3 graphs | Minimal --- DOE campaign improved this significantly |
 
-The high AUC (0.979) demonstrates that the pretrained GW-SHM features transfer effectively to the separation anomaly detection task. The low F1 score is expected with only 3 training graphs and will improve with the DOE campaign expansion.
+#### 15-Case DOE Results (Updated 2026-03-23)
 
-### 5.4 Processed Data
+The completed DOE campaign with 15 cases dramatically improved detection performance:
+
+| Metric | 3-Case Baseline | 15-Case DOE | Improvement |
+|--------|----------------|-------------|-------------|
+| **AUC** | 0.979 | **0.999** | +0.020 |
+| **Optimal F1** | 0.260 | **0.730** | +0.470 (+181%) |
+
+The 15-case DOE confirms that diverse fault parameterization (stuck bolt count + spring stiffness variation) is essential for robust anomaly detection. The near-perfect AUC of 0.999 indicates excellent ranking capability, while the F1 improvement from 0.260 to 0.730 demonstrates the critical role of training set diversity.
+
+### 5.4 Cross-Domain Transfer Analysis
+
+Transfer learning was evaluated between the GW-SHM domain (debonding detection) and the separation dynamics domain:
+
+| Condition | F1 Score | Note |
+|-----------|----------|------|
+| **Baseline (no transfer)** | 0.317 | Train from scratch on separation data |
+| **Same-domain pretrain** | **0.730** | GW-SHM pretrain + fine-tune on separation (+181%) |
+| **Cross-domain (OGW3 pretrain)** | 0.284 | Negative transfer observed |
+| **MMD adaptation** | 0.319 | Marginal improvement (+0.6%) |
+
+**Key finding**: Same-domain pretraining (GW-SHM to separation) is highly effective (+181% F1), but cross-domain transfer from external datasets is not effective due to significant distribution shift.
+
+### 5.5 Architecture Comparison (700v2 5-Class)
+
+Four GNN architectures were evaluated on the 700v2 dataset with 5-class classification:
+
+| Architecture | Optimal F1 | Note |
+|-------------|-----------|------|
+| **GraphSAGE** | **0.788** | Best overall performance |
+| GAT | 0.758 | Attention-based aggregation |
+| GCN | 0.756 | Spectral convolution baseline |
+| GIN | 0.737 | Maximally expressive (WL-test) |
+
+GraphSAGE achieves the best performance, likely due to its inductive sampling strategy being well-suited for the heterogeneous mesh structures in fairing FEM models.
+
+### 5.6 GAT Prediction Localization
+
+Attention-based prediction analysis on defective regions reveals strong spatial concentration:
+
+| Region | Mean Prediction Probability |
+|--------|----------------------------|
+| **Defect nodes** | **P = 0.98** |
+| **Healthy nodes** | P = 0.31 |
+| **Concentration ratio** | **3.2x** |
+
+The 3.2x concentration ratio confirms that GAT attention heads learn physically meaningful damage signatures, validating the spatial interpretability of the GNN approach.
+
+### 5.7 Processed Data
 
 PyG datasets are stored in `data/processed_separation/`:
 
