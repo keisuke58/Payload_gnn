@@ -568,11 +568,13 @@ def train(args, train_data, val_data, fold=None):
     num_classes = int(all_labels.max().item()) + 1
     num_classes = max(num_classes, 2)  # At least binary
 
+    rel_pos = getattr(args, 'rel_pos', False)
     model = build_model(
         args.arch, in_channels, edge_attr_dim,
         hidden_channels=args.hidden, num_layers=args.layers,
         dropout=args.dropout, num_classes=num_classes,
         use_residual=getattr(args, 'residual', False),
+        **({'rel_pos': rel_pos} if args.arch == 'gatv2' else {}),
     ).to(device)
 
     # Transfer learning: load pretrained weights
@@ -938,12 +940,15 @@ def main():
     parser.add_argument('--output_dir', type=str, default='runs')
     # Model
     parser.add_argument('--arch', type=str, default='gat',
-                        choices=['gcn', 'gat', 'gin', 'sage', 'lgsta', 'meshgnn', 'gps', 'multiscale'])
+                        choices=['gcn', 'gat', 'gatv2', 'gin', 'sage', 'lgsta', 'meshgnn', 'gps', 'multiscale'])
     parser.add_argument('--hidden', type=int, default=128)
     parser.add_argument('--layers', type=int, default=4)
     parser.add_argument('--dropout', type=float, default=0.1)
     parser.add_argument('--residual', action='store_true', default=False,
                         help='Add residual (skip) connections to GNN layers')
+    parser.add_argument('--rel_pos', action='store_true', default=False,
+                        help='[gatv2] Strip absolute xyz (dims 0-2) from node features; '
+                             'rely on edge_attr for geometry (relative-coord approach)')
     # Training
     parser.add_argument('--epochs', type=int, default=200)
     parser.add_argument('--batch_size', type=int, default=4)

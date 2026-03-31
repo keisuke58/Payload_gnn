@@ -17,7 +17,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch_geometric.nn import (
-    GCNConv, GATConv, GINConv, SAGEConv,
+    GCNConv, GATConv, GATv2Conv, GINConv, SAGEConv,
     BatchNorm, global_mean_pool,
 )
 
@@ -167,6 +167,78 @@ class SAGEModel(BaseGNN):
                     self.skip_projs.append(nn.Linear(inc, hidden_channels))
                 else:
                     self.skip_projs.append(nn.Identity())
+
+
+# =========================================================================
+# GATv2 — Graph Attention Network v2 (Brody et al., 2022)
+# Inspired by asano/GNN_onepoint-3-4.ipynb: deeper layers + residual
+# =========================================================================
+class GATv2Model(nn.Module):
+    """GATv2Conv-based model with residual connections and BatchNorm.
+
+    Key differences from GATModel:
+    - Uses GATv2Conv (dynamic attention, more expressive than GATConv)
+    - All layers use concat=True heads; final classifier on head output
+    - Supports rel_pos mode: masks absolute xyz (dims 0-2) from node features,
+      relying instead on edge_attr for geometric info (like asano's relative
+      coordinate idea adapted for full-graph training)
+    """
+
+    def __init__(self, in_channels, hidden_channels=64, num_classes=2,
+                 num_layers=5, dropout=0.05, heads=4, edge_attr_dim=0,
+                 use_residual=True, rel_pos=False):
+        super().__init__()
+        self.dropout = dropout
+        self.use_residual = use_residual
+        self.rel_pos = rel_pos
+
+        # When rel_pos=True, strip dims 0-2 (absolute xyz) from input
+        feat_in = (in_channels - 3) if rel_pos else in_channels
+        out_dim = hidden_channels * heads  # concat heads
+
+        self.convs = nn.ModuleList()
+        self.norms = nn.ModuleList()
+        self.skip_projs = nn.ModuleList()
+
+        for i in range(num_layers):
+            inc = feat_in if i == 0 else out_dim
+            edge_dim = edge_attr_dim if edge_attr_dim > 0 else None
+            self.convs.append(GATv2Conv(inc, hidden_channels, heads=heads,
+                                        concat=True, dropout=dropout,
+                                        edge_dim=edge_dim))
+            self.norms.append(nn.BatchNorm1d(out_dim))
+            if use_residual:
+                self.skip_projs.append(
+                    nn.Linear(inc, out_dim) if inc != out_dim else nn.Identity()
+                )
+
+        self.head = nn.Linear(out_dim, num_classes)
+        self._init_weights()
+
+    def _init_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.xavier_uniform_(m.weight)
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+
+    def forward(self, x, edge_index, edge_attr=None, batch=None):
+        if self.rel_pos:
+            x = x[:, 3:]  # drop absolute xyz (dims 0-2)
+
+        for i, conv in enumerate(self.convs):
+            residual = x
+            if edge_attr is not None and conv.edge_dim is not None:
+                x = conv(x, edge_index, edge_attr=edge_attr)
+            else:
+                x = conv(x, edge_index)
+            x = self.norms[i](x)
+            x = F.elu(x)
+            x = F.dropout(x, p=self.dropout, training=self.training)
+            if self.use_residual:
+                x = x + self.skip_projs[i](residual)
+
+        return self.head(x)  # (N, num_classes)
 
 
 # =========================================================================
@@ -654,6 +726,7 @@ except ImportError:
 MODEL_REGISTRY = {
     'gcn': GCNModel,
     'gat': GATModel,
+    'gatv2': GATv2Model,
     'gin': GINModel,
     'sage': SAGEModel,
     'lgsta': LocalGlobalAttentionGNN,
@@ -688,7 +761,7 @@ def build_model(arch, in_channels, edge_attr_dim=0, **kwargs):
         raise ValueError("Unknown architecture '%s'. Choose from: %s" %
                          (arch, list(MODEL_REGISTRY.keys())))
     cls = MODEL_REGISTRY[arch]
-    if arch in ('gat', 'lgsta', 'meshgnn', 'multiscale'):
+    if arch in ('gat', 'gatv2', 'lgsta', 'meshgnn', 'multiscale'):
         return cls(in_channels, edge_attr_dim=edge_attr_dim, **kwargs)
     # GPS: filter out edge_attr_dim from kwargs (handled internally)
     if arch == 'gps':
