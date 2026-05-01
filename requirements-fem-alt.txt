@@ -8,7 +8,7 @@ mpi4py>=3.0.0
 
 # JAX-FEM - differentiable FEM
 jax>=0.4.0
-jaxlib>=0.4.0
+jaxlib>=0.10.0
 jax-fem>=0.0.11
 
 # Mesh generation (for FEniCS 3D)
