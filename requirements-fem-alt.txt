@@ -13,4 +13,4 @@ jax-fem>=0.0.11
 
 # Mesh generation (for FEniCS 3D)
 pygmsh>=7.0.0
-meshio>=5.0.0
+meshio>=5.3.5
