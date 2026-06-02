@@ -18,6 +18,7 @@ LOG_DIR="$WORK_DIR/logs"
 CSV_DIR="abaqus_work/gw_fairing_dataset"
 DOE="doe_gw_fairing.json"
 CPUS=4
+MAX_ATTEMPTS=3   # 同一ジョブの再試行上限（ライセンス枯渇等での無限再投入を防止）
 
 MACHINES=(frontale01 frontale02 frontale04)
 ENV_CMD="env -i HOME=/home/nishioka USER=nishioka \
@@ -115,13 +116,21 @@ for idx in $job_indices; do
     job=\$(printf "Job-GW-Fair-%04d" \$idx)
     [ -f "\$WORK_DIR/\$job.odb" ] && echo "[\$(date '+%H:%M')] SKIP \$job" && continue
     [ ! -f "\$WORK_DIR/\$job.inp" ] && echo "[\$(date '+%H:%M')] NO_INP \$job" && continue
-    echo "[\$(date '+%H:%M')] START \$job on \$(hostname)"
+    # retry cap: ライセンス枯渇等で .odb を出せないジョブが無限再投入されるのを防ぐ
+    att_file="\$WORK_DIR/\$job.attempts"
+    att=\$(cat "\$att_file" 2>/dev/null || echo 0)
+    if [ "\$att" -ge $MAX_ATTEMPTS ]; then
+        echo "[\$(date '+%H:%M')] GIVEUP \$job (attempts=\$att >= $MAX_ATTEMPTS)"; continue
+    fi
+    echo \$((att+1)) > "\$att_file"
+    echo "[\$(date '+%H:%M')] START \$job on \$(hostname) (attempt \$((att+1))/$MAX_ATTEMPTS)"
     cd "\$WORK_DIR"
     \$ENV_CMD \$ABAQUS job=\$job input=\$job.inp cpus=$CPUS interactive 2>&1 | tail -3
-    if grep -q "THE ANALYSIS HAS BEEN COMPLETED" "\$WORK_DIR/\$job.sta" 2>/dev/null; then
-        echo "[\$(date '+%H:%M')] DONE \$job"
+    # 正しい完了文字列でDONE判定（旧: "HAS BEEN COMPLETED" は実際の.staに存在せず永遠にFAIL扱いだった）
+    if grep -q "THE ANALYSIS HAS COMPLETED SUCCESSFULLY" "\$WORK_DIR/\$job.sta" 2>/dev/null; then
+        echo "[\$(date '+%H:%M')] DONE \$job"; rm -f "\$att_file"
     else
-        echo "[\$(date '+%H:%M')] FAIL \$job"
+        echo "[\$(date '+%H:%M')] FAIL \$job (attempt \$att+1)"
     fi
 done
 echo "[\$(date '+%H:%M')] ALL DONE on \$(hostname)"
