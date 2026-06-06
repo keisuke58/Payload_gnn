@@ -262,6 +262,53 @@ def stress_gradient_loss(logits, x, edge_index, stress_dim=18):
     return penalty.mean()
 
 
+def stress_equilibrium_loss(logits, x, edge_index,
+                             pos_dims=(0, 1), s11_dim=15, s22_dim=16, s12_dim=17):
+    """Level-2 physics loss: static stress equilibrium ∇·σ = 0.
+
+    In a defect-free elastic body ∂σ_xx/∂x + ∂σ_xy/∂y = 0 everywhere.
+    Near a debond the effective stiffness drops, creating local equilibrium
+    violations.  We penalise high P(defect) predictions at nodes where the
+    equilibrium residual is small — discouraging false positives in
+    physics-consistent regions.
+
+    Feature layout (build_graph.py): x=0,y=1,z=2; s11=15,s22=16,s12=17.
+    """
+    src, dst = edge_index
+    px = x[:, pos_dims[0]]
+    py = x[:, pos_dims[1]]
+    s11 = x[:, s11_dim]
+    s22 = x[:, s22_dim]
+    s12 = x[:, s12_dim]
+
+    dx = px[dst] - px[src]
+    dy = py[dst] - py[src]
+    dist2 = (dx ** 2 + dy ** 2).clamp(min=1e-6)
+
+    # Per-edge gradient contributions
+    ds11 = s11[dst] - s11[src]
+    ds22 = s22[dst] - s22[src]
+    ds12 = s12[dst] - s12[src]
+
+    contrib_x = (ds11 * dx + ds12 * dy) / dist2   # ∂σ_xx/∂x + ∂σ_xy/∂y
+    contrib_y = (ds12 * dx + ds22 * dy) / dist2   # ∂σ_xy/∂x + ∂σ_yy/∂y
+
+    N = x.size(0)
+    div_x = torch.zeros(N, device=x.device).scatter_add_(0, dst, contrib_x)
+    div_y = torch.zeros(N, device=x.device).scatter_add_(0, dst, contrib_y)
+
+    deg = torch.bincount(dst, minlength=N).float().clamp(min=1)
+    div_x, div_y = div_x / deg, div_y / deg
+
+    eq_viol = (div_x ** 2 + div_y ** 2).sqrt()
+    eq_viol_norm = eq_viol / (eq_viol.max() + 1e-8)
+
+    probs = F.softmax(logits, dim=1)
+    p_defect = 1.0 - probs[:, 0]   # 1 − P(healthy), works for any num_classes
+
+    return (p_defect * (1.0 - eq_viol_norm)).mean()
+
+
 def connected_component_penalty(logits, edge_index):
     """Penalize isolated defect predictions (neighbors not predicted as defect).
 
@@ -399,6 +446,7 @@ def train_epoch(model, loader, optimizer, criterion, device, num_classes=2,
                 feature_mask_rate=0.0, flip_prob=0.0,
                 node_drop_rate=0.0,
                 lambda_smooth=0.0, lambda_stress=0.0, lambda_connected=0.0,
+                lambda_eq=0.0,
                 stress_dim=18,
                 task='node_cls', reg_weight=1.0, reg_norm_scale=5000.0):
     model.train()
@@ -453,6 +501,10 @@ def train_epoch(model, loader, optimizer, criterion, device, num_classes=2,
             l_c = connected_component_penalty(out, ei)
             loss = loss + lambda_connected * l_c
             total_physics['connected'] += l_c.item()
+        if lambda_eq > 0:
+            l_eq = stress_equilibrium_loss(out, x, ei)
+            loss = loss + lambda_eq * l_eq
+            total_physics['eq'] = total_physics.get('eq', 0.0) + l_eq.item()
         loss.backward()
         optimizer.step()
 
@@ -812,7 +864,9 @@ def train(args, train_data, val_data, fold=None):
                                    feature_mask_rate=fm_rate, flip_prob=flip_p,
                                    node_drop_rate=nd_rate,
                                    lambda_smooth=ls, lambda_stress=lst,
-                                   lambda_connected=lc, stress_dim=sd,
+                                   lambda_connected=lc,
+                                   lambda_eq=getattr(args, 'physics_lambda_eq', 0.0),
+                                   stress_dim=sd,
                                    task=task,
                                    reg_weight=getattr(args, 'reg_weight', 1.0))
         val_m = eval_epoch(model, val_loader, criterion, device,
@@ -1047,6 +1101,8 @@ def main():
                         help='Stress gradient consistency loss weight (0=off)')
     parser.add_argument('--physics_lambda_connected', type=float, default=0.0,
                         help='Connected component penalty weight (0=off)')
+    parser.add_argument('--physics_lambda_eq', type=float, default=0.0,
+                        help='Level-2 stress equilibrium loss weight (0=off)')
     parser.add_argument('--stress_dim', type=int, default=18,
                         help='Feature dim index for von Mises stress (default: 18)')
     # Node-level loss weighting

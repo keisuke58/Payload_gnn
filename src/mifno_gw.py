@@ -254,6 +254,65 @@ class MIFNO_GW(nn.Module):
 
 
 # =========================================================================
+# Level-3 Physics Loss: Wave Phase Consistency (Helmholtz / wave equation)
+# =========================================================================
+
+def wave_phase_consistency_loss(wav, pos, c_wave_mms=5.0e6, dt=2.5e-7,
+                                 max_freq=128):
+    """Phase consistency between sensor pairs enforcing the wave equation.
+
+    For sensors i, j separated by dx mm, a propagating wave with speed
+    c (mm/s) implies a phase shift: φ_ij(ω) = ω·|dx|/c.
+
+    Measured: angle(Û_j(ω)·Û_i*(ω)) — cross-spectral phase.
+    Expected: ω·|x_j - x_i| / c_wave_mms (mod 2π).
+
+    Loss = mean over sensor pairs and frequencies of power-weighted
+           squared phase residual.  Power weighting ignores noise-floor
+           frequencies where the signal is absent.
+
+    wav:          [B, S, T]  raw waveforms (z-scored)
+    pos:          [B, S]     sensor positions in mm
+    c_wave_mms:   wave speed in mm/s (CFRP S0 mode ≈ 5e6 mm/s = 5000 m/s)
+    dt:           time step in seconds
+    max_freq:     number of frequency bins to evaluate (reduces compute)
+    """
+    B, S, T = wav.shape
+
+    Uhat = torch.fft.rfft(wav, dim=2)              # [B, S, F]
+    F_bins = min(max_freq, Uhat.shape[2])
+    Uhat = Uhat[:, :, :F_bins]                     # [B, S, F_bins]
+
+    freqs = torch.fft.rfftfreq(T, d=dt).to(wav.device)[:F_bins]
+    omega = 2.0 * math.pi * freqs                  # [F_bins] rad/s
+
+    total = torch.tensor(0.0, device=wav.device)
+    n_pairs = 0
+
+    for i in range(S):
+        for j in range(i + 1, S):
+            dx_mm = (pos[:, j] - pos[:, i]).abs()              # [B]
+            phi_exp = omega.unsqueeze(0) * dx_mm.unsqueeze(1) / c_wave_mms  # [B, F_bins]
+            phi_exp = phi_exp % (2.0 * math.pi)
+
+            cross = Uhat[:, j, :] * Uhat[:, i, :].conj()      # [B, F_bins] complex
+            phi_meas = torch.angle(cross)                       # [B, F_bins]
+
+            residual = phi_meas - phi_exp
+            residual = torch.atan2(torch.sin(residual),
+                                   torch.cos(residual))         # wrap to [-π, π]
+
+            # Power weight: suppress low-energy bins
+            w = cross.abs()
+            w = w / (w.amax(dim=1, keepdim=True) + 1e-8)
+
+            total = total + (w * residual.pow(2)).mean()
+            n_pairs += 1
+
+    return total / max(n_pairs, 1)
+
+
+# =========================================================================
 # Training
 # =========================================================================
 
@@ -335,6 +394,15 @@ def train(args):
             optimizer.zero_grad()
             logits = model(pos, wav)
             loss = criterion(logits, y)
+            # Level-3: wave phase consistency loss
+            if args.lambda_disp > 0:
+                l_disp = wave_phase_consistency_loss(
+                    wav, pos,
+                    c_wave_mms=args.c_wave_mms,
+                    dt=args.dt_us * 1e-6,
+                    max_freq=args.disp_max_freq,
+                )
+                loss = loss + args.lambda_disp * l_disp
             loss.backward()
             nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             optimizer.step()
@@ -406,6 +474,15 @@ def main():
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--weight_decay', type=float, default=1e-4)
     parser.add_argument('--seed', type=int, default=42)
+    # Level-3 wave physics loss
+    parser.add_argument('--lambda_disp', type=float, default=0.0,
+                        help='Weight for wave phase-consistency (dispersion) loss (0=off)')
+    parser.add_argument('--c_wave_mms', type=float, default=5.0e6,
+                        help='Wave speed in mm/s (CFRP S0 mode ~5e6; A0 ~2e6)')
+    parser.add_argument('--dt_us', type=float, default=0.25,
+                        help='Sampling interval in microseconds (default 0.25 μs)')
+    parser.add_argument('--disp_max_freq', type=int, default=128,
+                        help='Max frequency bins for dispersion loss (reduces compute)')
     args = parser.parse_args()
 
     train(args)
