@@ -1,6 +1,6 @@
 # データセット診断レポート
 
-**日付**: 2026-02-28  
+**日付**: 2026-02-28 / 最終更新: 2026-06-07  
 **目的**: 物理データ（変位・応力・温度）がゼロ、GNN F1=0.0 の原因解明
 
 ---
@@ -124,7 +124,40 @@ python scripts/patch_inp_thermal.py abaqus_work/H3_Debond_0001.inp
 
 ---
 
-## 6. 25mm データセット修正（2026-02-28 対応済み）
+## 6. audit_dataset_reliability.py による再診断（2026-06-07）
+
+PR #35 で追加された `scripts/audit_dataset_reliability.py` で両データセットを再監査した結果。
+
+### 結果サマリ
+
+| データセット | samples | warnings | defect_nodes | 判定 |
+|---|---|---|---|---|
+| **dataset_output** | 101 | 11 | 1,356 | **正 → 学習に使用** |
+| dataset_output_100 | 101 | 358 | 704 | **不正 → _BAD にリネーム退避** |
+
+### dataset_output_100 の不正原因
+
+- 全サンプルで `ux/uy/uz/temp` がゼロ、`s11/s22/s12/smises` 列自体なし
+- FEM ODB 抽出が不完全なまま空スケルトンとして保存されたもの
+- `dataset_output_100_BAD/` にリネームし保存（削除せず保留）
+
+### dataset_output の11件の警告内訳
+
+- `sample_0000`: ux/uz/stress 全ゼロ（ODB 抽出失敗、既知）
+- `sample_0022〜0029` 等: `metadata.json` が存在しないため audit が「defective metadata」と誤判定
+  - nodes.csv 自体は正常（10,897ノード、stress 非ゼロ）
+  - **健全サンプルで metadata 書き出しバグが原因**、学習上は問題なし
+
+### 対応済みアクション
+
+- [x] `dataset_output_100` → `dataset_output_100_BAD/` にリネーム
+- [x] `dataset_output` を正データセットとして確定
+- [ ] `sample_0000` を学習から除外（既存チェックリスト参照）
+- [ ] metadata.json が欠損しているサンプルに空 metadata を補完（任意）
+
+---
+
+## 7. 25mm データセット修正（2026-02-28 対応済み）
 
 ### 実施した修正
 
