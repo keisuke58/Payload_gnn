@@ -45,8 +45,29 @@ from sklearn.metrics import f1_score, precision_score, recall_score, roc_auc_sco
 
 from torch.utils.tensorboard import SummaryWriter
 
-from models import build_model
+from models import build_model, MultiTaskWrapper
 from subgraph_sampler import DefectCentricSampler
+
+
+# =========================================================================
+# Multi-task helpers
+# =========================================================================
+def compute_batch_centroids(batch, norm_scale=5000.0):
+    """Compute defect centroid (xyz) per graph, normalised by norm_scale.
+
+    For healthy graphs (no defect nodes) falls back to full-graph centroid.
+    Returns tensor of shape (B, 3).
+    """
+    B = batch.num_graphs
+    centroids = torch.zeros(B, 3, device=batch.x.device)
+    for g in range(B):
+        g_mask = batch.batch == g
+        def_mask = g_mask & (batch.y > 0)
+        if def_mask.any():
+            centroids[g] = batch.x[def_mask, :3].mean(0)
+        else:
+            centroids[g] = batch.x[g_mask, :3].mean(0)
+    return centroids / norm_scale
 
 
 # =========================================================================
@@ -378,7 +399,8 @@ def train_epoch(model, loader, optimizer, criterion, device, num_classes=2,
                 feature_mask_rate=0.0, flip_prob=0.0,
                 node_drop_rate=0.0,
                 lambda_smooth=0.0, lambda_stress=0.0, lambda_connected=0.0,
-                stress_dim=18):
+                stress_dim=18,
+                task='node_cls', reg_weight=1.0, reg_norm_scale=5000.0):
     model.train()
     total_loss = 0.0
     total_physics = {'smooth': 0.0, 'stress': 0.0, 'connected': 0.0}
@@ -402,12 +424,22 @@ def train_epoch(model, loader, optimizer, criterion, device, num_classes=2,
         if feature_mask_rate > 0:
             x = mask_features(x, feature_mask_rate)
         ei, ea = drop_edge(batch.edge_index, batch.edge_attr, drop_edge_rate) if drop_edge_rate > 0 else (batch.edge_index, batch.edge_attr)
-        out = model(x, ei, ea, batch.batch)
+        raw_out = model(x, ei, ea, batch.batch)
+        # Multi-task: model returns (node_logits, reg_out)
+        if isinstance(raw_out, tuple):
+            out, reg_out = raw_out
+            reg_gt = compute_batch_centroids(batch, reg_norm_scale)
+            reg_loss = F.mse_loss(reg_out, reg_gt)
+        else:
+            out = raw_out
+            reg_loss = None
         if use_node_weights:
             node_w = build_node_weights(batch, boundary_weight, defect_weight)
             loss = _compute_weighted_loss(criterion, out, batch.y, node_w)
         else:
             loss = criterion(out, batch.y)
+        if reg_loss is not None:
+            loss = loss + reg_weight * reg_loss
         # Physics-informed losses
         if lambda_smooth > 0:
             l_s = spatial_smoothness_loss(out, ei)
@@ -509,16 +541,23 @@ def train_epoch_subgraph(model, train_data, sampler, optimizer, criterion,
 
 
 @torch.no_grad()
-def eval_epoch(model, loader, criterion, device, num_classes=2):
+def eval_epoch(model, loader, criterion, device, num_classes=2,
+               task='node_cls', reg_weight=1.0, reg_norm_scale=5000.0):
     model.eval()
     total_loss = 0.0
     all_logits, all_targets = [], []
+    reg_sq_errors = []
 
     for batch in loader:
         batch = batch.to(device)
-        out = model(batch.x, batch.edge_index, batch.edge_attr, batch.batch)
+        raw_out = model(batch.x, batch.edge_index, batch.edge_attr, batch.batch)
+        if isinstance(raw_out, tuple):
+            out, reg_out = raw_out
+            reg_gt = compute_batch_centroids(batch, reg_norm_scale)
+            reg_sq_errors.append(((reg_out - reg_gt) ** 2).mean(dim=1))
+        else:
+            out = raw_out
         loss = criterion(out, batch.y)
-
         total_loss += loss.item() * batch.num_graphs
         all_logits.append(out)
         all_targets.append(batch.y)
@@ -528,6 +567,10 @@ def eval_epoch(model, loader, criterion, device, num_classes=2):
     targets_cat = torch.cat(all_targets, dim=0)
     metrics = compute_metrics(logits_cat, targets_cat, num_classes=num_classes)
     metrics['loss'] = avg_loss
+    if reg_sq_errors:
+        rmse_norm = torch.cat(reg_sq_errors).mean().sqrt().item()
+        metrics['reg_rmse_norm'] = rmse_norm
+        metrics['reg_rmse_mm'] = rmse_norm * reg_norm_scale
     return metrics
 
 
@@ -569,11 +612,14 @@ def train(args, train_data, val_data, fold=None):
     num_classes = max(num_classes, 2)  # At least binary
 
     rel_pos = getattr(args, 'rel_pos', False)
+    task = getattr(args, 'task', 'node_cls')
     model = build_model(
         args.arch, in_channels, edge_attr_dim,
         hidden_channels=args.hidden, num_layers=args.layers,
         dropout=args.dropout, num_classes=num_classes,
         use_residual=getattr(args, 'residual', False),
+        task=task,
+        reg_out_dim=getattr(args, 'reg_out_dim', 3),
         **({'rel_pos': rel_pos} if args.arch == 'gatv2' else {}),
     ).to(device)
 
@@ -766,8 +812,12 @@ def train(args, train_data, val_data, fold=None):
                                    feature_mask_rate=fm_rate, flip_prob=flip_p,
                                    node_drop_rate=nd_rate,
                                    lambda_smooth=ls, lambda_stress=lst,
-                                   lambda_connected=lc, stress_dim=sd)
-        val_m = eval_epoch(model, val_loader, criterion, device, num_classes=num_classes)
+                                   lambda_connected=lc, stress_dim=sd,
+                                   task=task,
+                                   reg_weight=getattr(args, 'reg_weight', 1.0))
+        val_m = eval_epoch(model, val_loader, criterion, device,
+                           num_classes=num_classes, task=task,
+                           reg_weight=getattr(args, 'reg_weight', 1.0))
         scheduler.step()
         elapsed = time.time() - t0
 
@@ -941,6 +991,14 @@ def main():
     # Model
     parser.add_argument('--arch', type=str, default='gat',
                         choices=['gcn', 'gat', 'gatv2', 'gin', 'sage', 'lgsta', 'meshgnn', 'gps', 'multiscale', 'transolver'])
+    parser.add_argument('--task', type=str, default='node_cls',
+                        choices=['node_cls', 'multitask'],
+                        help='node_cls: node classification only; '
+                             'multitask: node cls + graph-level defect centroid regression')
+    parser.add_argument('--reg_weight', type=float, default=1.0,
+                        help='Weight for regression loss in multitask mode (default: 1.0)')
+    parser.add_argument('--reg_out_dim', type=int, default=3,
+                        help='Regression output dim: 3=xyz centroid (default)')
     parser.add_argument('--hidden', type=int, default=128)
     parser.add_argument('--layers', type=int, default=4)
     parser.add_argument('--dropout', type=float, default=0.1)

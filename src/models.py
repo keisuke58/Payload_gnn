@@ -47,7 +47,7 @@ class BaseGNN(nn.Module):
             nn.Linear(hidden_channels // 2, num_classes),
         )
 
-    def encode(self, x, edge_index, edge_attr=None):
+    def encode(self, x, edge_index, edge_attr=None, batch=None):
         for i, conv in enumerate(self.convs):
             residual = x
             x = self._conv_forward(conv, x, edge_index, edge_attr)
@@ -222,10 +222,9 @@ class GATv2Model(nn.Module):
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
 
-    def forward(self, x, edge_index, edge_attr=None, batch=None):
+    def encode(self, x, edge_index, edge_attr=None, batch=None):
         if self.rel_pos:
-            x = x[:, 3:]  # drop absolute xyz (dims 0-2)
-
+            x = x[:, 3:]
         for i, conv in enumerate(self.convs):
             residual = x
             if edge_attr is not None and conv.edge_dim is not None:
@@ -237,8 +236,10 @@ class GATv2Model(nn.Module):
             x = F.dropout(x, p=self.dropout, training=self.training)
             if self.use_residual:
                 x = x + self.skip_projs[i](residual)
+        return x
 
-        return self.head(x)  # (N, num_classes)
+    def forward(self, x, edge_index, edge_attr=None, batch=None):
+        return self.head(self.encode(x, edge_index, edge_attr, batch))
 
 
 # =========================================================================
@@ -316,7 +317,7 @@ class LocalGlobalAttentionGNN(nn.Module):
             nn.Linear(hidden_channels // 2, num_classes),
         )
 
-    def forward(self, x, edge_index, edge_attr=None, batch=None):
+    def encode(self, x, edge_index, edge_attr=None, batch=None):
         h = self.input_proj(x)  # (N, hidden)
 
         # === Local branch (GAT) ===
@@ -359,7 +360,10 @@ class LocalGlobalAttentionGNN(nn.Module):
         gate = self.gate(torch.cat([h_local, h_global], dim=-1))
         h_fused = gate * h_local + (1.0 - gate) * h_global
 
-        return self.head(h_fused)
+        return h_fused
+
+    def forward(self, x, edge_index, edge_attr=None, batch=None):
+        return self.head(self.encode(x, edge_index, edge_attr, batch))
 
 
 # =========================================================================
@@ -827,21 +831,70 @@ class TransolverModel(nn.Module):
             nn.Linear(hidden_channels // 2, num_classes),
         )
 
-    def forward(self, x, edge_index, edge_attr=None, batch=None):
-        # Encode
+    def encode(self, x, edge_index, edge_attr=None, batch=None):
         h = self.node_encoder(x)
         if edge_attr is not None and edge_attr.size(1) > 0:
             e = self.edge_encoder(edge_attr)
         else:
             e = self.edge_encoder(torch.ones(edge_index.size(1), 1, device=x.device))
-
-        # Alternate local + global processing
         for local_blk, global_blk in zip(self.local_blocks, self.global_blocks):
             h, e = local_blk(h, e, edge_index)
             h = F.dropout(h, p=self.dropout, training=self.training)
             h = global_blk(h, batch=batch)
+        return h
 
-        return self.head(h)
+    def forward(self, x, edge_index, edge_attr=None, batch=None):
+        return self.head(self.encode(x, edge_index, edge_attr, batch))
+
+
+# =========================================================================
+# Multi-Task: Graph-level Regression Head + Wrapper
+# =========================================================================
+class GraphRegHead(nn.Module):
+    """Graph-level regression head for defect centroid / size prediction.
+
+    Takes node embeddings, global-mean-pools per graph, then predicts
+    out_dim continuous values (e.g., normalised x/y/z centroid).
+    """
+
+    def __init__(self, hidden_channels, out_dim=3, dropout=0.0):
+        super().__init__()
+        self.mlp = nn.Sequential(
+            nn.Linear(hidden_channels, hidden_channels // 2),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_channels // 2, out_dim),
+        )
+
+    def forward(self, h, batch=None):
+        if batch is None:
+            batch = torch.zeros(h.size(0), dtype=torch.long, device=h.device)
+        g = global_mean_pool(h, batch)   # (B, hidden)
+        return self.mlp(g)               # (B, out_dim)
+
+
+class MultiTaskWrapper(nn.Module):
+    """Wraps any backbone GNN to jointly produce:
+      - node_logits : (N, num_classes)  — node-level classification
+      - reg_out     : (B, reg_out_dim)  — graph-level defect centroid regression
+
+    Requires backbone to implement encode(x, edge_index, edge_attr, batch)
+    and expose a head attribute for node classification.
+    """
+
+    def __init__(self, backbone, hidden_channels, reg_out_dim=3, dropout=0.0):
+        super().__init__()
+        self.backbone = backbone
+        self.reg_head = GraphRegHead(hidden_channels, reg_out_dim, dropout)
+
+    def encode(self, x, edge_index, edge_attr=None, batch=None):
+        return self.backbone.encode(x, edge_index, edge_attr, batch)
+
+    def forward(self, x, edge_index, edge_attr=None, batch=None):
+        h = self.backbone.encode(x, edge_index, edge_attr, batch)
+        node_logits = self.backbone.head(h)
+        reg_out = self.reg_head(h, batch)
+        return node_logits, reg_out
 
 
 MODEL_REGISTRY = {
@@ -862,17 +915,19 @@ if _GPS_AVAILABLE:
     MODEL_REGISTRY['gps'] = GPSTransformerModel
 
 
-def build_model(arch, in_channels, edge_attr_dim=0, **kwargs):
-    """
-    Build a GNN model by name.
+def build_model(arch, in_channels, edge_attr_dim=0, task='node_cls',
+                reg_out_dim=3, **kwargs):
+    """Build a GNN model by name.
 
     Args:
-        arch: one of 'gcn', 'gat', 'gin', 'sage', 'gps', 'transolver',
-              'quantum', 'classical_graph'
-        in_channels: number of node input features
-        edge_attr_dim: number of edge attributes (used by GAT)
-        **kwargs: forwarded to model constructor
-                  (hidden_channels, num_layers, dropout, num_classes, use_residual)
+        arch        : model name (gcn/gat/gin/sage/transolver/...)
+        in_channels : node feature dimension
+        edge_attr_dim: edge feature dimension
+        task        : 'node_cls' (default) | 'multitask'
+                      'multitask' wraps the backbone with MultiTaskWrapper to
+                      additionally regress graph-level defect centroid coordinates.
+        reg_out_dim : regression output dimension (default 3 for xyz centroid)
+        **kwargs    : forwarded to backbone constructor
     """
     if arch in ('quantum', 'classical_graph'):
         from models_quantum import build_quantum_model
@@ -882,11 +937,26 @@ def build_model(arch, in_channels, edge_attr_dim=0, **kwargs):
     if arch not in MODEL_REGISTRY:
         raise ValueError("Unknown architecture '%s'. Choose from: %s" %
                          (arch, list(MODEL_REGISTRY.keys())))
+
     cls = MODEL_REGISTRY[arch]
     if arch in ('gat', 'gatv2', 'lgsta', 'meshgnn', 'multiscale', 'transolver'):
-        return cls(in_channels, edge_attr_dim=edge_attr_dim, **kwargs)
-    # GPS: filter out edge_attr_dim from kwargs (handled internally)
-    if arch == 'gps':
-        kwargs.pop('use_residual', None)  # GPS handles residuals internally
-        return cls(in_channels, **kwargs)
-    return cls(in_channels, **kwargs)
+        backbone = cls(in_channels, edge_attr_dim=edge_attr_dim, **kwargs)
+    elif arch == 'gps':
+        kwargs.pop('use_residual', None)
+        backbone = cls(in_channels, **kwargs)
+    else:
+        backbone = cls(in_channels, **kwargs)
+
+    if task == 'multitask':
+        # Infer actual embedding dim from the backbone's classification head
+        head = backbone.head
+        if isinstance(head, nn.Linear):
+            embed_dim = head.in_features
+        elif isinstance(head, nn.Sequential):
+            embed_dim = head[0].in_features
+        else:
+            embed_dim = kwargs.get('hidden_channels', 128)
+        return MultiTaskWrapper(backbone, embed_dim,
+                                reg_out_dim=reg_out_dim,
+                                dropout=kwargs.get('dropout', 0.0))
+    return backbone
