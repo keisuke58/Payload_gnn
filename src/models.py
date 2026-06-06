@@ -723,6 +723,127 @@ except ImportError:
     _MULTISCALE_AVAILABLE = False
 
 
+# =========================================================================
+# Transolver-lite: physics-aware slice attention processor
+# =========================================================================
+
+class _SliceAttention(nn.Module):
+    """Physics-aware slice attention block (Transolver-inspired).
+
+    Groups nodes into `num_slices` physics tokens via learnable soft assignment,
+    runs multi-head self-attention over tokens, then scatters back to nodes.
+    Complexity: O(N * num_slices) rather than O(N^2).
+    """
+
+    def __init__(self, hidden_channels, num_slices=64, num_heads=4, dropout=0.0):
+        super().__init__()
+        self.num_slices = num_slices
+        self.hidden_channels = hidden_channels
+        # Learnable slice assignment: node -> slice score
+        self.slice_proj = nn.Linear(hidden_channels, num_slices)
+        # Per-slice value projection
+        self.value_proj = nn.Linear(hidden_channels, hidden_channels)
+        # Multi-head self-attention over slice tokens
+        self.attn = nn.MultiheadAttention(hidden_channels, num_heads,
+                                          dropout=dropout, batch_first=True)
+        self.norm = nn.LayerNorm(hidden_channels)
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x, batch=None):
+        """
+        x: [N, C] node features
+        batch: [N] graph-wise index (None -> single graph)
+        Returns: [N, C] updated node features
+        """
+        if batch is None:
+            batch = torch.zeros(x.size(0), dtype=torch.long, device=x.device)
+
+        out = torch.zeros_like(x)
+        for g in batch.unique():
+            mask = (batch == g)
+            xg = x[mask]                                    # [Ng, C]
+            # Soft slice assignment: [Ng, S]
+            w = torch.softmax(self.slice_proj(xg), dim=-1)
+            # Weighted sum -> physics tokens: [S, C]
+            v = self.value_proj(xg)                         # [Ng, C]
+            tokens = (w.T @ v).unsqueeze(0)                 # [1, S, C]
+            # Self-attention over tokens
+            tokens_out, _ = self.attn(tokens, tokens, tokens)
+            tokens_out = tokens_out.squeeze(0)              # [S, C]
+            # Scatter back to nodes: [Ng, C]
+            node_out = w @ tokens_out                       # [Ng, C]
+            out[mask] = self.norm(xg + self.dropout(node_out))
+
+        return out
+
+
+class TransolverModel(nn.Module):
+    """Transolver-lite for fixed-mesh node classification.
+
+    Architecture:
+      Encoder (MLP) -> num_layers x [GraphNetBlock + SliceAttention] -> Decoder (MLP)
+
+    The GraphNetBlock handles local message passing (same as MeshGNN),
+    while SliceAttention captures long-range physics correlations across slices.
+    """
+
+    def __init__(self, in_channels, hidden_channels=128, num_classes=2,
+                 num_layers=4, dropout=0.1, edge_attr_dim=0,
+                 num_slices=64, num_heads=4, use_residual=False):
+        super().__init__()
+        self.dropout = dropout
+
+        # Encoder
+        self.node_encoder = nn.Sequential(
+            nn.Linear(in_channels, hidden_channels),
+            nn.ReLU(),
+            nn.Linear(hidden_channels, hidden_channels),
+            nn.LayerNorm(hidden_channels),
+        )
+        edge_in = edge_attr_dim if edge_attr_dim > 0 else 1
+        self.edge_encoder = nn.Sequential(
+            nn.Linear(edge_in, hidden_channels),
+            nn.ReLU(),
+            nn.Linear(hidden_channels, hidden_channels),
+            nn.LayerNorm(hidden_channels),
+        )
+
+        # Processor: alternating local (GraphNetBlock) + global (SliceAttention)
+        self.local_blocks = nn.ModuleList([
+            _GraphNetBlock(hidden_channels, hidden_channels, mlp_layers=2)
+            for _ in range(num_layers)
+        ])
+        self.global_blocks = nn.ModuleList([
+            _SliceAttention(hidden_channels, num_slices=num_slices,
+                            num_heads=num_heads, dropout=dropout)
+            for _ in range(num_layers)
+        ])
+
+        # Decoder
+        self.head = nn.Sequential(
+            nn.Linear(hidden_channels, hidden_channels // 2),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_channels // 2, num_classes),
+        )
+
+    def forward(self, x, edge_index, edge_attr=None, batch=None):
+        # Encode
+        h = self.node_encoder(x)
+        if edge_attr is not None and edge_attr.size(1) > 0:
+            e = self.edge_encoder(edge_attr)
+        else:
+            e = self.edge_encoder(torch.ones(edge_index.size(1), 1, device=x.device))
+
+        # Alternate local + global processing
+        for local_blk, global_blk in zip(self.local_blocks, self.global_blocks):
+            h, e = local_blk(h, e, edge_index)
+            h = F.dropout(h, p=self.dropout, training=self.training)
+            h = global_blk(h, batch=batch)
+
+        return self.head(h)
+
+
 MODEL_REGISTRY = {
     'gcn': GCNModel,
     'gat': GATModel,
@@ -731,6 +852,7 @@ MODEL_REGISTRY = {
     'sage': SAGEModel,
     'lgsta': LocalGlobalAttentionGNN,
     'meshgnn': MeshGNNModel,
+    'transolver': TransolverModel,
 }
 
 if _MULTISCALE_AVAILABLE:
@@ -745,7 +867,7 @@ def build_model(arch, in_channels, edge_attr_dim=0, **kwargs):
     Build a GNN model by name.
 
     Args:
-        arch: one of 'gcn', 'gat', 'gin', 'sage', 'gps',
+        arch: one of 'gcn', 'gat', 'gin', 'sage', 'gps', 'transolver',
               'quantum', 'classical_graph'
         in_channels: number of node input features
         edge_attr_dim: number of edge attributes (used by GAT)
@@ -761,7 +883,7 @@ def build_model(arch, in_channels, edge_attr_dim=0, **kwargs):
         raise ValueError("Unknown architecture '%s'. Choose from: %s" %
                          (arch, list(MODEL_REGISTRY.keys())))
     cls = MODEL_REGISTRY[arch]
-    if arch in ('gat', 'gatv2', 'lgsta', 'meshgnn', 'multiscale'):
+    if arch in ('gat', 'gatv2', 'lgsta', 'meshgnn', 'multiscale', 'transolver'):
         return cls(in_channels, edge_attr_dim=edge_attr_dim, **kwargs)
     # GPS: filter out edge_attr_dim from kwargs (handled internally)
     if arch == 'gps':
