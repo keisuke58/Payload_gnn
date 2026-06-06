@@ -1,0 +1,36 @@
+{
+  "title": "GNN-SHM: Graph Neural Networks for H3 Rocket Fairing Structural Health Monitoring",
+  "description": "JAXA H3 CFRP fairing debonding detection via FEM + PyTorch Geometric GNNs. Geometry-aware graph construction, multi-architecture training (GCN/GAT/GIN/SAGE), and H3-spec validation. Light sanity checks via scripts/reproduce_core.sh with CI-tested unit tests.",
+  "upload_type": "software",
+  "publication_date": "2026-06-07",
+  "creators": [
+    {
+      "name": "Nishioka, Keisuke",
+      "affiliation": "Keio University",
+      "orcid": ""
+    }
+  ],
+  "keywords": [
+    "graph neural network",
+    "structural health monitoring",
+    "CFRP",
+    "honeycomb sandwich",
+    "JAXA H3",
+    "finite element method",
+    "debonding detection"
+  ],
+  "license": "mit",
+  "related_identifiers": [
+    {
+      "relation": "isSupplementTo",
+      "identifier": "https://github.com/keisuke58/Payload_gnn",
+      "scheme": "url"
+    },
+    {
+      "relation": "isVersionOf",
+      "identifier": "10.5281/zenodo.20495444",
+      "scheme": "doi"
+    }
+  ],
+  "version": "1.0.0"
+}

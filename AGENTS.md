@@ -29,6 +29,18 @@ JAXA H3 CFRP fairing debonding detection via FEM + PyTorch Geometric GNNs.
 | `scripts/compare_model_results.py` | Cross-run metrics + CSV export |
 | `wiki_repo/Home.md` | Full documentation index |
 
+## Pre-commit
+
+```bash
+pip install pre-commit && pre-commit install
+```
+
+## Pre-approved commands (project `.grok/settings.json`)
+
+- `./scripts/reproduce_core.sh`
+- `make reproduce`
+- `python scripts/validate_h3_specs.py`
+
 ## Dependencies
 
 ```bash
@@ -37,4 +49,8 @@ pip install -r requirements-quantum.txt  # optional
 pip install -r requirements-fem-alt.txt  # optional FEniCS/JAX-FEM
 ```
 
-See [CLAUDE.md](CLAUDE.md) for full project instructions.
+## Key docs
+
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — pipeline data flow
+- [docs/ZENODO.md](docs/ZENODO.md) — archive / citation
+- [CLAUDE.md](CLAUDE.md) — full project instructions

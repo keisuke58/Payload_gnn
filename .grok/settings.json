@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./scripts/reproduce_core.sh)",
+      "Bash(make reproduce)",
+      "Bash(python scripts/validate_h3_specs.py)"
+    ]
+  }
+}

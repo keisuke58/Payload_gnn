@@ -1,0 +1,27 @@
+# Project-scoped Grok config for Payload GNN-SHM.
+# Overrides global ~/.grok/config.toml MCP servers with the same names.
+
+[mcp_servers.filesystem]
+command = "/home/nishioka/.nvm/versions/node/v22.22.0/bin/mcp-server-filesystem"
+args = ["/home/nishioka/Payload2026"]
+enabled = true
+
+[mcp_servers.context7]
+command = "/home/nishioka/.nvm/versions/node/v22.22.0/bin/context7-mcp"
+args = []
+enabled = true
+
+[mcp_servers.fetch]
+command = "/home/nishioka/miniconda3/bin/mcp-server-fetch"
+args = []
+enabled = true
+
+[mcp_servers.arxiv]
+command = "/home/nishioka/miniconda3/bin/arxiv-mcp-server"
+args = ["--storage-path", "/home/nishioka/.cache/arxiv-mcp"]
+enabled = true
+
+[mcp_servers.pandoc]
+command = "/home/nishioka/IKM_Hiwi/.venv_jax/bin/mcp-pandoc"
+args = []
+enabled = true
