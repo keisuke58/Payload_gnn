@@ -1,0 +1,4 @@
+-r requirements-core.txt
+torch>=2.0.0
+torch-geometric>=2.4.0
+tensorboard>=2.14.0

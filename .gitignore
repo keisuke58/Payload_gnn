@@ -3,6 +3,10 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
+.pytest_cache/
+*.egg-info/
+dist/
+build/
 
 # Abaqus generated files
 *.odb
