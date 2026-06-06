@@ -5,6 +5,10 @@
   <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License" />
 </p>
 
+<p align="center">
+  <a href="https://github.com/keisuke58/Payload_gnn/actions/workflows/ci.yml"><img src="https://github.com/keisuke58/Payload_gnn/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+</p>
+
 <h1 align="center">🚀 GNN-SHM: Graph Neural Networks for H3 Rocket Fairing Structural Health Monitoring</h1>
 
 <p align="center">
@@ -106,14 +110,17 @@ flowchart LR
 git clone https://github.com/keisuke58/Payload_gnn.git
 cd Payload_gnn
 
-# Install
-pip install -r requirements.txt
+# Install (GNN stack)
+pip install -r requirements-gnn.txt
 
-# Train (existing data)
-python src/train.py --arch gat --epochs 200 --cross_val 5
+# Light sanity check (no Abaqus, no training)
+./scripts/reproduce_core.sh
+
+# Train (existing data — run from src/)
+cd src && python train.py --arch gat --data_dir ../dataset/processed --epochs 200 --cross_val 5
 
 # Inference API
-MODEL_CHECKPOINT=runs/<run>/best_model.pt uvicorn src.predict_api:app --port 8000
+MODEL_CHECKPOINT=runs/<run>/best_model.pt uvicorn predict_api:app --port 8000
 ```
 
 ### Full Pipeline (with Abaqus)
@@ -174,6 +181,8 @@ Defect size distribution: Small 30%, Medium 40%, Large 25%, Critical 5%.
 
 | Resource | Description |
 |----------|-------------|
+| [**Architecture**](docs/ARCHITECTURE.md) | Pipeline data flow + module tiers |
+| [**AGENTS.md**](AGENTS.md) | AI agent entry points |
 | [**Wiki Home**](wiki_repo/Home.md) | Full project index, status, navigation |
 | [**2-Year Goals**](wiki_repo/2-Year-Goals.md) | 5K samples, 4-class, Sim-to-Real |
 | [**Cutting-Edge ML**](wiki_repo/Cutting-Edge-ML.md) | Graph Mamba, Equivariant GNN, FNO, PINN |

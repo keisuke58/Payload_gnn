@@ -1,9 +1,2 @@
-qiskit>=1.0.0
-qiskit-aer>=0.13.0
-qiskit-algorithms>=0.3.0
-qiskit-machine-learning>=0.7.0
-qiskit-optimization>=0.6.0
-torch>=2.0.0
-numpy>=1.26.0
-matplotlib>=3.8.0
-scikit-learn>=1.3.0
+# Main ML stack (GNN training). For quantum/FEM extras see requirements-quantum.txt / requirements-fem-alt.txt
+-r requirements-gnn.txt
