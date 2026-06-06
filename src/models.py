@@ -506,7 +506,7 @@ class MeshGNNModel(nn.Module):
         dummy = torch.ones(num_edges, 1, device=edge_index.device)
         return self.edge_encoder(dummy)
 
-    def encode(self, x, edge_index, edge_attr=None):
+    def encode(self, x, edge_index, edge_attr=None, batch=None):
         """Encode + Process, return node embeddings."""
         node_latent = self.node_encoder(x)
         edge_latent = self._encode_edges(edge_index, edge_attr)
