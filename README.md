@@ -182,6 +182,7 @@ Defect size distribution: Small 30%, Medium 40%, Large 25%, Critical 5%.
 | Resource | Description |
 |----------|-------------|
 | [**Architecture**](docs/ARCHITECTURE.md) | Pipeline data flow + module tiers |
+| [**Zenodo**](docs/ZENODO.md) | Software archive + DOI |
 | [**AGENTS.md**](AGENTS.md) | AI agent entry points |
 | [**Wiki Home**](wiki_repo/Home.md) | Full project index, status, navigation |
 | [**2-Year Goals**](wiki_repo/2-Year-Goals.md) | 5K samples, 4-class, Sim-to-Real |
@@ -202,14 +203,16 @@ We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## 📄 Citation
 
-If you use this work in your research, please cite:
+See [CITATION.cff](CITATION.cff) and [docs/ZENODO.md](docs/ZENODO.md).
 
 ```bibtex
-@software{payload_gnn_2026,
-  title = {GNN-SHM: Graph Neural Networks for H3 Rocket Fairing Structural Health Monitoring},
-  author = {Payload2026 Contributors},
-  year = {2026},
-  url = {https://github.com/keisuke58/Payload_gnn}
+@software{nishioka2026payload,
+  author    = {Nishioka, Keisuke and Kojima, Yuta and Saito, Toshiya},
+  title     = {GNN-SHM: Graph Neural Networks for H3 Rocket Fairing SHM},
+  year      = {2026},
+  publisher = {Zenodo},
+  doi       = {10.5281/zenodo.20495444},
+  url       = {https://github.com/keisuke58/Payload_gnn}
 }
 ```
 
