@@ -1,0 +1,114 @@
+{
+  "model_path": "runs/verify_realistic/gat_20260301_010732/best_model.pt",
+  "in_channels": 34,
+  "edge_attr_dim": 5,
+  "evaluations": [
+    {
+      "dataset": "val.pt",
+      "per_case": [
+        {
+          "case": "Sep-v2-Stuck6",
+          "nodes": 33734,
+          "auc": 0.40607657652660345,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "opt_f1": 0.009633535116839159,
+          "opt_threshold": 0.12,
+          "mean_p_defect": 0.13823816180229187,
+          "max_p_defect": 0.18762464821338654
+        }
+      ],
+      "aggregate": {
+        "auc": 0.40607657652660345,
+        "f1": 0.0,
+        "n_total": 33734,
+        "n_defect": 153
+      }
+    },
+    {
+      "dataset": "ogw3.pt",
+      "per_case": [
+        {
+          "case": "Intact",
+          "nodes": 5000,
+          "auc": null,
+          "f1": null,
+          "precision": null,
+          "recall": null,
+          "opt_f1": null,
+          "opt_threshold": 0.5,
+          "mean_p_defect": 0.15536482632160187,
+          "max_p_defect": 0.15536828339099884
+        },
+        {
+          "case": "Damaged",
+          "nodes": 5000,
+          "auc": null,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "opt_f1": 1.0,
+          "opt_threshold": 0.01,
+          "mean_p_defect": 0.15536482632160187,
+          "max_p_defect": 0.15536829829216003
+        }
+      ],
+      "aggregate": {}
+    },
+    {
+      "dataset": "nasa_cfrp.pt",
+      "per_case": [
+        {
+          "case": "L1_S11_F",
+          "nodes": 16,
+          "auc": null,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "opt_f1": 1.0,
+          "opt_threshold": 0.01,
+          "mean_p_defect": 0.1555110067129135,
+          "max_p_defect": 0.155628502368927
+        },
+        {
+          "case": "L1_S12_F",
+          "nodes": 16,
+          "auc": null,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "opt_f1": 1.0,
+          "opt_threshold": 0.01,
+          "mean_p_defect": 0.1555110067129135,
+          "max_p_defect": 0.155628502368927
+        },
+        {
+          "case": "L1_S18_F",
+          "nodes": 16,
+          "auc": null,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "opt_f1": 1.0,
+          "opt_threshold": 0.01,
+          "mean_p_defect": 0.1555110067129135,
+          "max_p_defect": 0.155628502368927
+        },
+        {
+          "case": "L1_S19_F",
+          "nodes": 16,
+          "auc": null,
+          "f1": 0.0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "opt_f1": 1.0,
+          "opt_threshold": 0.01,
+          "mean_p_defect": 0.1555110067129135,
+          "max_p_defect": 0.155628502368927
+        }
+      ],
+      "aggregate": {}
+    }
+  ]
+}

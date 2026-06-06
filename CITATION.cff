@@ -1,19 +1,125 @@
 cff-version: 1.2.0
-title: GNN-SHM - Graph Neural Networks for H3 Rocket Fairing Structural Health Monitoring
-message: 'If you use this software, please cite it as below.'
+message: >-
+  If you use this software in your research, please cite both the
+  software archive (Zenodo) and the associated journal article
+  (Frontiers in Materials, 2025).
+
+type: software
+
+title: >-
+  nishioka_cfrp_gnn: FEM + Graph Neural Network for Defect
+  Localization in Perforated CFRP Aerospace Structures
+
+doi: "10.5281/zenodo.20495444"
+
+identifiers:
+  - type: doi
+    value: "10.5281/zenodo.20495444"
+    description: "Zenodo software archive DOI"
+
+version: "1.0.0"
+
 authors:
-  - name: Payload2026 Contributors
-    url: https://github.com/keisuke58/Payload_gnn
-repository-code: https://github.com/keisuke58/Payload_gnn
+  - family-names: Nishioka
+    given-names: Keisuke
+    affiliation: >-
+      Department of Science for Open and Environmental Systems,
+      Graduate School of Science and Technology, Keio University,
+      Yokohama, Kanagawa, Japan
+    email: kei128608@gmail.com
+  - family-names: Kojima
+    given-names: Yuta
+    affiliation: >-
+      Department of Science for Open and Environmental Systems,
+      Graduate School of Science and Technology, Keio University,
+      Yokohama, Kanagawa, Japan
+  - family-names: Saito
+    given-names: Toshiya
+    affiliation: >-
+      Research Unit IV, Research and Development Directorate,
+      Japan Aerospace Exploration Agency (JAXA),
+      Tsukuba, Ibaraki, Japan
+  - family-names: Kawakami
+    given-names: Kosuke
+    affiliation: >-
+      Research Unit IV, Research and Development Directorate,
+      Japan Aerospace Exploration Agency (JAXA),
+      Tsukuba, Ibaraki, Japan
+  - family-names: Washiya
+    given-names: Masahito
+    affiliation: >-
+      Research Unit IV, Research and Development Directorate,
+      Japan Aerospace Exploration Agency (JAXA),
+      Tsukuba, Ibaraki, Japan
+  - family-names: Muramatsu
+    given-names: Mayu
+    affiliation: >-
+      Department of Mechanical Engineering,
+      Faculty of Science and Technology, Keio University,
+      Yokohama, Kanagawa, Japan
+
+repository-code: "https://github.com/keisuke58/Payload_gnn"
+url: "https://zenodo.org/records/20495444"
+
+date-released: "2026-02-28"
+
 license: MIT
+
 keywords:
-  - GNN
-  - structural health monitoring
+  - carbon fiber reinforced plastic
   - CFRP
-  - debonding
-  - JAXA
+  - defect localization
+  - graph neural network
+  - GNN
+  - graph attention network
+  - finite element method
+  - FEM
+  - non-destructive evaluation
+  - structural health monitoring
+  - aerospace structures
+  - delamination detection
+  - machine learning
   - H3 rocket
+  - JAXA
+  - Keio University
   - PyTorch Geometric
   - Abaqus
-type: software
-date-released: '2026-02-28'
+
+abstract: >-
+  Software accompanying Nishioka et al. (2025, Frontiers in Materials,
+  doi:10.3389/fmats.2025.1652484). Implements a defect localization
+  pipeline for perforated carbon-fiber-reinforced plastic (CFRP)
+  interstage structures combining finite element method (FEM) stress
+  simulation with a graph attention network (GAT) classifier. Surface
+  stress distributions extracted from FEM serve as node features on a
+  graph representing the specimen geometry; the GAT predicts defect
+  position from 19 depth-and-location categories. Achieves macro-F1
+  of 61% with accurate joint prediction of insertion depth and planar
+  location. Developed in collaboration with JAXA for structural health
+  monitoring of H3 rocket CFRP fairing components.
+
+references:
+  - type: article
+    authors:
+      - family-names: Nishioka
+        given-names: Keisuke
+      - family-names: Kojima
+        given-names: Yuta
+      - family-names: Saito
+        given-names: Toshiya
+      - family-names: Kawakami
+        given-names: Kosuke
+      - family-names: Washiya
+        given-names: Masahito
+      - family-names: Muramatsu
+        given-names: Mayu
+    title: >-
+      Development of defect localization method for perforated
+      carbon-fiber-reinforced plastic specimens using finite element
+      method and graph neural network
+    journal: "Frontiers in Materials"
+    volume: 12
+    year: 2025
+    doi: "10.3389/fmats.2025.1652484"
+    publisher: "Frontiers Media S.A."
+    notes: "Section: Computational Materials Science, Manuscript ID: 1652484"

@@ -1,0 +1,78 @@
+{
+  "completed": [
+    {
+      "n_stuck_bolts": 6,
+      "spring_stiffness": 5000,
+      "metric": 0.0008777472401221558,
+      "case_name": "Sep-Stuck6"
+    },
+    {
+      "n_stuck_bolts": 3,
+      "spring_stiffness": 5000,
+      "metric": 0.0008777472401221558,
+      "case_name": "Sep-Stuck3"
+    },
+    {
+      "n_stuck_bolts": 0,
+      "spring_stiffness": 5000,
+      "metric": 0.04295650538558963,
+      "case_name": "Sep-v2-Normal"
+    },
+    {
+      "n_stuck_bolts": 3,
+      "spring_stiffness": 5000,
+      "metric": 0.0807835066573425,
+      "case_name": "Sep-v2-Stuck3"
+    },
+    {
+      "n_stuck_bolts": 6,
+      "spring_stiffness": 5000,
+      "metric": 0.011211207328732107,
+      "case_name": "Sep-v2-Stuck6"
+    }
+  ],
+  "suggestions": [
+    {
+      "n_stuck_bolts": 0,
+      "spring_stiffness": 300,
+      "expected_improvement": 0.00022523948057526027,
+      "predicted_metric": 0.02734134277038171,
+      "uncertainty": 0.030857841155777666
+    },
+    {
+      "n_stuck_bolts": 0,
+      "spring_stiffness": 500,
+      "expected_improvement": 0.00022523948057526027,
+      "predicted_metric": 0.02734134277038171,
+      "uncertainty": 0.030857841155777666
+    },
+    {
+      "n_stuck_bolts": 0,
+      "spring_stiffness": 1000,
+      "expected_improvement": 0.00022523948057526027,
+      "predicted_metric": 0.02734134277038171,
+      "uncertainty": 0.030857841155777666
+    },
+    {
+      "n_stuck_bolts": 0,
+      "spring_stiffness": 2000,
+      "expected_improvement": 0.00022523948057526027,
+      "predicted_metric": 0.02734134277038171,
+      "uncertainty": 0.030857841155777666
+    },
+    {
+      "n_stuck_bolts": 0,
+      "spring_stiffness": 3000,
+      "expected_improvement": 0.00022523948057526027,
+      "predicted_metric": 0.02734134277038171,
+      "uncertainty": 0.030857841155777666
+    }
+  ],
+  "commands": [
+    "qsub -v JOB_NAME=Sep-BO-S00K300,EXTRA_ARGS=\"--n_stuck_bolts 0 --spring_stiffness 300\" scripts/qsub_fairing_sep_run.sh",
+    "qsub -v JOB_NAME=Sep-BO-S00K500,EXTRA_ARGS=\"--n_stuck_bolts 0 --spring_stiffness 500\" scripts/qsub_fairing_sep_run.sh",
+    "qsub -v JOB_NAME=Sep-BO-S00K1000,EXTRA_ARGS=\"--n_stuck_bolts 0 --spring_stiffness 1000\" scripts/qsub_fairing_sep_run.sh",
+    "qsub -v JOB_NAME=Sep-BO-S00K2000,EXTRA_ARGS=\"--n_stuck_bolts 0 --spring_stiffness 2000\" scripts/qsub_fairing_sep_run.sh",
+    "qsub -v JOB_NAME=Sep-BO-S00K3000,EXTRA_ARGS=\"--n_stuck_bolts 0 --spring_stiffness 3000\" scripts/qsub_fairing_sep_run.sh"
+  ]
+}

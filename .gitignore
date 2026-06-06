@@ -68,3 +68,4 @@ docs/jaxa_evaluation.md
 # qsub scheduler stdout logs (regenerable, not data) + retry counters
 Job-*.o[0-9]*
 *.attempts
+papers/repos/
