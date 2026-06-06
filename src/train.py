@@ -902,7 +902,7 @@ def train(args, train_data, val_data, fold=None):
                     tb_writer.add_scalar('val/opt_f1', val_m['opt_f1'], epoch)
                     tb_writer.add_scalar('val/opt_threshold', val_m['opt_threshold'], epoch)
                 # Physics-informed loss components
-                for pk in ('physics_smooth', 'physics_stress', 'physics_connected'):
+                for pk in ('physics_smooth', 'physics_stress', 'physics_connected', 'physics_eq'):
                     if pk in train_m:
                         tb_writer.add_scalar('physics/%s' % pk, train_m[pk], epoch)
                 if num_classes > 2:
@@ -928,6 +928,13 @@ def train(args, train_data, val_data, fold=None):
                         key = 'f1_%s' % name
                         parts.append('%s=%.3f' % (name[:3], val_m.get(key, 0.0)))
                     msg += '\n    Per-class: ' + ' | '.join(parts)
+                # Physics loss breakdown
+                phys_parts = []
+                for pk in ('physics_stress', 'physics_eq', 'physics_smooth'):
+                    if pk in train_m:
+                        phys_parts.append('%s=%.4f' % (pk.replace('physics_', ''), train_m[pk]))
+                if phys_parts:
+                    msg += '\n    Physics: ' + ' | '.join(phys_parts)
                 print(msg)
 
             # Checkpoint best (use opt_f1 if available, else f1)
