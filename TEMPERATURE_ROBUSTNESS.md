@@ -91,11 +91,43 @@ Headline: *two orthogonal environmental axes (thermal wave-speed shift + sensor-
 each removed by its matched physical correction, combine to near-zero false alarms without
 sacrificing damage sensitivity.*
 
+## Finding 6 — detection over time (full 4.5-yr cycle): amplitude-norm wins, temp-regress is double-edged
+Full 56-month run (2018_05 excluded: corrupt source file). Train a SAGE detector on
+2018+2019, deploy across 2020–2022 (damage worsens to tag 6, temperature cycles each year).
+Per-month recall (on damaged, tag>0) and FPR (on healthy), three compensation conditions —
+OFF (raw), AMP (amplitude-norm only), FULL (amplitude-norm + temperature-regression).
+[longterm_detection_over_time.py](scripts/longterm_detection_over_time.py),
+figure [results/ogw/fig_detection_over_time.png](results/ogw/fig_detection_over_time.png).
+
+Recall (damaged months), representative:
+
+| month | temp | recOFF | recAMP | recFULL |
+|---|---|---|---|---|
+| 2022_08 | 26 °C | 0.30 | 0.73 | **0.93** |
+| 2021_06 | 27 °C | 0.76 | 0.81 | **0.93** |
+| 2021_11 | 2 °C | 0.97 | **0.95** | **0.06** |
+| 2022_01 | −2 °C | 0.51 | **0.46** | **0.01** |
+
+- **AMP (amplitude-norm only) is the all-round winner**: raises warm-month recall and *keeps*
+  cold-month recall (no catastrophic loss) → robust across the whole temperature range.
+- **FULL (temperature regression) is double-edged**: best warm-month recall + lowest cold
+  *healthy*-month FPR (e.g. 2020_12 0.67→0.02, 2021_01 0.59→0.07), but **destroys cold-month
+  damage recall** (2021_11 0.97→0.06) — it cannot tell a temperature-induced shift from a
+  damage-induced one and over-corrects damaged cold samples back toward healthy.
+- **Practical rule**: use amplitude-norm always; add temperature-regression only for
+  healthy-state monitoring / warm-season detection, not for cold-season damage detection.
+
+One-class novelty (B', [longterm_novelty_oneclass.py](scripts/longterm_novelty_oneclass.py),
+baseline = first deployment year 2020's healthy scans across its full temperature cycle):
+the broad baseline fixes the single-month degenerate failure (FPR ≈1.0 → 0.0–0.5), but recall
+stays low (0.06–0.56). **Supervised detection (Finding 6) clearly beats one-class here.**
+
 ## Targets / next
 - [x] ~~Amplitude normalization for the gain axis~~ → 2018_12 46 %→0 % (Finding 4/5).
 - [x] ~~Combined compensation, FPR ≤ 10 % at all temps~~ → ≤0.6 % everywhere (Finding 5).
-- [ ] Validate on the **full 56-month seasonal cycle** + later-year damage once download done
-      (so far healthy-FPR on 4 months; need damage-bearing later months for detRecall vs time).
-- [ ] Multi-year *training* (2021 full year + others) → learn invariance directly; compare to
-      post-hoc compensation (does end-to-end beat the two-stage physical correction?).
-- [ ] Report detection recall under compensation across temperatures (not only FPR).
+- [x] ~~Detection recall over the full 56-month cycle, compensation ON/OFF~~ → Finding 6
+      (amplitude-norm robust; temperature-regression double-edged; one-class weak).
+- [ ] Damage-aware compensation: split temperature-regression by a damage gate so it stops
+      suppressing cold-month damage (the FULL failure mode).
+- [ ] Multi-year *training* with temperature as a feature → learn invariance directly;
+      compare to the two-stage post-hoc physical correction.

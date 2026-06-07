@@ -52,38 +52,26 @@ def transform(f, tp, cond, coef, tref):
     return regress(g, tp, coef, tref) if coef is not None else g
 
 
-def split_baseline(months, cache):
-    """Leading chronological all-healthy months = deployment baseline; the rest = detection."""
-    baseline, detect, seen = [], [], False
-    for m in months:
-        if m not in cache:
-            continue
-        nd = int((cache[m][1] == 1).sum())
-        if not seen and nd == 0:
-            baseline.append(m)
-        else:
-            seen = True; detect.append(m)
-    if not baseline:
-        baseline, detect = detect[:1], detect[1:]
-    return baseline, detect
-
-
 def run(test_months):
-    """Realistic SHM deployment: characterise the pristine structure from a BASELINE window
-    (leading all-healthy months of the deployment period), then detect deviations in later
-    months. No cross-year reference (avoids inter-year drift); within-deployment seasonal
-    temperature is exactly what compensation handles."""
+    """Realistic SHM deployment: characterise the pristine structure from the FIRST deployment
+    YEAR's healthy scans (spanning its full seasonal temperature cycle), then detect deviations
+    in the LATER years. A full-temperature baseline avoids the degenerate 'everything is novel'
+    failure of a single-month baseline; within-deployment seasonal temperature is handled by
+    compensation. FPR on later-year healthy is fully out-of-sample (no leakage)."""
     cache = cache_features(test_months)
-    baseline_months, detect_months = split_baseline(test_months, cache)
-    print(f"  baseline(pristine)={baseline_months}  detect={len(detect_months)}mo", flush=True)
-    bm = [m for m in baseline_months if m in cache]
+    months = [m for m in test_months if m in cache]
+    base_year = min(m.split("_")[0] for m in months)
+    baseline_months = [m for m in months if m.split("_")[0] == base_year]
+    detect_months = [m for m in months if m.split("_")[0] != base_year]
+    print(f"  baseline_year={base_year} ({len(baseline_months)}mo, healthy samples) "
+          f"detect={len(detect_months)}mo (later years)", flush=True)
     Hf, Ht = [], []
-    for m in bm:
+    for m in baseline_months:
         f, y, tp = cache[m]; h = (y == 0)
         if h.any():
             Hf.append(f[h]); Ht.append(tp[h])
     Hraw = np.concatenate(Hf); Htp = np.concatenate(Ht)
-    coef, tref = fit_drift(ampnorm(Hraw), Htp)  # drift on ampnormed baseline-healthy
+    coef, tref = fit_drift(ampnorm(Hraw), Htp)  # drift on ampnormed baseline-year healthy
 
     results = {}
     for cond in ("OFF", "ON"):

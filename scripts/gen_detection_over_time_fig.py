@@ -19,15 +19,21 @@ SPECS = [("detection_over_time.json", "A: supervised, train 2018-2019"),
          ("novelty_oneclass.json", "B': one-class healthy-only")]
 
 
+STYLE = {"OFF": ("o--", "#d62728", "no compensation"),
+         "AMP": ("^-", "#2ca02c", "amplitude-norm only"),
+         "FULL": ("s-", "#1f77b4", "amp + temp-regress"),
+         "ON": ("s-", "#1f77b4", "compensation ON")}
+
+
 def series(rows, key):
-    x, v, lab = [], [], []
+    x, v = [], []
     for i, r in enumerate(rows):
         if r.get(key) is not None:
-            x.append(i); v.append(r[key]); lab.append(r["month"][2:])
-    return np.array(x), np.array(v), lab
+            x.append(i); v.append(r[key])
+    return np.array(x), np.array(v)
 
 
-fig, axes = plt.subplots(len(SPECS), 2, figsize=(9.5, 5.2), squeeze=False)
+fig, axes = plt.subplots(len(SPECS), 2, figsize=(9.8, 5.4), squeeze=False)
 for row, (fn, title) in enumerate(SPECS):
     p = os.path.join(OGW, fn)
     axL, axR = axes[row]
@@ -36,22 +42,22 @@ for row, (fn, title) in enumerate(SPECS):
             ax.text(0.5, 0.5, f"{fn}\n(not yet run)", ha="center", va="center", color="gray")
         continue
     res = json.load(open(p))
-    off, on = res["OFF"]["rows"], res["ON"]["rows"]
-    months = [r["month"][2:] for r in off]
+    conds = [c for c in ("OFF", "AMP", "FULL", "ON") if c in res]
+    months = [r["month"][2:] for r in res[conds[0]]["rows"]]
     for ax, key, ylab in [(axL, "recall", "Recall (damaged months)"),
                           (axR, "fpr", "FPR (healthy months)")]:
-        xo, vo, _ = series(off, key); xn, vn, _ = series(on, key)
-        ax.plot(xo, vo, "o--", color="#d62728", ms=4, lw=1.2, label="compensation OFF")
-        ax.plot(xn, vn, "s-", color="#1f77b4", ms=4, lw=1.4, label="compensation ON")
+        for c in conds:
+            mk, col, lab = STYLE[c]
+            x, v = series(res[c]["rows"], key)
+            ax.plot(x, v, mk, color=col, ms=3.5, lw=1.2, label=lab)
         ax.set_ylabel(ylab, fontsize=8); ax.set_ylim(-0.03, 1.03)
         ax.set_xticks(range(len(months))); ax.set_xticklabels(months, rotation=90, fontsize=5)
         ax.grid(alpha=0.25, lw=0.4)
         if key == "fpr":
-            ax.axhline(0.10, ls=":", color="red", lw=0.8, alpha=0.6); ax.set_ylim(-0.01, 0.55)
+            ax.axhline(0.10, ls=":", color="red", lw=0.8, alpha=0.6); ax.set_ylim(-0.01, 1.03)
         ax.spines["top"].set_visible(False); ax.spines["right"].set_visible(False)
     axL.set_title(title, fontsize=9, loc="left")
-    if row == 0:
-        axL.legend(fontsize=7, frameon=False, loc="lower right")
+    axL.legend(fontsize=6.5, frameon=False, loc="lower left", ncol=1)
 fig.suptitle("Damage detection over time: environmental compensation ON vs OFF", fontsize=11)
 plt.tight_layout(rect=[0, 0, 1, 0.97])
 out = os.path.join(OGW, "fig_detection_over_time.png")
