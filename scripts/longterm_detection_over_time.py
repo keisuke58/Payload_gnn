@@ -123,21 +123,29 @@ def run(train_months, test_months):
             pf.append(fa[h]); pt.append(tp[h])
     coef, tref = (fit_drift(np.concatenate(pf), np.concatenate(pt)) if pf else (None, None))
 
+    # two detectors: on raw features, and on amplitude-normalised features (shared by AMP/FULL)
+    mdl_raw, mu_r, sd_r = train_detector(Xraw, ytr)
+    Xamp = ampnorm(Xraw)
+    mdl_amp, mu_a, sd_a = train_detector(Xamp, ytr)
+    thr_raw = np.percentile(scores(mdl_raw, Xraw[ytr == 0], mu_r, sd_r), 95)
+    thr_amp = np.percentile(scores(mdl_amp, Xamp[ytr == 0], mu_a, sd_a), 95)
+
+    def tf_full(f, tp):
+        g = ampnorm(f)
+        return regress(g, tp, coef, tref) if coef is not None else g
+
+    # OFF=raw, AMP=amplitude-norm only, FULL=amplitude-norm + temperature regression
+    conds = {"OFF":  (mdl_raw, mu_r, sd_r, thr_raw, lambda f, tp: f),
+             "AMP":  (mdl_amp, mu_a, sd_a, thr_amp, lambda f, tp: ampnorm(f)),
+             "FULL": (mdl_amp, mu_a, sd_a, thr_amp, tf_full)}
     results = {}
-    for cond in ("OFF", "ON"):
-        Xtr_t = Xraw if cond == "OFF" else ampnorm(Xraw)
-        mdl, mu, sd = train_detector(Xtr_t, ytr)
-        thr = np.percentile(scores(mdl, Xtr_t[ytr == 0], mu, sd), 95)  # FPR 5% on train-healthy
+    for cond, (mdl, mu, sd, thr, tfm) in conds.items():
         rows = []
         for m in test_months:
             if m not in cache:
                 continue
-            f0, y, tp = cache[m]; f = f0
-            if cond == "ON":
-                f = ampnorm(f0)
-                if coef is not None:
-                    f = regress(f, tp, coef, tref)
-            s = scores(mdl, f, mu, sd); pred = (s >= thr)
+            f0, y, tp = cache[m]
+            s = scores(mdl, tfm(f0, tp), mu, sd); pred = (s >= thr)
             rows.append({"month": m, "tempC": round(float(tp.mean()), 1),
                          "n_dmg": int((y == 1).sum()), "n_heal": int((y == 0).sum()),
                          "recall": float(pred[y == 1].mean()) if (y == 1).any() else None,
@@ -154,14 +162,16 @@ if __name__ == "__main__":
     print(f"train_years={TRAIN_YEARS} ({len(train_months)}mo)  "
           f"test_years={TEST_YEARS} ({len(test_months)}mo)  epochs={EPOCHS}")
     res = run(train_months, test_months)
+    amp = {r["month"]: r for r in res["AMP"]["rows"]}
+    ful = {r["month"]: r for r in res["FULL"]["rows"]}
+    g = lambda v: "  -  " if v is None else f"{v:.3f}"
     print(f"\n{'month':9s}{'temp':>5s}{'nDmg':>7s}{'nHeal':>7s} | "
-          f"{'recOFF':>7s}{'recON':>7s} | {'fprOFF':>7s}{'fprON':>7s}")
-    on = {r["month"]: r for r in res["ON"]["rows"]}
+          f"{'recOFF':>7s}{'recAMP':>7s}{'recFULL':>8s} | {'fprOFF':>7s}{'fprAMP':>7s}{'fprFULL':>8s}")
     for r in res["OFF"]["rows"]:
-        o = on.get(r["month"], {})
-        f = lambda v: "  -  " if v is None else f"{v:.3f}"
+        a, f = amp.get(r["month"], {}), ful.get(r["month"], {})
         print(f"{r['month']:9s}{r['tempC']:5.0f}{r['n_dmg']:7d}{r['n_heal']:7d} | "
-              f"{f(r['recall']):>7s}{f(o.get('recall')):>7s} | {f(r['fpr']):>7s}{f(o.get('fpr')):>7s}", flush=True)
+              f"{g(r['recall']):>7s}{g(a.get('recall')):>7s}{g(f.get('recall')):>8s} | "
+              f"{g(r['fpr']):>7s}{g(a.get('fpr')):>7s}{g(f.get('fpr')):>8s}", flush=True)
     out = os.path.join(HERE, "..", "results", "ogw", "detection_over_time.json")
     json.dump(res, open(out, "w"), indent=2)
-    print(f"\nsaved {out}  (thrOFF={res['OFF']['thr']:.3f} thrON={res['ON']['thr']:.3f})")
+    print(f"\nsaved {out}  (thrOFF={res['OFF']['thr']:.3f} thrAMP={res['AMP']['thr']:.3f} thrFULL={res['FULL']['thr']:.3f})")
