@@ -164,7 +164,8 @@ at nodes with low equilibrium violation.
 
 \section{Results}
 
-\begin{frame}{Architecture \& method comparison (interim, ep\,40--100)}
+% ---- (A) static results -----------------------------------------
+\begin{frame}{(A) Static FEM — architecture \& PINN comparison (interim ep\,40--100)}
 \centering
 \small
 \begin{tabular}{llccccccc}
@@ -181,30 +182,91 @@ GIN      & MT+L1+L2 & 0.812 & 0.998 & 0.186 & 0.000 & 0.260 & 0.030 & 1.2\,mm \\
 \bad{Transolver} & MT+L1+L2 & \bad{0.010} & \bad{0.493} & --- & --- & --- & --- & --- \\
 \bottomrule
 \end{tabular}
-\vspace{0.4em}
-\begin{itemize}
-  \item \textbf{NC} = node classification only \quad \textbf{MT} = multitask (+centroid regression)
-  \item \textbf{L1} = stress-gradient PINN \quad \textbf{L2} = equilibrium-residual PINN
-  \item Results at ep\,40--100; training continues to 200 epochs
-\end{itemize}
+\vspace{0.3em}
+{\footnotesize
+\textbf{NC} = node cls only \quad
+\textbf{MT} = +centroid regression \quad
+\textbf{L1} = stress-gradient PINN \quad
+\textbf{L2} = equil.\ residual PINN\\
+Interim results (ep\,40--100); all runs continue to 200 epochs.}
 \end{frame}
 
-\begin{frame}{Key findings}
-\begin{block}{1. LGSTA wins at 0.862 OptF1}
-Dual local-global attention captures both \emph{local} stress concentrations and \emph{global} structural coupling — especially important for detecting delamination patterns.
-\end{block}
-\vspace{4pt}
-\begin{block}{2. Multitask centroid regression converges to $\sim$0.7--1.2\,mm RMSE}
-With a single shared backbone, the model simultaneously classifies defect nodes \emph{and} locates the defect centroid to sub-mm accuracy (normalised by 5{,}000\,mm structure). Direct use in maintenance planning.
-\end{block}
-\vspace{4pt}
-\begin{block}{3. L2 PINN alone (SAGE, 0.845) is competitive with L1+L2}
-Static equilibrium residual $\nabla\!\cdot\!\boldsymbol{\sigma}=0$ provides effective physics regularisation even without the stress-gradient term.
-\end{block}
-\vspace{4pt}
-\begin{alertblock}{Negative: Transolver collapses (AUC $\approx$ 0.49)}
-Transolver is designed for structured grids; it fails on the irregular FEM mesh topology even without physics losses.
+% ---- (B) dynamic GW results -------------------------------------
+\begin{frame}{(B) Dynamic GW — MIFNO-GW results}
+\begin{columns}[T]
+\begin{column}{0.50\textwidth}
+\textbf{Model:} MIFNO-GW\\
+{\footnotesize 2-D factorised Fourier Neural Operator\\
+(Lehmann et al.\ 2025, \textit{J.\ Comput.\ Phys.})}\\[6pt]
+\textbf{Input:} 9 sensors $\times$ 4{,}000 time steps\\
+\textbf{Task:} binary defect / healthy classification\\[6pt]
+\begin{tabular}{lcc}
+\toprule
+ & Train & Val \\
+\midrule
+Samples & 85 & 21 \\
+Healthy & 80 & 20 \\
+Defect  & 5  & 1  \\
+\bottomrule
+\end{tabular}\\[6pt]
+\textbf{Final result (ep 150):}\\[2pt]
+\begin{tabular}{lc}
+\toprule
+Metric & Value \\
+\midrule
+Val F1  & 1.000 \\
+AUC     & 1.000 \\
+\bottomrule
+\end{tabular}
+\end{column}
+\begin{column}{0.48\textwidth}
+\begin{alertblock}{Dataset caveat}
+Only \textbf{6 defect samples} in total.
+F1\,=\,1.0 achieved at epoch 2 — the task is trivially separable at this scale.
+Results are \emph{not} statistically meaningful.
 \end{alertblock}
+\vspace{6pt}
+\begin{block}{Level-3 PINN (implemented, not yet validated)}
+Wave-phase consistency loss:
+\[
+\mathcal{L}_\text{disp} = \bigl\langle w_{ij}\,
+  \bigl[\angle(\hat{u}_j\hat{u}_i^*) - \tfrac{\omega|dx|}{c}\bigr]^2
+  \bigr\rangle_{ij,\omega}
+\]
+Requires $\gtrsim$50 defect samples to observe regularisation effect.
+Generating larger GW dataset is the \textbf{immediate next step}.
+\end{block}
+\end{column}
+\end{columns}
+\end{frame}
+
+% ---- key findings -----------------------------------------------
+\begin{frame}{Key findings}
+\begin{block}{(A-1) LGSTA wins at OptF1 = 0.862}
+Dual local-global attention: local GAT finds defect boundaries; global self-attention captures full structural coupling.
+\end{block}
+\vspace{3pt}
+\begin{block}{(A-2) Multitask centroid regression: 0.6--1.2\,mm RMSE}
+Shared backbone simultaneously classifies defect type \emph{and} locates centroid — sub-mm accuracy on a 5\,m structure.
+\end{block}
+\vspace{3pt}
+\begin{block}{(A-3) L2 PINN alone (SAGE, 0.845) competitive with L1+L2}
+$\nabla\!\cdot\!\boldsymbol{\sigma}=0$ residual is the dominant physics term; stress-gradient L1 adds marginal gain.
+\end{block}
+\vspace{3pt}
+\begin{columns}[T]
+\begin{column}{0.48\textwidth}
+\begin{alertblock}{(A-4) Transolver collapses (AUC\,$\approx$\,0.49)}
+Designed for structured grids; fails on irregular FEM mesh even without physics loss.
+\end{alertblock}
+\end{column}
+\begin{column}{0.48\textwidth}
+\begin{alertblock}{(B) GW dataset too small for L3 validation}
+6 defect samples $\Rightarrow$ F1\,=\,1.0 is trivial.
+Need $\gtrsim$50 defect simulations to evaluate wave-phase PINN.
+\end{alertblock}
+\end{column}
+\end{columns}
 \end{frame}
 
 \section{Outlook}
