@@ -75,11 +75,31 @@ def panel(name, yt, yp, pd):
           f"prec={prec:.3f} F1={f1:.3f} AUPRC={auprc:.3f} AUC={auc:.3f}")
 
 
+def calibrate(yt, pd):
+    """Threshold calibration using the HEALTHY baseline only (no defect-test leakage).
+    Realistic SHM: scan the pristine structure once, set threshold for a target FPR."""
+    hs = pd[yt == 0]; ds = pd[yt == 1]
+    print(f"  scores: healthy mean={hs.mean():.3f} (p50={np.median(hs):.3f}), "
+          f"defect mean={ds.mean():.3f} (p50={np.median(ds):.3f})")
+    print("  -- operating points (threshold from healthy percentile) --")
+    for fpr in (0.05, 0.10, 0.20):
+        thr = np.percentile(hs, 100 * (1 - fpr))
+        rec = float((ds >= thr).mean()); act_fpr = float((hs >= thr).mean())
+        bal = 0.5 * (rec + (1 - act_fpr))
+        print(f"    target FPR={fpr:.2f}: thr={thr:.3f}  recall={rec:.3f}  actFPR={act_fpr:.3f}  bal-acc={bal:.3f}")
+    # Youden-optimal (reference; uses both classes, mildly optimistic)
+    ths = np.unique(pd); best = max(((((ds >= th).mean()) - ((hs >= th).mean()), th) for th in ths))
+    th = best[1]; rec = float((ds >= th).mean()); fpr = float((hs >= th).mean())
+    print(f"    Youden-opt: thr={th:.3f}  recall={rec:.3f}  FPR={fpr:.3f}  bal-acc={0.5*(rec+1-fpr):.3f}")
+
+
 if __name__ == "__main__":
     m = load_model()
     yt, yp, pd = run(m, fem_val()); panel("FEM val (in-dist)", yt, yp, pd)
     g = ogw_boot()
     if g:
         yt, yp, pd = run(m, g); panel("OGW (sim-to-real)", yt, yp, pd)
+        print("=== OGW threshold calibration (healthy-baseline) ===")
+        calibrate(yt, pd)
     else:
         print("OGW extracted 100kHz not found")
