@@ -9,8 +9,10 @@
 \usepackage{microtype}
 \usepackage{booktabs}
 \usepackage{colortbl}
+\usepackage{graphicx}
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta, positioning, shapes.geometric}
+\graphicspath{{../figures/slides/}}
 
 % LUH colours
 \definecolor{luhblue}{RGB}{0,80,155}
@@ -102,6 +104,24 @@ Dims & Feature group & Physical meaning \\
 \end{tabular}
 \end{frame}
 
+% ---- 3D structure visualisation -----------------------------------------
+\begin{frame}{H3 Fairing: 3D Structure \& Defect Scenarios}
+\begin{columns}[c]
+\begin{column}{0.49\textwidth}
+  \centering
+  \includegraphics[width=\textwidth]{fairing_structure_3d.png}\\[-2pt]
+  {\footnotesize 1/6 sector, 10{,}897 FEM nodes — CFRP/Al-honeycomb sandwich\\
+   \textcolor{luhgray}{Orange: 9 GW piezo sensors (circumferential ring)}}
+\end{column}
+\begin{column}{0.49\textwidth}
+  \centering
+  \includegraphics[width=\textwidth]{defect_region_3d.png}\\[-2pt]
+  {\footnotesize Representative defect: \textbf{debonding}, 109 nodes\\
+   \textcolor{luhgray}{$z_c \approx 2386\,\text{mm}$,\; $r \approx 294\,\text{mm}$\; (4 defect types total)}}
+\end{column}
+\end{columns}
+\end{frame}
+
 \section{Methods}
 
 \begin{frame}{Three modelling additions}
@@ -191,6 +211,18 @@ GIN      & MT+L1+L2 & 0.812 & 0.998 & 0.186 & 0.000 & 0.260 & 0.030 & 1.2\,mm \\
 Interim results (ep\,40--100); all runs continue to 200 epochs.}
 \end{frame}
 
+% ---- (A') GNN node-level prediction visualisation ---------------
+\begin{frame}{(A) Static FEM — Node-level Defect Localisation}
+\centering
+\includegraphics[width=0.96\textwidth]{gnn_gt_vs_pred.png}
+\vspace{2pt}
+{\small
+ \textbf{Left:} ground-truth debonding labels (109 nodes, red). \quad
+ \textbf{Right:} LGSTA node defect probability.\\
+ \textcolor{luhgray}{Model concentrates high probability on the true defect region
+ (OptF1\,=\,0.862, AUC\,=\,0.999).}}
+\end{frame}
+
 % ---- (B) dynamic GW results -------------------------------------
 \begin{frame}{(B) Dynamic GW — MIFNO-GW v2 (sensor-consistent)}
 \begin{columns}[T]
@@ -233,6 +265,16 @@ Active ($\lambda=0.05$); regularisation effect visible only at $\gtrsim$50 defec
 \end{block}
 \end{column}
 \end{columns}
+\end{frame}
+
+% ---- (B') GW wavefield visualisation ----------------------------
+\begin{frame}{(B) Dynamic GW — Wavefield: Healthy vs Debond}
+\centering
+\includegraphics[width=0.96\textwidth]{gw_comparison.png}
+\vspace{2pt}
+{\small\textcolor{luhgray}{%
+ GW envelope (healthy / defect) and difference field (scattered wave signature).\\
+ MIFNO-GW v2 classifies from 9-sensor time series — no positional branch (waveform-only FNO).}}
 \end{frame}
 
 % ---- key findings -----------------------------------------------
