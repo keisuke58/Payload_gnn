@@ -99,13 +99,36 @@ class GWDataset(Dataset):
         )
 
 
-def collect_samples(csv_dir):
+def _csv_n_sensors(path):
+    """Return number of sensor columns in a CSV file (fast, reads 2 lines)."""
+    with open(path) as f:
+        f.readline()  # header
+        pos_line = f.readline()
+    return len(pos_line.strip().lstrip('#').split(',')) - 1  # minus time col
+
+
+def collect_samples(csv_dir, target_n_sensors=None):
+    """Collect (path, label) pairs, optionally filtered by sensor count.
+
+    Labelling rules:
+      - 'Healthy' in filename  -> healthy (0)
+      - '-H' followed by digit or '_' in filename -> healthy (0)  (e.g. Test-H3)
+      - everything else -> defect (1)
+    """
+    import re
+    _healthy_re = re.compile(r'(?:Healthy|-H[\d_])')
     samples = []
     for f in sorted(os.listdir(csv_dir)):
-        if not f.endswith('.csv'):
+        if not f.endswith('.csv') or f.startswith('.'):
             continue
         path = os.path.join(csv_dir, f)
-        label = 0 if 'Healthy' in f else 1
+        if target_n_sensors is not None:
+            try:
+                if _csv_n_sensors(path) != target_n_sensors:
+                    continue
+            except Exception:
+                continue
+        label = 0 if _healthy_re.search(f) else 1
         samples.append((path, label))
     return samples
 
@@ -186,35 +209,41 @@ class MIFNO_GW(nn.Module):
 
     def __init__(self, n_sensors=9, seq_len=2048, width=32,
                  n_layers=6, branching_index=3,
-                 modes_s=4, modes_t=64, dropout=0.1):
+                 modes_s=4, modes_t=64, dropout=0.1, use_pos=False):
         super().__init__()
         self.n_sensors = n_sensors
         self.seq_len = seq_len
         self.width = width
         self.branching_index = branching_index
+        self.use_pos = use_pos
 
         # Lift waveform [B, S, T] -> [B, width, S, T]
         self.lift = nn.Conv2d(1, width, kernel_size=1)
 
-        # Material branch (first branching_index layers)
-        self.mat_blocks = nn.ModuleList([
-            FNOBlock2D(width, modes_s, modes_t)
-            for _ in range(branching_index)
-        ])
-
-        # Source branch: pos [B, S] -> [B, width, S, T] token
-        self.src_mlp = nn.Sequential(
-            nn.Linear(n_sensors, 64),
-            nn.GELU(),
-            nn.Linear(64, width * n_sensors),
-        )
-
-        # Shared branch (concat mat + src -> 2*width)
-        shared_ch = 2 * width
-        self.shared_blocks = nn.ModuleList([
-            FNOBlock2D(shared_ch, modes_s, modes_t)
-            for _ in range(n_layers - branching_index)
-        ])
+        if use_pos:
+            # Material branch (first branching_index layers)
+            self.mat_blocks = nn.ModuleList([
+                FNOBlock2D(width, modes_s, modes_t)
+                for _ in range(branching_index)
+            ])
+            # Source branch: pos [B, S] -> [B, width, S, T] token
+            self.src_mlp = nn.Sequential(
+                nn.Linear(n_sensors, 64),
+                nn.GELU(),
+                nn.Linear(64, width * n_sensors),
+            )
+            shared_ch = 2 * width
+            self.shared_blocks = nn.ModuleList([
+                FNOBlock2D(shared_ch, modes_s, modes_t)
+                for _ in range(n_layers - branching_index)
+            ])
+        else:
+            # Waveform-only: single stack of FNO blocks, no position branch
+            self.all_blocks = nn.ModuleList([
+                FNOBlock2D(width, modes_s, modes_t)
+                for _ in range(n_layers)
+            ])
+            shared_ch = width
 
         # Decoder: global avg pool -> MLP -> 2
         self.head = nn.Sequential(
@@ -232,25 +261,25 @@ class MIFNO_GW(nn.Module):
         x = wav.unsqueeze(1)           # [B, 1, S, T]
         x = self.lift(x)               # [B, width, S, T]
 
-        # Material branch
-        for blk in self.mat_blocks:
-            x = blk(x)
-
-        # Source branch: pos -> [B, width, S, 1] broadcast over T
-        s_tok = self.src_mlp(pos)                          # [B, width*S]
-        s_tok = s_tok.view(B, self.width, S, 1)            # [B, width, S, 1]
-        s_tok = s_tok.expand(-1, -1, -1, T)               # [B, width, S, T]
-
-        # Concat
-        x = torch.cat([x, s_tok], dim=1)                  # [B, 2*width, S, T]
-
-        # Shared branch
-        for blk in self.shared_blocks:
-            x = blk(x)
+        if self.use_pos:
+            # Material branch
+            for blk in self.mat_blocks:
+                x = blk(x)
+            # Source branch: pos -> [B, width, S, 1] broadcast over T
+            s_tok = self.src_mlp(pos)                      # [B, width*S]
+            s_tok = s_tok.view(B, self.width, S, 1)
+            s_tok = s_tok.expand(-1, -1, -1, T)
+            x = torch.cat([x, s_tok], dim=1)              # [B, 2*width, S, T]
+            for blk in self.shared_blocks:
+                x = blk(x)
+        else:
+            # Waveform-only: all FNO blocks, no position branch
+            for blk in self.all_blocks:
+                x = blk(x)
 
         # Decode: avg over S and T
-        x = x.mean(dim=[2, 3])                            # [B, 2*width]
-        return self.head(x)                                # [B, 2]
+        x = x.mean(dim=[2, 3])
+        return self.head(x)
 
 
 # =========================================================================
@@ -320,7 +349,8 @@ def train(args):
     os.makedirs(args.output_dir, exist_ok=True)
     os.makedirs(os.path.join(args.output_dir, 'ckpt'), exist_ok=True)
 
-    samples = collect_samples(args.csv_dir)
+    samples = collect_samples(args.csv_dir,
+                              target_n_sensors=args.n_sensors if args.n_sensors > 0 else None)
     labels = [s[1] for s in samples]
     n_pos = sum(labels)
     n_neg = len(labels) - n_pos
@@ -358,6 +388,7 @@ def train(args):
         modes_s=args.modes_s,
         modes_t=args.modes_t,
         dropout=args.dropout,
+        use_pos=args.use_pos,
     ).to(device)
     print("Params: {:,}".format(sum(p.numel() for p in model.parameters())))
 
@@ -460,6 +491,10 @@ def main():
     parser.add_argument('--csv_dir', type=str,
                         default='abaqus_work/gw_fairing_dataset')
     parser.add_argument('--output_dir', type=str, default='runs/mifno_gw_v1')
+    parser.add_argument('--n_sensors', type=int, default=9,
+                        help='Filter CSVs by sensor count (0=no filter)')
+    parser.add_argument('--use_pos', action='store_true',
+                        help='Enable sensor position branch (risks position leakage if layouts differ)')
     parser.add_argument('--seq_len', type=int, default=2048)
     parser.add_argument('--width', type=int, default=32)
     parser.add_argument('--n_layers', type=int, default=6)
