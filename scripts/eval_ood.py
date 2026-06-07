@@ -173,21 +173,36 @@ def main():
     ckpt = torch.load(ckpt_path, map_location='cpu', weights_only=False)
     state = ckpt.get('model_state_dict', ckpt.get('state_dict', ckpt))
 
-    # Build model from train.py (import)
-    from src.train import build_model
+    # Build model — reconstruct from checkpoint args (stored by train.py)
+    src_dir = os.path.join(PROJECT_ROOT, 'src')
+    if src_dir not in sys.path:
+        sys.path.insert(0, src_dir)
+    from models import build_model
     sample_data = torch.load(os.path.join(ood_dir, 'val.pt'),
                              map_location='cpu', weights_only=False)[0]
-    num_features = sample_data.x.shape[1]
 
-    # Parse args for model construction (use defaults + arch override)
-    import argparse as _ap
-    fake = _ap.Namespace(
-        arch=args.arch, num_classes=args.num_classes,
-        hidden=128, layers=4, dropout=0.1,
-        task='multitask', reg_weight=0.5,
-        edge_features=False, use_edge_attr=False,
-    )
-    model = build_model(fake, num_features).to(device)
+    ckpt_args  = ckpt.get('args', {})
+    in_ch      = ckpt.get('in_channels',  sample_data.x.shape[1])
+    ea_dim     = ckpt.get('edge_attr_dim',
+                          sample_data.edge_attr.shape[1] if sample_data.edge_attr is not None else 0)
+    hidden     = ckpt_args.get('hidden', 128)
+    layers     = ckpt_args.get('layers', 4)
+    dropout    = ckpt_args.get('dropout', 0.1)
+    residual   = ckpt_args.get('residual', False)
+    task       = ckpt_args.get('task', 'multitask')
+    reg_out    = ckpt_args.get('reg_out_dim', 3)
+
+    model = build_model(
+        args.arch, in_ch,
+        edge_attr_dim=ea_dim,
+        task=task,
+        hidden_channels=hidden,
+        num_layers=layers,
+        dropout=dropout,
+        num_classes=args.num_classes,
+        use_residual=residual,
+        reg_out_dim=reg_out,
+    ).to(device)
     model.load_state_dict(state, strict=False)
     print(f'Model: {args.arch} loaded ({sum(p.numel() for p in model.parameters())} params)')
 
