@@ -40,39 +40,47 @@
 
 \section{Problem setup}
 
-\begin{frame}{Structural health monitoring of the H3 Type-S fairing}
+\begin{frame}{SHM problem: two complementary analyses}
+\textbf{Structure:} CFRP / Al-honeycomb sandwich fairing (H3 Type-S, 1/6 section) \quad
+\textbf{Defects:} debonding / FOD / impact / delamination
+
+\vspace{0.4em}
 \begin{columns}[T]
-\begin{column}{0.55\textwidth}
-\textbf{Structure:} CFRP / Al-honeycomb sandwich, 1/6 section\\[4pt]
-\textbf{FEM mesh:} 10{,}897 nodes, 34 node features\\[4pt]
-\textbf{Task:} 5-class node-level defect classification
-\begin{itemize}
-  \item Class 0 Healthy (99.6\%)
-  \item Class 1 Debonding
-  \item Class 2 Foreign-object damage (FOD)
-  \item Class 3 Impact damage
-  \item Class 4 Delamination
+% ---------- static ----------
+\begin{column}{0.48\textwidth}
+\begin{block}{(A) Static FEM analysis}
+\begin{itemize}\setlength\itemsep{1pt}
+  \item Abaqus static stress field per defect scenario
+  \item \textbf{10{,}897 nodes} $\times$ \textbf{34 features} (disp, stress, temp, layup, \ldots)
+  \item Graph: FEM connectivity
+  \item Task: \textbf{5-class node classification}\\
+        + defect centroid regression
+  \item 700 simulations (560/140 split)
+  \item Metric: OptF1 (threshold-optimal)
 \end{itemize}
-\vspace{4pt}
-\textbf{Dataset:} 700 FEM simulations (560 train / 140 val)\\
-\textbf{Metric:} threshold-optimal macro-F1 (OptF1)
+\end{block}
 \end{column}
-\begin{column}{0.43\textwidth}
-\centering
-\begin{tikzpicture}[node distance=5mm, every node/.style={font=\scriptsize},
-  box/.style={draw=luhblue, fill=luhblue!10, rounded corners, inner sep=3pt, text width=2.8cm, align=center}]
-  \node[box] (fem) {FEM mesh (10{,}897 nodes)};
-  \node[box, below=of fem] (feat) {34 features/node\\(disp, stress, temp, layup\ldots)};
-  \node[box, below=of feat] (gnn) {GNN backbone};
-  \node[box, below=of gnn, xshift=-1.5cm] (cls) {5-class\\node cls};
-  \node[box, below=of gnn, xshift=1.5cm] (reg) {centroid\\regression};
-  \draw[-latex, luhblue] (fem)--(feat);
-  \draw[-latex, luhblue] (feat)--(gnn);
-  \draw[-latex, luhblue] (gnn.south) -- ++(0,-3mm) -| (cls.north);
-  \draw[-latex, luhblue] (gnn.south) -- ++(0,-3mm) -| (reg.north);
-\end{tikzpicture}
+% ---------- dynamic ----------
+\begin{column}{0.48\textwidth}
+\begin{block}{(B) Dynamic guided-wave (GW) analysis}
+\begin{itemize}\setlength\itemsep{1pt}
+  \item Abaqus explicit GW propagation (piezo excitation)
+  \item \textbf{9 sensors} $\times$ \textbf{time series} (sampled at 4\,MHz)
+  \item Graph: sensor spatial network
+  \item Task: \textbf{binary defect detection}\\
+        + wave-phase PINN (Level 3)
+  \item Dataset: 106 samples (100 healthy / 6 defect)
+  \item Model: MIFNO-GW (2-D factorised FNO)
+\end{itemize}
+\end{block}
 \end{column}
 \end{columns}
+
+\vspace{0.3em}
+{\footnotesize\textcolor{luhgray}{%
+Static features enter the GNN as node attributes;
+GW time-series enter MIFNO-GW as a separate modality.
+Future: fused static+dynamic inference.}}
 \end{frame}
 
 \begin{frame}{Node features (34 dims)}
