@@ -28,17 +28,30 @@ def main():
     ap.add_argument("--csv_dir", default="data/external/ogw_stringer/csv9")
     a = ap.parse_args()
 
+    import json
     ck = torch.load(a.ckpt, map_location="cpu", weights_only=False)
-    args = ck.get("args", {})
-    in_ch = ck.get("in_channels")
-    arch = args.get("arch", "sage")
-    feat = FEAT.get(in_ch, "comprehensive")
-    print(f"checkpoint: {a.ckpt}\n  arch={arch} in_channels={in_ch} feature_set={feat} "
-          f"val_f1={ck.get('val_f1')}")
+    sd = ck["model_state_dict"] if isinstance(ck, dict) and "model_state_dict" in ck else ck
 
-    model = build_graph_level_model(arch, in_ch, edge_attr_dim=ck.get("edge_attr_dim", 0),
-                                    num_classes=2)
-    model.load_state_dict(ck["model_state_dict"])
+    # config: prefer sibling results.json, else the dict checkpoint, else infer
+    cfg = {}
+    rj = os.path.join(os.path.dirname(a.ckpt), "results.json")
+    if os.path.exists(rj):
+        cfg = json.load(open(rj)).get("args", {})
+    elif isinstance(ck, dict):
+        cfg = ck.get("args", {})
+    # in_channels & num_layers inferred from the state_dict (robust)
+    conv_w = [v for k, v in sd.items() if k.endswith("convs.0.lin_l.weight")]
+    in_ch = conv_w[0].shape[1] if conv_w else ck.get("in_channels", 24)
+    n_layers = cfg.get("num_layers") or len({k.split(".")[2] for k in sd if ".convs." in k})
+    hidden = cfg.get("hidden", 128)
+    arch = cfg.get("arch", "sage")
+    feat = FEAT.get(in_ch, "comprehensive")
+    print(f"checkpoint: {a.ckpt}\n  arch={arch} in={in_ch} hidden={hidden} layers={n_layers} "
+          f"feature_set={feat} best_val_f1={json.load(open(rj)).get('best_val_f1') if os.path.exists(rj) else '?'}")
+
+    model = build_graph_level_model(arch, in_ch, edge_attr_dim=0, hidden=hidden,
+                                    num_classes=2, num_layers=n_layers)
+    model.load_state_dict(sd)
     model.eval()
 
     print("\n=== OGW sim-to-real ===")
@@ -48,9 +61,10 @@ def main():
         if not cands:
             print(f"  {tag}: CSV not found"); continue
         g = build_gw_graph(cands[0], label=ytrue, feature_set=feat)
-        g.batch = torch.zeros(g.x.size(0), dtype=torch.long)
+        batch = torch.zeros(g.x.size(0), dtype=torch.long)
+        ea = getattr(g, "edge_attr", None)
         with torch.no_grad():
-            out = model(g)
+            out = model(g.x, g.edge_index, ea, batch)
             prob = torch.softmax(out, dim=-1).flatten()
             pred = int(prob.argmax())
         ok = "OK" if pred == ytrue else "X"
