@@ -412,12 +412,20 @@ def train(args):
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
         optimizer, T_max=args.epochs, eta_min=args.lr * 1e-3)
 
+    # TensorBoard
+    try:
+        from torch.utils.tensorboard import SummaryWriter
+        tb = SummaryWriter(log_dir=os.path.join(args.output_dir, 'tb'))
+    except ImportError:
+        tb = None
+
     best_f1 = 0.0
     log_rows = []
 
     for epoch in range(1, args.epochs + 1):
         model.train()
         total_loss = 0.0
+        total_disp = 0.0
         t0 = time.time()
 
         for pos, wav, y in train_loader:
@@ -425,6 +433,7 @@ def train(args):
             optimizer.zero_grad()
             logits = model(pos, wav)
             loss = criterion(logits, y)
+            l_disp = 0.0
             # Level-3: wave phase consistency loss
             if args.lambda_disp > 0:
                 l_disp = wave_phase_consistency_loss(
@@ -438,6 +447,8 @@ def train(args):
             nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             optimizer.step()
             total_loss += loss.item()
+            if isinstance(l_disp, torch.Tensor):
+                total_disp += l_disp.item()
 
         scheduler.step()
 
@@ -462,11 +473,19 @@ def train(args):
 
         elapsed = time.time() - t0
         avg_loss = total_loss / max(len(train_loader), 1)
-        print("[%03d/%03d] loss=%.4f  val_F1=%.4f  AUC=%.4f  lr=%.2e  %.1fs" % (
-            epoch, args.epochs, avg_loss, f1, auc,
+        avg_disp = total_disp / max(len(train_loader), 1)
+        print("[%03d/%03d] loss=%.4f  disp=%.4f  val_F1=%.4f  AUC=%.4f  lr=%.2e  %.1fs" % (
+            epoch, args.epochs, avg_loss, avg_disp, f1, auc,
             scheduler.get_last_lr()[0], elapsed))
 
-        log_rows.append({'epoch': epoch, 'loss': avg_loss, 'f1': f1, 'auc': auc})
+        if tb is not None:
+            tb.add_scalar('train/loss', avg_loss, epoch)
+            tb.add_scalar('train/disp_loss', avg_disp, epoch)
+            tb.add_scalar('val/f1', f1, epoch)
+            tb.add_scalar('val/auc', auc if auc == auc else 0.0, epoch)
+
+        log_rows.append({'epoch': epoch, 'loss': avg_loss, 'disp': avg_disp,
+                         'f1': f1, 'auc': auc})
 
         if f1 > best_f1:
             best_f1 = f1
@@ -476,10 +495,13 @@ def train(args):
             print("  -> saved best (F1=%.4f)" % f1)
 
     # Save log
+    if tb is not None:
+        tb.close()
+
     import csv as csv_mod
     log_path = os.path.join(args.output_dir, 'train_log.csv')
     with open(log_path, 'w', newline='') as f:
-        writer = csv_mod.DictWriter(f, fieldnames=['epoch', 'loss', 'f1', 'auc'])
+        writer = csv_mod.DictWriter(f, fieldnames=['epoch', 'loss', 'disp', 'f1', 'auc'])
         writer.writeheader()
         writer.writerows(log_rows)
 
