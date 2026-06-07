@@ -73,3 +73,6 @@ docs/jaxa_evaluation.md
 Job-*.o[0-9]*
 *.attempts
 papers/repos/
+
+# large external datasets (OGW 18GB etc.)
+data/external/
