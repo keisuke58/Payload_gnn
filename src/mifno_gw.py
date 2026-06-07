@@ -434,8 +434,8 @@ def train(args):
             logits = model(pos, wav)
             loss = criterion(logits, y)
             l_disp = 0.0
-            # Level-3: wave phase consistency loss
-            if args.lambda_disp > 0:
+            # Level-3: wave phase consistency loss (skipped for warmup epochs)
+            if args.lambda_disp > 0 and epoch > args.disp_warmup:
                 l_disp = wave_phase_consistency_loss(
                     wav, pos,
                     c_wave_mms=args.c_wave_mms,
@@ -534,6 +534,8 @@ def main():
     # Level-3 wave physics loss
     parser.add_argument('--lambda_disp', type=float, default=0.0,
                         help='Weight for wave phase-consistency (dispersion) loss (0=off)')
+    parser.add_argument('--disp_warmup', type=int, default=0,
+                        help='Skip dispersion loss for the first N epochs (warmup)')
     parser.add_argument('--c_wave_mms', type=float, default=5.0e6,
                         help='Wave speed in mm/s (CFRP S0 mode ~5e6; A0 ~2e6)')
     parser.add_argument('--dt_us', type=float, default=0.25,
