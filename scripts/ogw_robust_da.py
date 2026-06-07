@@ -89,18 +89,27 @@ def fit(model, graphs, epochs, lr):
     return model
 
 
+def _auc(yt, score):
+    pos = score[yt == 1]; neg = score[yt == 0]
+    if len(pos) == 0 or len(neg) == 0:
+        return float("nan")
+    # rank-based AUC (Mann-Whitney)
+    order = np.argsort(score); ranks = np.empty_like(order, float); ranks[order] = np.arange(1, len(score) + 1)
+    return (ranks[yt == 1].sum() - len(pos) * (len(pos) + 1) / 2) / (len(pos) * len(neg))
+
+
 def evaluate(model, graphs):
-    model.eval(); yt, yp = [], []
+    model.eval(); yt, yp, ps = [], [], []
     with torch.no_grad():
         for g in graphs:
             bt = torch.zeros(g.x.size(0), dtype=torch.long)
-            p = int(model(g.x, g.edge_index, None, bt).argmax(-1))
-            yt.append(int(g.y)); yp.append(p)
-    yt, yp = np.array(yt), np.array(yp)
+            prob = torch.softmax(model(g.x, g.edge_index, None, bt), -1).flatten()
+            yp.append(int(prob.argmax())); ps.append(float(prob[1])); yt.append(int(g.y))
+    yt, yp, ps = np.array(yt), np.array(yp), np.array(ps)
     acc = (yt == yp).mean()
-    # per-class recall
     rec = {c: (yp[yt == c] == c).mean() if (yt == c).any() else float("nan") for c in (0, 1)}
-    return acc, rec, yt, yp
+    auc = _auc(yt, ps)
+    return acc, rec, yt, yp, ps, auc
 
 
 if __name__ == "__main__":
@@ -120,8 +129,13 @@ if __name__ == "__main__":
     real_n = [(g, e) for g, e in zip(norm([g for g, _ in real], mu, sd), [e for _, e in real])]
 
     # zero-shot
-    acc, rec, _, _ = evaluate(model, [g for g, _ in real_n])
-    print(f"\n[zero-shot]  acc={acc:.3f}  recall(healthy)={rec[0]:.3f}  recall(defect)={rec[1]:.3f}")
+    acc, rec, yt, yp, ps, auc = evaluate(model, [g for g, _ in real_n])
+    print(f"\n[zero-shot @0.5]  acc={acc:.3f}  recall(healthy)={rec[0]:.3f}  recall(defect)={rec[1]:.3f}")
+    print(f"  p(defect): healthy mean={ps[yt==0].mean():.3f}  defect mean={ps[yt==1].mean():.3f}")
+    print(f"  *** AUC (ranks defect>healthy?) = {auc:.3f} ***")
+    # best threshold (per-structure baseline calibration proxy)
+    ths = np.unique(ps); best = max(((((ps>=th).astype(int)==yt).mean(), th) for th in ths))
+    print(f"  best-threshold acc={best[0]:.3f} @ th={best[1]:.3f}  (= with calibrated baseline)")
 
     # few-shot: hold out 100kHz as test, fine-tune on the rest
     test_key = "100kHz"
@@ -130,9 +144,7 @@ if __name__ == "__main__":
     if ft and test:
         import copy
         fs = fit(copy.deepcopy(model), ft, epochs=40, lr=3e-4)
-        a0, r0, _, _ = evaluate(model, test)
-        a1, r1, _, _ = evaluate(fs, test)
-        print(f"\n[held-out {test_key}] zero-shot acc={a0:.3f} (H{r0[0]:.2f}/D{r0[1]:.2f})  "
-              f"-> few-shot acc={a1:.3f} (H{r1[0]:.2f}/D{r1[1]:.2f})")
-    else:
-        print("\n(only one excitation available; extract 50/200/300kHz for few-shot)")
+        a0, r0, *_ , au0 = evaluate(model, test)
+        a1, r1, *_ , au1 = evaluate(fs, test)
+        print(f"\n[held-out {test_key}] zero-shot acc={a0:.3f} AUC={au0:.3f}  "
+              f"-> few-shot acc={a1:.3f} AUC={au1:.3f}")
