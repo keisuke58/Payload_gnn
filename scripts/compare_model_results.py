@@ -21,7 +21,11 @@ def load_run(path):
     import torch
     ckpt = torch.load(path, map_location='cpu', weights_only=False)
     val = ckpt.get('val_metrics', {})
-    run_name = os.path.basename(os.path.dirname(path))
+    # Support both flat (runs/name/best.pt) and nested (runs/name/timestamp/best.pt)
+    parent = os.path.dirname(path)      # e.g. runs/pinn_l12_gcn_mt/gcn_20260607/
+    grandparent = os.path.dirname(parent)  # e.g. runs/pinn_l12_gcn_mt/
+    gp_base = os.path.basename(grandparent)
+    run_name = gp_base if gp_base not in ('runs', '', '.') else os.path.basename(parent)
     a = ckpt.get('args', {})
     task = a.get('task', 'node_cls')
     arch = a.get('arch', run_name.split('_')[0])
@@ -67,7 +71,12 @@ def main():
 
     runs_dir = os.path.abspath(args.runs_dir)
     results = []
-    for path in sorted(glob.glob(os.path.join(runs_dir, args.pattern, 'best_model.pt'))):
+    # Search both flat (runs/run_name/best_model.pt) and nested (runs/run_name/timestamp/best_model.pt)
+    paths = sorted(
+        glob.glob(os.path.join(runs_dir, args.pattern, 'best_model.pt')) +
+        glob.glob(os.path.join(runs_dir, args.pattern, '*', 'best_model.pt'))
+    )
+    for path in paths:
         try:
             results.append(load_run(path))
         except Exception as e:
