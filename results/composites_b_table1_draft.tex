@@ -1,0 +1,70 @@
+% ============================================================
+% Composites Part B — Table 1: Architecture & ablation comparison
+% H3 fairing 5-class defect detection (700 samples, 10,897 nodes)
+% Metric: OptF1 = threshold-optimal binary defect-detection F1
+%         AUC   = ROC AUC (healthy vs. any defect)
+%         deb/fod/imp/del = per-class node-level F1 (defect types)
+%         RMSE  = centroid regression error [mm] (multitask only)
+% ============================================================
+\begin{table*}[t]
+\centering
+\caption{Architecture and physics-loss ablation on H3 fairing 5-class defect dataset
+         (700 FEM samples, node-level classification, 5 defect types).
+         \textbf{NC}\,=\,node classification only;
+         \textbf{MT}\,=\,+centroid regression (multitask);
+         \textbf{L1}\,=\,stress-gradient PINN;
+         \textbf{L2}\,=\,equilibrium-residual PINN.
+         Results at best validation checkpoint (epoch 58--132; runs continue to 200).}
+\label{tab:arch_ablation}
+\begin{tabular}{llccccccc}
+\toprule
+Model & Task & OptF1\,$\uparrow$ & AUC\,$\uparrow$
+      & \multicolumn{4}{c}{Per-class F1 (node-level)\,$\uparrow$}
+      & RMSE\,[mm]\,$\downarrow$ \\
+\cmidrule(lr){5-8}
+      &      &        &       & deb   & fod   & imp   & del   &      \\
+\midrule
+% ---- Best model ----
+\textbf{LGSTA (ours)} & NC+L1+L2 & \textbf{0.896} & \textbf{0.999} & 0.586 & 0.367 & 0.344 & 0.341 & --- \\
+% ---- Multitask variant ----
+LGSTA (ours)          & MT+L1+L2 & 0.846 & 0.999 & 0.360 & 0.356 & 0.341 & 0.220 & \textbf{0.9} \\
+\midrule
+% ---- Architecture comparison (MT+L1+L2 for fair comparison) ----
+SAGE                  & MT+L1+L2 & 0.834 & 0.999 & 0.384 & 0.469 & 0.010 & 0.593 & 0.7 \\
+GATv2                 & MT+L1+L2 & 0.829 & 0.999 & 0.342 & 0.315 & 0.359 & 0.000 & 0.7 \\
+MeshGNN               & MT+L1+L2 & 0.828 & 0.998 & 0.219 & 0.000 & 0.000 & 0.450 & 0.8 \\
+GCN                   & MT+L1+L2 & 0.823 & 0.999 & 0.668 & 0.543 & 0.225 & 0.456 & 0.7 \\
+GIN                   & MT+L1+L2 & 0.821 & 0.998 & 0.386 & 0.084 & 0.170 & 0.473 & 0.7 \\
+\midrule
+% ---- Negative result ----
+Transolver            & MT+L1+L2 & 0.010 & 0.493 & ---   & ---   & ---   & ---   & --- \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+% ============================================================
+% Table 2: OOD generalisation by defect radius threshold
+% Train on small defects (radius < P_N), test on large defects
+% ============================================================
+\begin{table}[t]
+\centering
+\caption{OOD generalisation by defect radius (Payload2026 dataset, LGSTA NC+L1+L2).
+         ID-val: in-distribution validation; OOD-test: held-out large defects.
+         $\Delta$\,=\,OOD$-$ID OptF1 (positive = OOD easier, negative = degradation).}
+\label{tab:ood}
+\begin{tabular}{lcccccc}
+\toprule
+Split    & Threshold & $N_\text{train}$ & $N_\text{OOD}$
+         & ID-val OptF1 & OOD-test OptF1 & $\Delta$ \\
+\midrule
+P50      & 87\,mm  & 360 & 250 & --- & --- & --- \\  % PENDING
+P75      & 123\,mm & 460 & 125 & --- & --- & --- \\  % PENDING
+P90      & 155\,mm & 520 & 50  & --- & --- & --- \\  % PENDING
+\bottomrule
+\end{tabular}
+\vspace{2pt}
+
+{\footnotesize \textit{Note:} OOD-test at ep\,3 (interim): ID-val\,=\,0.732, OOD-test\,=\,0.857 ($\Delta$\,=\,+0.125);
+large defects are geometrically more salient (larger stressed area).
+Final 200-epoch results pending (auto-eval daemon running on Vancouver01).}
+\end{table}
