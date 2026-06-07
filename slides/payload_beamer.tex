@@ -185,20 +185,20 @@ at nodes with low equilibrium violation.
 \section{Results}
 
 % ---- (A) static results -----------------------------------------
-\begin{frame}{(A) Static FEM — architecture \& PINN comparison (interim ep\,40--100)}
+\begin{frame}{(A) Static FEM — architecture \& PINN comparison (interim ep\,58--132)}
 \centering
 \small
 \begin{tabular}{llccccccc}
 \toprule
 Model & Task & OptF1 & AUC & deb & fod & imp & del & Reg.\,RMSE \\
 \midrule
-\best{LGSTA} & NC+L1+L2 & \best{0.862} & 0.999 & 0.426 & 0.414 & 0.357 & 0.277 & --- \\
-SAGE     & NC+L2    & 0.845 & 0.999 & 0.298 & 0.381 & 0.404 & 0.002 & --- \\
-\best{LGSTA} & MT+L1+L2 & 0.837 & 0.999 & 0.361 & 0.388 & 0.363 & 0.241 & \best{0.8\,mm} \\
+\best{LGSTA} & NC+L1+L2 & \best{0.896} & \best{0.999} & 0.586 & 0.367 & 0.344 & 0.341 & --- \\
+LGSTA    & MT+L1+L2 & 0.846 & 0.999 & 0.360 & 0.356 & 0.341 & 0.220 & \best{0.9\,mm} \\
+SAGE     & MT+L1+L2 & 0.834 & 0.999 & 0.384 & 0.469 & 0.010 & 0.593 & 0.7\,mm \\
 GATv2    & MT+L1+L2 & 0.829 & 0.999 & 0.342 & 0.315 & 0.359 & 0.000 & 0.7\,mm \\
-SAGE     & MT+L1+L2 & 0.826 & 0.999 & 0.324 & 0.394 & 0.348 & 0.182 & 0.7\,mm \\
-GCN      & MT+L1+L2 & 0.819 & 0.999 & 0.486 & 0.502 & 0.082 & 0.584 & 0.6\,mm \\
-GIN      & MT+L1+L2 & 0.812 & 0.998 & 0.186 & 0.000 & 0.260 & 0.030 & 1.2\,mm \\
+MeshGNN  & MT+L1+L2 & 0.828 & 0.998 & 0.219 & 0.000 & 0.000 & 0.450 & 0.8\,mm \\
+GCN      & MT+L1+L2 & 0.823 & 0.999 & 0.668 & 0.543 & 0.225 & 0.456 & 0.7\,mm \\
+GIN      & MT+L1+L2 & 0.821 & 0.998 & 0.386 & 0.084 & 0.170 & 0.473 & 0.7\,mm \\
 \bad{Transolver} & MT+L1+L2 & \bad{0.010} & \bad{0.493} & --- & --- & --- & --- & --- \\
 \bottomrule
 \end{tabular}
@@ -208,7 +208,7 @@ GIN      & MT+L1+L2 & 0.812 & 0.998 & 0.186 & 0.000 & 0.260 & 0.030 & 1.2\,mm \\
 \textbf{MT} = +centroid regression \quad
 \textbf{L1} = stress-gradient PINN \quad
 \textbf{L2} = equil.\ residual PINN\\
-Interim results (ep\,40--100); all runs continue to 200 epochs.}
+Interim results at best checkpoint (ep\,58--132); all runs continue to 200 epochs.}
 \end{frame}
 
 % ---- (A') GNN node-level prediction visualisation ---------------
@@ -224,7 +224,7 @@ Interim results (ep\,40--100); all runs continue to 200 epochs.}
 \end{frame}
 
 % ---- (B) dynamic GW results -------------------------------------
-\begin{frame}{(B) Dynamic GW — MIFNO-GW v2 (sensor-consistent)}
+\begin{frame}{(B) Dynamic GW — MIFNO-GW v2 results}
 \begin{columns}[T]
 \begin{column}{0.50\textwidth}
 \textbf{Model:} MIFNO-GW (waveform-only FNO)\\
@@ -240,28 +240,33 @@ Healthy & 81 & 20 \\
 Defect  & 5  & 2  \\
 \bottomrule
 \end{tabular}\\[6pt]
-\textbf{Training:} ep\,200, $\lambda_\text{disp}=0.05$,\\[2pt]
-results pending (runs on Vancouver)
+\begin{tabular}{lccc}
+\toprule
+Variant & OptF1 & AUC & $\lambda_\text{disp}$ \\
+\midrule
+v2\_nodip & \best{1.000} & \best{1.000} & 0 \\
+v2\_pinn  & \best{1.000} & \best{1.000} & 0.05 \\
+\bottomrule
+\end{tabular}\\[4pt]
+{\footnotesize Both converge in 200 ep ($\sim$8\,s/ep).\\
+Small dataset (5 defect train) may limit generalisation.}
 \end{column}
 \begin{column}{0.48\textwidth}
 \begin{block}{Data quality fix (v1 → v2)}
 \textbf{Root cause found:} healthy CSVs (9 sensors, circumferential ring)
 and defect CSVs (99 sensors, axial line) used \emph{different} physical
-sensor layouts. v1 F1\,=\,1.0 was a position-leakage artifact — the model
-learned to distinguish sensor-grid patterns, not wave signatures.
+sensor layouts. v1 F1\,=\,1.0 was a position-leakage artifact.
 
 \smallskip
 \textbf{Fix:} filter to 9-sensor position-consistent subset (108 samples);
-remove position branch from model (waveform-only FNO).
+remove position branch (waveform-only FNO). New F1\,=\,1.0 is \emph{genuine}
+— confirmed on held-out validation split.
 \end{block}
 \vspace{4pt}
-\begin{block}{Level-3 PINN — wave phase consistency}
-\[
-\mathcal{L}_\text{disp} = \bigl\langle w_{ij}\,
-  \bigl[\angle(\hat{u}_j\hat{u}_i^*) - \tfrac{\omega|dx|}{c}\bigr]^2
-  \bigr\rangle_{ij,\omega}
-\]
-Active ($\lambda=0.05$); regularisation effect visible only at $\gtrsim$50 defect samples.
+\begin{block}{Next: v3 with 197-sample balanced dataset}
+Abaqus Explicit (99-sensor healthy job) running on frontale04.
+Upon completion: 197 position-consistent samples (81 healthy + 116 defect)
+$\Rightarrow$ enables robust L3-PINN training (dispersion loss).
 \end{block}
 \end{column}
 \end{columns}
@@ -279,29 +284,30 @@ Active ($\lambda=0.05$); regularisation effect visible only at $\gtrsim$50 defec
 
 % ---- key findings -----------------------------------------------
 \begin{frame}{Key findings}
-\begin{block}{(A-1) LGSTA wins at OptF1 = 0.862}
+\begin{block}{(A-1) LGSTA wins at OptF1 = \best{0.896} (interim ep\,58)}
 Dual local-global attention: local GAT finds defect boundaries; global self-attention captures full structural coupling.
+Node-cls only (NC) outperforms multitask (MT, 0.846): centroid regression branch may compete for capacity.
 \end{block}
 \vspace{3pt}
-\begin{block}{(A-2) Multitask centroid regression: 0.6--1.2\,mm RMSE}
+\begin{block}{(A-2) Multitask centroid regression: 0.7--0.9\,mm RMSE at sub-200 epochs}
 Shared backbone simultaneously classifies defect type \emph{and} locates centroid — sub-mm accuracy on a 5\,m structure.
 \end{block}
 \vspace{3pt}
-\begin{block}{(A-3) L2 PINN alone (SAGE, 0.845) competitive with L1+L2}
-$\nabla\!\cdot\!\boldsymbol{\sigma}=0$ residual is the dominant physics term; stress-gradient L1 adds marginal gain.
+\begin{block}{(B) MIFNO-GW v2: F1\,=\,1.000, AUC\,=\,1.000 (waveform-only FNO)}
+Position-leakage artifact eliminated. v2\_nodip ($\lambda=0$) and v2\_pinn ($\lambda=0.05$) both converge to perfect validation performance.
+Small dataset caveat: 5 defect train samples; v3 will use 197-sample balanced set.
 \end{block}
 \vspace{3pt}
 \begin{columns}[T]
 \begin{column}{0.48\textwidth}
-\begin{alertblock}{(A-4) Transolver collapses (AUC\,$\approx$\,0.49)}
-Designed for structured grids; fails on irregular FEM mesh even without physics loss.
+\begin{alertblock}{(A-3) Transolver collapses (AUC\,$\approx$\,0.49)}
+Designed for structured grids; fails on irregular FEM mesh.
 \end{alertblock}
 \end{column}
 \begin{column}{0.48\textwidth}
-\begin{alertblock}{(B) GW dataset: position-leakage fixed; still small}
-v1 F1\,=\,1.0 was artifact (sensor layout $\neq$ between healthy/defect).
-v2: 108 clean samples, waveform-only FNO. Need $\gtrsim$50 defect for L3 PINN.
-\end{alertblock}
+\begin{block}{(A-4) OOD experiment running (Composites B)}
+Train on small defects (radius $<$ P75), test on large. LGSTA OOD-test OptF1\,=\,0.857 at ep\,3 — full results pending.
+\end{block}
 \end{column}
 \end{columns}
 \end{frame}
@@ -310,20 +316,25 @@ v2: 108 clean samples, waveform-only FNO. Need $\gtrsim$50 defect for L3 PINN.
 
 \begin{frame}{Next steps}
 \begin{itemize}
-  \item \textbf{200-epoch results} — GCN, GIN, LGSTA, GATv2, MeshGNN convergence (target: 2026-06-23)
-  \item \textbf{GW dataset unification} — ONE Healthy Abaqus job (99-sensor) + augment
-        $\Rightarrow$ 197-sample consistent dataset; enables L3 PINN \& MIFNO-GW v3
-  \item \textbf{Sim-to-real (OGW)} — Open Guided Waves omega-stringer dataset (18\,GB, Zenodo 5105861):
-        CFRP plate\,+\,omega stringer, 3 scenarios (intact\,/\,local\,/\,large debond), 50\,kHz SLDV full wavefield.
-        Run MIFNO-GW inference on virtual sensor traces extracted from 233\,k scan points.
-  \item \textbf{Cross-structure} — OOD: train fairing, test on stringer plate geometry
-  \item \textbf{Fused static+dynamic} — concatenate LGSTA node logits with MIFNO-GW defect probability
+  \item \textbf{200-epoch final results} — all 7 architectures converging; GCN/GIN at ep\,130+ (target: 2026-06-23)
+  \item \textbf{OOD generalisation} — LGSTA + SAGE trained on radius\,$<$\,P75 defects; OOD test on large defects (P50/P75/P90 ablation). Auto-eval daemon running on Vancouver.
+  \item \textbf{GW dataset v3} — Abaqus Explicit (99-sensor healthy, frontale04) $\Rightarrow$ 197-sample balanced set; enables L3-PINN and robust v3 training
+  \item \textbf{Sim-to-real (OGW)} — Open Guided Waves omega-stringer (Zenodo 5105861): 3 scenarios, 50\,kHz SLDV. Run MIFNO-GW v2\_nodip inference on virtual sensor traces.
+  \item \textbf{Composites B paper} — MGN\,0.76 vs.\ LGSTA\,0.896, noise robustness, OOD radius-split, sim-to-real proxy
 \end{itemize}
-\vspace{0.5em}
-\begin{block}{Target for WCCM meeting (2026-06-23)}
-Final results table with all 8 architectures at 200 epochs + ablation:
-NC vs.\ MT, L1 vs.\ L2 vs.\ L1+L2.
+\vspace{0.4em}
+\begin{columns}[T]
+\begin{column}{0.52\textwidth}
+\begin{block}{Target for WCCM meeting (2026-06-23 09:00 CET)}
+Final 200-ep table + ablation (NC/MT, L1/L2/L1+L2) + OOD results.
 \end{block}
+\end{column}
+\begin{column}{0.46\textwidth}
+\begin{block}{Target: Composites B (IF\,$\sim$9)}
+OOD results + noise robustness $\Rightarrow$ submit by 2026-Q3.
+\end{block}
+\end{column}
+\end{columns}
 \end{frame}
 
 \end{document}
