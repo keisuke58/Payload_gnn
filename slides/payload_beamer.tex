@@ -268,13 +268,14 @@ v2: 108 clean samples, waveform-only FNO. Need $\gtrsim$50 defect for L3 PINN.
 
 \begin{frame}{Next steps}
 \begin{itemize}
-  \item \textbf{Finish 200-epoch runs} — GCN, GIN, LGSTA, GATv2, MeshGNN convergence
-  \item \textbf{GW dataset expansion} — re-run 100 healthy Abaqus simulations with 99-sensor layout
-        $\Rightarrow$ consistent 197-sample dataset (100H\,+\,97D); enables proper L3 PINN evaluation
-  \item \textbf{Level-3 PINN} — wave-phase consistency $\mathcal{L}_\text{disp}$ active in v2;
-        regularisation effect evaluable once $\gtrsim$50 defect samples available
-  \item \textbf{Cross-structure evaluation} — train on fairing Section~1, test on Section~2 (OOD geometry)
-  \item \textbf{Experimental data} — transfer to TSA / DIC measurements for sim-to-real gap analysis
+  \item \textbf{200-epoch results} — GCN, GIN, LGSTA, GATv2, MeshGNN convergence (target: 2026-06-23)
+  \item \textbf{GW dataset unification} — ONE Healthy Abaqus job (99-sensor) + augment
+        $\Rightarrow$ 197-sample consistent dataset; enables L3 PINN \& MIFNO-GW v3
+  \item \textbf{Sim-to-real (OGW)} — Open Guided Waves omega-stringer dataset (18\,GB, Zenodo 5105861):
+        CFRP plate\,+\,omega stringer, 3 scenarios (intact\,/\,local\,/\,large debond), 50\,kHz SLDV full wavefield.
+        Run MIFNO-GW inference on virtual sensor traces extracted from 233\,k scan points.
+  \item \textbf{Cross-structure} — OOD: train fairing, test on stringer plate geometry
+  \item \textbf{Fused static+dynamic} — concatenate LGSTA node logits with MIFNO-GW defect probability
 \end{itemize}
 \vspace{0.5em}
 \begin{block}{Target for WCCM meeting (2026-06-23)}
