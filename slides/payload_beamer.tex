@@ -69,8 +69,8 @@
   \item Graph: sensor spatial network
   \item Task: \textbf{binary defect detection}\\
         + wave-phase PINN (Level 3)
-  \item Dataset: 106 samples (100 healthy / 6 defect)
-  \item Model: MIFNO-GW (2-D factorised FNO)
+  \item Dataset: 108 samples (101 healthy / 7 defect, 9-sensor consistent)
+  \item Model: MIFNO-GW (2-D factorised FNO, waveform-only)
 \end{itemize}
 \end{block}
 \end{column}
@@ -192,49 +192,44 @@ Interim results (ep\,40--100); all runs continue to 200 epochs.}
 \end{frame}
 
 % ---- (B) dynamic GW results -------------------------------------
-\begin{frame}{(B) Dynamic GW — MIFNO-GW results}
+\begin{frame}{(B) Dynamic GW — MIFNO-GW v2 (sensor-consistent)}
 \begin{columns}[T]
 \begin{column}{0.50\textwidth}
-\textbf{Model:} MIFNO-GW\\
-{\footnotesize 2-D factorised Fourier Neural Operator\\
-(Lehmann et al.\ 2025, \textit{J.\ Comput.\ Phys.})}\\[6pt]
+\textbf{Model:} MIFNO-GW (waveform-only FNO)\\
+{\footnotesize 2-D factorised FNO — Lehmann et al.\ 2025}\\[4pt]
 \textbf{Input:} 9 sensors $\times$ 4{,}000 time steps\\
-\textbf{Task:} binary defect / healthy classification\\[6pt]
+\textbf{Task:} binary defect / healthy classification\\[4pt]
 \begin{tabular}{lcc}
 \toprule
  & Train & Val \\
 \midrule
-Samples & 85 & 21 \\
-Healthy & 80 & 20 \\
-Defect  & 5  & 1  \\
+Samples & 86 & 22 \\
+Healthy & 81 & 20 \\
+Defect  & 5  & 2  \\
 \bottomrule
 \end{tabular}\\[6pt]
-\textbf{Final result (ep 150):}\\[2pt]
-\begin{tabular}{lc}
-\toprule
-Metric & Value \\
-\midrule
-Val F1  & 1.000 \\
-AUC     & 1.000 \\
-\bottomrule
-\end{tabular}
+\textbf{Training:} ep\,200, $\lambda_\text{disp}=0.05$,\\[2pt]
+results pending (runs on Vancouver)
 \end{column}
 \begin{column}{0.48\textwidth}
-\begin{alertblock}{Dataset caveat}
-Only \textbf{6 defect samples} in total.
-F1\,=\,1.0 achieved at epoch 2 — the task is trivially separable at this scale.
-Results are \emph{not} statistically meaningful.
-\end{alertblock}
-\vspace{6pt}
-\begin{block}{Level-3 PINN (implemented, not yet validated)}
-Wave-phase consistency loss:
+\begin{block}{Data quality fix (v1 → v2)}
+\textbf{Root cause found:} healthy CSVs (9 sensors, circumferential ring)
+and defect CSVs (99 sensors, axial line) used \emph{different} physical
+sensor layouts. v1 F1\,=\,1.0 was a position-leakage artifact — the model
+learned to distinguish sensor-grid patterns, not wave signatures.
+
+\smallskip
+\textbf{Fix:} filter to 9-sensor position-consistent subset (108 samples);
+remove position branch from model (waveform-only FNO).
+\end{block}
+\vspace{4pt}
+\begin{block}{Level-3 PINN — wave phase consistency}
 \[
 \mathcal{L}_\text{disp} = \bigl\langle w_{ij}\,
   \bigl[\angle(\hat{u}_j\hat{u}_i^*) - \tfrac{\omega|dx|}{c}\bigr]^2
   \bigr\rangle_{ij,\omega}
 \]
-Requires $\gtrsim$50 defect samples to observe regularisation effect.
-Generating larger GW dataset is the \textbf{immediate next step}.
+Active ($\lambda=0.05$); regularisation effect visible only at $\gtrsim$50 defect samples.
 \end{block}
 \end{column}
 \end{columns}
@@ -261,9 +256,9 @@ Designed for structured grids; fails on irregular FEM mesh even without physics 
 \end{alertblock}
 \end{column}
 \begin{column}{0.48\textwidth}
-\begin{alertblock}{(B) GW dataset too small for L3 validation}
-6 defect samples $\Rightarrow$ F1\,=\,1.0 is trivial.
-Need $\gtrsim$50 defect simulations to evaluate wave-phase PINN.
+\begin{alertblock}{(B) GW dataset: position-leakage fixed; still small}
+v1 F1\,=\,1.0 was artifact (sensor layout $\neq$ between healthy/defect).
+v2: 108 clean samples, waveform-only FNO. Need $\gtrsim$50 defect for L3 PINN.
 \end{alertblock}
 \end{column}
 \end{columns}
@@ -274,7 +269,10 @@ Need $\gtrsim$50 defect simulations to evaluate wave-phase PINN.
 \begin{frame}{Next steps}
 \begin{itemize}
   \item \textbf{Finish 200-epoch runs} — GCN, GIN, LGSTA, GATv2, MeshGNN convergence
-  \item \textbf{Level-3 PINN} — wave phase consistency $\angle(\hat{u}_j\hat{u}_i^*)=\omega|dx|/c$ once guided-wave dataset expanded beyond 6 defect samples
+  \item \textbf{GW dataset expansion} — re-run 100 healthy Abaqus simulations with 99-sensor layout
+        $\Rightarrow$ consistent 197-sample dataset (100H\,+\,97D); enables proper L3 PINN evaluation
+  \item \textbf{Level-3 PINN} — wave-phase consistency $\mathcal{L}_\text{disp}$ active in v2;
+        regularisation effect evaluable once $\gtrsim$50 defect samples available
   \item \textbf{Cross-structure evaluation} — train on fairing Section~1, test on Section~2 (OOD geometry)
   \item \textbf{Experimental data} — transfer to TSA / DIC measurements for sim-to-real gap analysis
 \end{itemize}
