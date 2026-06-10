@@ -24,6 +24,14 @@
 \metroset{progressbar=frametitle, block=fill}
 \newcommand{\best}[1]{\textbf{\textcolor{luhblue}{#1}}}
 
+\setbeamerfont{page number in head/foot}{size=\scriptsize}
+\setbeamertemplate{footline}{%
+  \hbox{\begin{beamercolorbox}[wd=\paperwidth, ht=2.6ex, dp=1.2ex, leftskip=2ex,
+    rightskip=2ex]{}%
+    \scriptsize Reusable-vehicle flight clearance \hfill
+    \insertframenumber\,/\,\inserttotalframenumber%
+  \end{beamercolorbox}}}
+
 % Logos top-right, graceful if files absent. Drop official files in slides/:
 %   keio-logo.{pdf,png}  luh-logo.{pdf,png}  jaxa-logo.{pdf,png}
 \newcommand{\maybelogo}[1]{%
@@ -78,8 +86,15 @@ Turn the SHM posterior into a calibrated
 \draw[arr] (m)--(d); \draw[arr] (d)--(c); \draw[arr] (c)--(p); \draw[arr] (p)--(g);
 \end{tikzpicture}\\[3mm]
 \begin{itemize}\footnotesize
-  \item type/location posterior: long-term tags (13 damage states) + 5-class FEM localisation, \emph{calibrated} (ECE-reported)
-  \item phase-field: anisotropic AT2 with interface bands + Carrara-2020 fatigue
+  \item detect+classify: GNN on 9 sensor nodes $\times$ 24 features
+        (SAGE F1 0.79, LGSTA 0.86); guided waves 16.5--300\,kHz
+  \item type/location posterior: long-term tags (13 damage states) +
+        5-class FEM localisation ($z\times\theta$ quadrants),
+        \emph{temperature-scaled, ECE-reported}
+  \item prognosis: anisotropic AT2 + interface bands + Carrara-2020 fatigue
+        $\Rightarrow$ $P(\text{survive }n)$, $\mathbb{E}[\text{flights}]$
+  \item caveat: long-term tags carry a temporal confound
+        (months differ in temperature \& aging) --- reported, not hidden
 \end{itemize}
 \end{frame}
 
