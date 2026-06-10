@@ -17,14 +17,18 @@ PY=/home/nishioka/IKM_Hiwi/.venv_jax/bin/python3
 OBJECTIVE=${OBJECTIVE:-fm}
 
 echo "=== augment: objective=$OBJECTIVE $(date) ==="
-$PY scripts/payload_diffusion.py --mode augment --objective $OBJECTIVE \
-    --n_synth 5000 --batch_size 256 --guidance 2.0
+if [ -f results/payload_ddpm/synthetic_damaged.npz ] && [ -f results/payload_ddpm/synthetic_healthy.npz ] && [ -z "$REGEN" ]; then
+    echo "synthetic npz already present — skipping generation (set REGEN=1 to force)"
+else
+    $PY scripts/payload_diffusion.py --mode augment --objective $OBJECTIVE \
+        --n_synth 5000 --batch_size 256 --guidance 2.0
+fi
 
 echo "=== downstream eval: baseline vs +synthetic $(date) ==="
 SYNTH=results/payload_ddpm/synthetic_damaged.npz
 for N in 500 2000 5000; do
     echo "--- n_synth = $N ---"
-    $PY scripts/augment_eval.py --synth $SYNTH --n_synth $N --seeds 3
+    $PY scripts/augment_eval.py --synth $SYNTH --n_synth $N --seeds 3 --balanced
 done
 
 echo "=== done $(date) ==="
