@@ -53,8 +53,14 @@ N_PATHS   = 8
 NULL_DMG  = 2      # CFG null token for damage class
 
 # ─── data loading & preprocessing ───────────────────────────────────────────
+# Months reserved for the downstream augmentation test (augment_eval.py).
+# The generator must NEVER see these, or the augmentation result is circular.
+HELDOUT_MONTHS = ("2020_12", "2022_02")
+
+
 def load_pickle_months(pattern="measurements_*.pickle", max_months=None):
     files = sorted(glob.glob(os.path.join(LT_DIR, pattern)))
+    files = [f for f in files if not any(m in f for m in HELDOUT_MONTHS)]
     if max_months:
         files = files[:max_months]
     gws, temps, labels = [], [], []
