@@ -1,0 +1,209 @@
+[
+ {
+  "p_defect": 0.9999909400939941,
+  "location_probs": {
+   "healthy": 0.09041863679885864,
+   "z<1500,th<15": 0.16024824976921082,
+   "z<1500,th>=15": 0.25088706612586975,
+   "z>=1500,th<15": 0.2685329020023346,
+   "z>=1500,th>=15": 0.229913130402565
+  },
+  "type_probs": {
+   "tag0": 1.0,
+   "tag1": 6.010211317346303e-13
+  },
+  "top1": {
+   "location": "z>=1500,th<15",
+   "type": "tag0"
+  },
+  "location_continuous": {
+   "z_mm_mean": 1798.130859375,
+   "z_mm_ci90_raw": [
+    1712.4683837890625,
+    1882.544921875
+   ],
+   "z_mm_ci90_conformal": [
+    226.42724609375,
+    3369.83447265625
+   ],
+   "theta_deg_mean": 13.183180809020996,
+   "theta_deg_ci90_raw": [
+    11.409141540527344,
+    15.01303768157959
+   ],
+   "theta_deg_ci90_conformal": [
+    -30.335381507873535,
+    56.70174312591553
+   ],
+   "note": "valid conditionally on a defect being present; use the conformal interval (the raw FM interval is overconfident at this training-set size)"
+  },
+  "joint": {
+   "matrix_type_x_loc": [
+    [
+     0.17617644369602203,
+     0.27582448720932007,
+     0.29522424936294556,
+     0.25276580452919006
+    ],
+    [
+     1.0588575914509402e-13,
+     1.657763417641997e-13,
+     1.7743601455743468e-13,
+     1.5191758170451236e-13
+    ]
+   ],
+   "type_labels": [
+    "tag0",
+    "tag1"
+   ],
+   "loc_labels": [
+    "z<1500,th<15",
+    "z<1500,th>=15",
+    "z>=1500,th<15",
+    "z>=1500,th>=15"
+   ],
+   "assumption": "p(type,loc|x) ~= p_defect * p(type|x_ogw) * p(loc|x_fem, defect)"
+  },
+  "_fem_sample": "Job-GW-Fair-0097_sensors.csv",
+  "_fem_true_loc": "z>=1500,th<15",
+  "_ogw_sample_true_tag": 0
+ },
+ {
+  "p_defect": 0.9999933242797852,
+  "location_probs": {
+   "healthy": 0.08041410893201828,
+   "z<1500,th<15": 0.26976776123046875,
+   "z<1500,th>=15": 0.20815205574035645,
+   "z>=1500,th<15": 0.20258864760398865,
+   "z>=1500,th>=15": 0.23907747864723206
+  },
+  "type_probs": {
+   "tag0": 1.0,
+   "tag1": 1.1304873009931882e-10
+  },
+  "top1": {
+   "location": "z<1500,th<15",
+   "type": "tag0"
+  },
+  "location_continuous": {
+   "z_mm_mean": 914.1845092773438,
+   "z_mm_ci90_raw": [
+    864.24755859375,
+    973.5137329101562
+   ],
+   "z_mm_ci90_conformal": [
+    -657.5191040039062,
+    2485.8881225585938
+   ],
+   "theta_deg_mean": 11.566650390625,
+   "theta_deg_ci90_raw": [
+    9.133810043334961,
+    13.81187629699707
+   ],
+   "theta_deg_ci90_conformal": [
+    -31.95191192626953,
+    55.08521270751953
+   ],
+   "note": "valid conditionally on a defect being present; use the conformal interval (the raw FM interval is overconfident at this training-set size)"
+  },
+  "joint": {
+   "matrix_type_x_loc": [
+    [
+     0.29335588216781616,
+     0.22635260224342346,
+     0.2203027307987213,
+     0.2599821090698242
+    ],
+    [
+     3.316351013249452e-11,
+     2.5588874769111314e-11,
+     2.4904944426196174e-11,
+     2.939064616680476e-11
+    ]
+   ],
+   "type_labels": [
+    "tag0",
+    "tag1"
+   ],
+   "loc_labels": [
+    "z<1500,th<15",
+    "z<1500,th>=15",
+    "z>=1500,th<15",
+    "z>=1500,th>=15"
+   ],
+   "assumption": "p(type,loc|x) ~= p_defect * p(type|x_ogw) * p(loc|x_fem, defect)"
+  },
+  "_fem_sample": "Job-GW-Fair-0091_sensors.csv",
+  "_fem_true_loc": "z<1500,th<15",
+  "_ogw_sample_true_tag": 0
+ },
+ {
+  "p_defect": 2.559871609264519e-05,
+  "location_probs": {
+   "healthy": 0.8177154064178467,
+   "z<1500,th<15": 0.0505671389400959,
+   "z<1500,th>=15": 0.05069010704755783,
+   "z>=1500,th<15": 0.030372431501746178,
+   "z>=1500,th>=15": 0.05065487325191498
+  },
+  "type_probs": {
+   "tag0": 0.14306358993053436,
+   "tag1": 0.8569363951683044
+  },
+  "top1": {
+   "location": "healthy",
+   "type": "tag1"
+  },
+  "location_continuous": {
+   "z_mm_mean": -8267.9501953125,
+   "z_mm_ci90_raw": [
+    -8307.58203125,
+    -8234.0927734375
+   ],
+   "z_mm_ci90_conformal": [
+    -9839.65380859375,
+    -6696.24658203125
+   ],
+   "theta_deg_mean": 244.990478515625,
+   "theta_deg_ci90_raw": [
+    244.44215393066406,
+    245.51312255859375
+   ],
+   "theta_deg_ci90_conformal": [
+    201.47191619873047,
+    288.50904083251953
+   ],
+   "note": "valid conditionally on a defect being present; use the conformal interval (the raw FM interval is overconfident at this training-set size)"
+  },
+  "joint": {
+   "matrix_type_x_loc": [
+    [
+     1.0159346857108176e-06,
+     1.0184053280681837e-06,
+     6.10206768669741e-07,
+     1.0176974001296912e-06
+    ],
+    [
+     6.0853462855448015e-06,
+     6.100144673837349e-06,
+     3.6550763979903422e-06,
+     6.0959041547903325e-06
+    ]
+   ],
+   "type_labels": [
+    "tag0",
+    "tag1"
+   ],
+   "loc_labels": [
+    "z<1500,th<15",
+    "z<1500,th>=15",
+    "z>=1500,th<15",
+    "z>=1500,th>=15"
+   ],
+   "assumption": "p(type,loc|x) ~= p_defect * p(type|x_ogw) * p(loc|x_fem, defect)"
+  },
+  "_fem_sample": "Job-GW-Fair-Healthy-A009_sensors.csv",
+  "_fem_true_loc": "healthy",
+  "_ogw_sample_true_tag": 1
+ }
+]

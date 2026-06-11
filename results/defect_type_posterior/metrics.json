@@ -1,0 +1,194 @@
+{
+ "type_head": {
+  "accuracy": 0.8564356435643564,
+  "macro_f1": 0.8134097786271699,
+  "per_class_recall": {
+   "0": 0.84375,
+   "1": 0.9047619047619048
+  },
+  "confusion_matrix": [
+   [
+    135,
+    25
+   ],
+   [
+    4,
+    38
+   ]
+  ],
+  "det_recall": 0.9047619047619048,
+  "det_fpr": 0.15625,
+  "det_auprc": 0.7820737953401574,
+  "det_auc": 0.9389880952380951,
+  "defect_only_f1": 0.475,
+  "ece_uncalibrated": 0.07116210047561342,
+  "ece_calibrated": 0.04780856542067953,
+  "temperature_T": 1.6979008913040161,
+  "classes": [
+   0,
+   1
+  ],
+  "n_train/cal/test": [
+   657,
+   152,
+   202
+  ],
+  "per_month_test_acc": {
+   "2018_03": {
+    "n": 202,
+    "acc": 0.8564356435643564
+   }
+  },
+  "confound_probe": {
+   "temp_only_acc": 0.7920792079207921,
+   "majority_acc": 0.791476407914764,
+   "note": "damage states were introduced sequentially over 4.5 years; tag identity is confounded with season/temperature/ageing. temp_only_acc >> majority_acc means the waveform head's accuracy partially reflects environmental context."
+  }
+ },
+ "binary_head": {
+  "accuracy": 0.9761904761904762,
+  "macro_f1": 0.9755102040816326,
+  "per_class_recall": {
+   "0": 0.9444444444444444,
+   "1": 1.0
+  },
+  "confusion_matrix": [
+   [
+    17,
+    1
+   ],
+   [
+    0,
+    24
+   ]
+  ],
+  "det_recall": 1.0,
+  "det_fpr": 0.05555555555555555,
+  "det_auprc": 0.9947856280193236,
+  "det_auc": 0.9930555555555556,
+  "defect_only_f1": 1.0,
+  "ece_uncalibrated": 0.023789258230300203,
+  "ece_calibrated": 0.023791165578933016,
+  "temperature_T": 0.9904915690422058,
+  "n_train/cal/test": [
+   136,
+   34,
+   42
+  ],
+  "test_class_counts": [
+   18,
+   24
+  ],
+  "confound_probe": {
+   "n_nodes_only_acc": 0.9285714285714286,
+   "majority_acc": 0.5073529411764706,
+   "note": "graphs have 9/99/104 sensors and the count correlates with the label (extraction campaigns differed); a high n_nodes_only_acc means part of the head's skill may be an extraction artefact, not defect physics."
+  }
+ },
+ "loc_head": {
+  "accuracy": 0.5714285714285714,
+  "macro_f1": 0.403982683982684,
+  "per_class_recall": {
+   "0": 0.9444444444444444,
+   "1": 0.4,
+   "2": 0.16666666666666666,
+   "3": 0.5,
+   "4": 0.16666666666666666
+  },
+  "confusion_matrix": [
+   [
+    17,
+    1,
+    0,
+    0,
+    0
+   ],
+   [
+    0,
+    4,
+    2,
+    2,
+    2
+   ],
+   [
+    0,
+    0,
+    1,
+    3,
+    2
+   ],
+   [
+    0,
+    0,
+    0,
+    1,
+    1
+   ],
+   [
+    0,
+    1,
+    2,
+    2,
+    1
+   ]
+  ],
+  "det_recall": 1.0,
+  "det_fpr": 0.05555555555555555,
+  "det_auprc": 0.9035017425936038,
+  "det_auc": 0.9467592592592592,
+  "defect_only_f1": 0.27045454545454545,
+  "ece_uncalibrated": 0.3825109927427201,
+  "ece_calibrated": 0.2527984572308404,
+  "temperature_T": 3.9194819927215576,
+  "n_train/cal/test": [
+   132,
+   35,
+   42
+  ],
+  "test_class_counts": [
+   18,
+   10,
+   6,
+   2,
+   6
+  ],
+  "confound_probe": {
+   "n_nodes_only_acc": 0.5,
+   "majority_acc": 0.5075757575757576,
+   "note": "graphs have 9/99/104 sensors and the count correlates with the label (extraction campaigns differed); a high n_nodes_only_acc means part of the head's skill may be an extraction artefact, not defect physics."
+  }
+ },
+ "fmpe_head": {
+  "n_train_fit": 65,
+  "n_calibration": 16,
+  "n_test": 22,
+  "pca_k": 12,
+  "mae_z_mm": 571.2626342773438,
+  "mae_theta_deg": 7.825770378112793,
+  "mae_z_relative_to_range": 0.3372270464897156,
+  "mae_theta_relative_to_range": 0.3557168245315552,
+  "coverage90_raw_z": 0.09090909090909091,
+  "coverage90_raw_theta": 0.09090909090909091,
+  "coverage90_conformal_z": 0.9545454545454546,
+  "coverage90_conformal_theta": 1.0,
+  "conformal_halfwidth": {
+   "z_mm": 1571.70361328125,
+   "theta_deg": 43.51856231689453
+  },
+  "prior_range_z_mm": [
+   650.0,
+   2344.0
+  ],
+  "prior_range_theta_deg": [
+   3.9600000381469727,
+   25.959999084472656
+  ]
+ },
+ "caveats": [
+  "TYPE head: OGW damage tags 0..13 were introduced sequentially over 4.5 years -> tag identity is confounded with season/temperature/ageing; the random split measures in-distribution separability, NOT pure damage-signature skill. See confound_probe (temperature-only baseline) and per_month_test_acc.",
+  "TYPE and LOCATION heads live in different measurement domains (real OGW stiffened plate vs FEM H3 fairing); the joint is a conditional-independence product, not a single learned posterior.",
+  "LOCATION val split has only 2 samples of class 3 \u2014 per-class recall for that class is anecdotal.",
+  "FEM graphs have 9/99/104 sensor nodes and the count correlates with the label (extraction campaigns differed between healthy and defect jobs); features are pooled to be permutation/count-invariant, but the residual artefact is quantified by the n_nodes-only confound probe in binary_head/loc_head metrics.",
+  "FEM heads: train/val from the same DOE (no OOD axis); per INSIGHTS_FROM_WCCM_OOD.md expect precise localisation to degrade far more than detection under distribution shift."
+ ]
+}
