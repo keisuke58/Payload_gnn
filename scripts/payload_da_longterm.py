@@ -114,8 +114,23 @@ def run(src_month: str = "2018_03", tgt_month: str = "2018_07",
         thr = float(np.quantile(Ssrc_h, 1.0 - target_fpr))
         Xt_a = da._apply_target(m, Xs, Xt)
         St_h = clf.predict_proba(Xt_a[yt == 0])[:, 1]
+        # recall-preservation: held-out recall on SOURCE damaged at the same
+        # source-healthy-calibrated 5% threshold (does DA fix FPR WITHOUT going
+        # blind to damage?). 5-fold CV avoids in-sample optimism.
+        recall_src = np.nan
+        if len(np.unique(ys)) > 1:
+            from sklearn.model_selection import StratifiedKFold
+            rc = []
+            for tr, te in StratifiedKFold(5, shuffle=True, random_state=0).split(Xs_a, ys):
+                c = LogisticRegression(max_iter=1000).fit(Xs_a[tr], ys[tr])
+                t = float(np.quantile(c.predict_proba(Xs_a[tr][ys[tr] == 0])[:, 1],
+                                      1.0 - target_fpr))
+                if (ys[te] == 1).sum():
+                    rc.append(float((c.predict_proba(Xs_a[te][ys[te] == 1])[:, 1] > t).mean()))
+            recall_src = float(np.mean(rc)) if rc else np.nan
         res[m] = {
             "fpr_target": fpr_at(St_h, thr),
+            "recall_src": recall_src,
             "mmd2": da.mmd2(da.ALIGNERS[m](src_healthy, tgt_healthy),
                             da._apply_target(m, src_healthy, tgt_healthy)),
             "pad": da.proxy_a_distance(da.ALIGNERS[m](src_healthy, tgt_healthy),
@@ -145,11 +160,12 @@ def _report(o: dict):
           f"AUROC = {o['auroc_in_source']:.3f}")
     print(f"  metric: false-positive rate on target healthy, threshold "
           f"calibrated to {o['target_fpr_design']*100:.0f}% on source healthy\n")
-    print(f"  {'align':>12}{'target FPR':>12}{'MMD2':>10}{'PAD':>8}")
+    print(f"  {'align':>12}{'target FPR':>12}{'recall(src)':>12}{'MMD2':>10}{'PAD':>8}")
     base = o["by_method"]["none"]
     for m, r in o["by_method"].items():
-        print(f"  {m:>12}{r['fpr_target']*100:>11.1f}%{r['mmd2']:>10.3f}"
-              f"{r['pad']:>8.2f}")
+        rec = r.get("recall_src", float("nan"))
+        print(f"  {m:>12}{r['fpr_target']*100:>11.1f}%{rec*100:>11.1f}%"
+              f"{r['mmd2']:>10.3f}{r['pad']:>8.2f}")
     best = min(o["by_method"].items(), key=lambda kv: kv[1]["fpr_target"])
     print(f"\n  raw temperature shift: target FPR {base['fpr_target']*100:.1f}% "
           f"(design {o['target_fpr_design']*100:.0f}%), proxy-A {base['pad']:.2f}")
@@ -178,8 +194,10 @@ def make_figure(o: dict, out_path: str) -> str:
     b = ax[0].bar(labels, fpr, color=cols, edgecolor="k", linewidth=0.5)
     ax[0].axhline(design, color="0.35", ls="--", lw=1.0,
                   label=f"design target {design:.0f}%")
-    for r, v in zip(b, fpr):
-        ax[0].text(r.get_x()+r.get_width()/2, v+0.6, f"{v:.0f}", ha="center", fontsize=8)
+    rec = [o["by_method"][m].get("recall_src", float("nan")) * 100 for m in methods]
+    for r, v, rc in zip(b, fpr, rec):
+        lab = f"{v:.0f}" + (f"\n(rec {rc:.0f}%)" if rc == rc else "")
+        ax[0].text(r.get_x()+r.get_width()/2, v+0.6, lab, ha="center", va="bottom", fontsize=7)
     ax[0].set_ylabel("target healthy FPR [%]", fontsize=10)
     ax[0].set_title(f"(a) temperature shift {o['temp_src']:.0f}$^{{\\circ}}$C $\\to$ "
                     f"{o['temp_tgt']:.0f}$^{{\\circ}}$C", fontsize=10)
