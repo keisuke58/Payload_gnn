@@ -162,25 +162,43 @@ def make_figure(o: dict, out_path: str) -> str:
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+    # thesis style: Times系セリフ + stix数式（本文フォントと整合）
+    plt.rcParams.update({"font.family": "serif",
+                         "font.serif": ["Nimbus Roman", "STIXGeneral", "DejaVu Serif"],
+                         "mathtext.fontset": "stix", "axes.linewidth": 0.7})
+    LAB = {"none": "none", "standardize": "z-score", "coral": "CORAL", "quantile": "quantile"}
     methods = list(o["by_method"])
+    design = o["target_fpr_design"] * 100
+    fpr = [o["by_method"][m]["fpr_target"] * 100 for m in methods]
+    pad = [o["by_method"][m]["pad"] for m in methods]
+    labels = [LAB.get(m, m) for m in methods]
     fig, ax = plt.subplots(1, 2, figsize=(9, 3.4))
-    ax[0].bar(methods, [o["by_method"][m]["fpr_target"] * 100 for m in methods],
-              color="#b71c1c")
-    ax[0].axhline(o["target_fpr_design"] * 100, color="0.4", ls="--",
-                  label=f"design {o['target_fpr_design']*100:.0f}%")
-    ax[0].set_ylabel("target healthy FPR (%)", fontsize=8)
-    ax[0].set_title(f"(a) temp shift {o['temp_src']:.0f}C->{o['temp_tgt']:.0f}C",
-                    fontsize=9)
-    ax[0].legend(fontsize=7); ax[0].tick_params(labelsize=7, axis="x", rotation=30)
-    ax[1].bar(methods, [o["by_method"][m]["pad"] for m in methods], color="#2e7d32")
-    ax[1].set_ylabel("proxy-A distance", fontsize=8)
-    ax[1].set_title("(b) cross-month gap", fontsize=9)
-    ax[1].tick_params(labelsize=7, axis="x", rotation=30)
+    # (a) FPR: 設計値以下=緑(良), 超過=赤(悪) で良否を一目で
+    cols = ["#2e7d32" if v <= design * 1.2 else "#c62828" for v in fpr]
+    b = ax[0].bar(labels, fpr, color=cols, edgecolor="k", linewidth=0.5)
+    ax[0].axhline(design, color="0.35", ls="--", lw=1.0,
+                  label=f"design target {design:.0f}%")
+    for r, v in zip(b, fpr):
+        ax[0].text(r.get_x()+r.get_width()/2, v+0.6, f"{v:.0f}", ha="center", fontsize=8)
+    ax[0].set_ylabel("target healthy FPR [%]", fontsize=10)
+    ax[0].set_title(f"(a) temperature shift {o['temp_src']:.0f}$^{{\\circ}}$C $\\to$ "
+                    f"{o['temp_tgt']:.0f}$^{{\\circ}}$C", fontsize=10)
+    ax[0].legend(fontsize=8, frameon=False); ax[0].tick_params(labelsize=8.5)
+    ax[0].set_ylim(0, max(fpr)*1.18); ax[0].grid(alpha=0.25, axis="y")
+    # (b) cross-month distribution gap
+    ax[1].bar(labels, pad, color="#37474f", edgecolor="k", linewidth=0.5)
+    ax[1].axhline(0, color="k", lw=0.6)
+    ax[1].set_ylabel("proxy-$\\mathcal{A}$ distance", fontsize=10)
+    ax[1].set_title("(b) cross-month distribution gap", fontsize=10)
+    ax[1].tick_params(labelsize=8.5); ax[1].grid(alpha=0.25, axis="y")
     plt.tight_layout()
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
-    fig.savefig(out_path, bbox_inches="tight", dpi=150)
+    base = os.path.splitext(out_path)[0]
+    fig.savefig(base + ".pdf", bbox_inches="tight")               # vector (thesis primary)
+    fig.savefig(base + ".png", bbox_inches="tight", dpi=200,
+                facecolor="white")                                 # RGB raster (no alpha)
     plt.close(fig)
-    return out_path
+    return base + ".pdf"
 
 
 # ═════════════════════════════════════════════════════════════════════════════
