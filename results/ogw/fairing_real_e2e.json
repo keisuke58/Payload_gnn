@@ -1,0 +1,15 @@
+{
+  "stage0_detect_realdata": "long-term GW 34mo large-N: mean recall=0.702 mean FPR=0.577 (temp-confounded, DA recovers \u00a79)",
+  "stringer_note": "single intact baseline -> no stringer detection-rate; stringer used for classify/characterise",
+  "stage2_mean_DI": {
+    "Intact": 0.0,
+    "First": 0.5669152311045773,
+    "Second": 0.9976274499277918
+  },
+  "stage2_severity_monotone": true,
+  "stage1_classify_peak_sensor": {
+    "First": 4,
+    "Second": 8
+  },
+  "stage3_prognosis": "SYNTHETIC (representative FairingPrognosis; no real cycle/growth data)"
+}
