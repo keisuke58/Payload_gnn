@@ -76,3 +76,35 @@ papers/repos/
 
 # large external datasets (OGW 18GB etc.)
 data/external/
+
+# Abaqus solver scratch not covered above (model db, restart, packager bulk)
+*.mdl
+*.cid
+*.cax
+*.023
+*.SMABulk
+*.SMAFocus
+*.simlog
+*.simdir/
+*.exception
+*.ipm
+*.pac
+*.sel
+*.res
+*.fil
+*.odb_f
+ABQcaeK.*
+
+# Cluster (PBS/Torque) per-job stdout/stderr: <jobname>.o<id> / .e<id>
+*.o[0-9]*
+*.e[0-9]*
+
+# LaTeX build artifacts (slides/, papers/)
+*.aux
+*.toc
+*.snm
+*.nav
+*.fls
+*.fdb_latexmk
+*.vrb
+*.synctex.gz
