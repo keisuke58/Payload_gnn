@@ -154,7 +154,7 @@ One Tier-B contract and one detector detect damage across five heterogeneous **r
 - Fig4 DLR fleet 予後 `figs/fleet_prognosis.{png,pdf}` ✅[配置済 2026-06-20, `fleet_prognosis.py`]（実2クラック曲線＋Stage-4 fleet sharpening b 1.705±0.024→1.486±0.015・n=2正直注記）
 - Fig5 正直な負 `figs/fig5_honest_negatives.{png,pdf}` ✅[生成済 2026-06-20]（COPV conc vs raw / RUL α–λ / 荷重モードR²）
 - Fig6 **COPVモダリティ救済**（§5.5）✅[生成済 2026-06-20]：検出 `copv_gw/copv_damage_detect.png`・頑健性 `copv_gw/copv_robustness.png`・絶対座標localization `copv_gw/copv_localize_true.png`（真ジオメトリ・EWSHM2024）。COPV単独版=`copv_gw/PAPER_DRAFT_copv_guidedwave.md`
-- Fig7 **フェアリング実サンドproxy検出**（§5.4）✅[生成済 2026-06-20]：`figs/fig7_fairing_sandwich_proxy.png`（CH6局所z-trace＋ROC AUROC0.90・TU Darmstadt実サンドイッチ）。生成元 `data/external/tudarmstadt_sandwich/detect_stage0.py`、NOTES.md
+- Fig7 **フェアリング実サンドproxy検出**（§5.4）✅[生成済 2026-06-20]：`figs/fig7_fairing_sandwich_proxy.png`（CH6局所z-trace＋ROC AUROC0.90・TU Darmstadt実サンドイッチ）。生成元 `Payload2026/scripts/tudarmstadt_sandwich/detect_stage0.py`（版管理下・生データはdata/external、gitignore）、NOTES.md
 - Tab1 §4 / Tab2 §5（タグ付）✅本文内
 
 ## 投稿先・残作業
@@ -162,6 +162,6 @@ One Tier-B contract and one detector detect damage across five heterogeneous **r
 - ✅**数値照合済（2026-06-20）**：§5 AUROC・§5.4 OGW panel(recall0.925/AUC0.832/AUPRC0.914・quantile FPR5.2%)・§6 α–λ(3–14%)・DI(0/0.567/0.998) を RESULTS.md / `fairing_real_e2e.json` / [[project_payload_link]] と一致確認。
 - ✅**2026-06-20完了**：COPV統合(§5.5)・Fig2模式図(`make_fig2_tierb.py`)・Fig4配置(`fleet_prognosis`)・参考文献整備(§References・[要確認]フラグ付)・count整合校正(5構造/6モダリティ)。
 - ✅**データセット引用5件確定（2026-06-20 DataCite/Zenodo照合）**：ref6 Melching+(DLR DIC)・ref7 Kudela+Moll+(omega)・ref8 Lüders+(DLR COPV burst, 正DOI 10983652)・ref10 Zarouchas+(DataverseNL stiffener)・ref11 Möller+(Mendeley 多軸疲労)。"drive-shaft"→"CFRP多軸疲労"に正名化(§4/§6)。
-- ✅**フェアリング実サンドproxy統合（2026-06-20）**：§5.4を「JAXA実フェアリングデータ無し→2実proxyでブラケット(OGW=CFRP/GW軸・TU Darmstadt実サンド=構造軸)」に書換。実Stage-0 **AUROC 0.90**[CI0.85-0.94]/厳格local 0.85/CH6 0.88 CH7 0.97/n28。素朴0.56-0.67→adapter(per-ch除トレンド)で0.90。§4表・§5表に行追加・Abstract/§1貢献5/§7(7モダリティ)・**ref13確定**(Haugwitz+ 9名 live照合・doi:10.48328/tudatalib-2000)・Fig7配置(`figs/fig7_fairing_sandwich_proxy.png`)。材料ギャップ(鋼/フォーム≠CFRP/ハニカム)明記・素材一致はIMP-PAN/IIT Bombay照会中。正典コード`data/external/tudarmstadt_sandwich/detect_stage0.py`。
+- ✅**フェアリング実サンドproxy統合（2026-06-20）**：§5.4を「JAXA実フェアリングデータ無し→2実proxyでブラケット(OGW=CFRP/GW軸・TU Darmstadt実サンド=構造軸)」に書換。実Stage-0 **AUROC 0.90**[CI0.85-0.94]/厳格local 0.85/CH6 0.88 CH7 0.97/n28。素朴0.56-0.67→adapter(per-ch除トレンド)で0.90。§4表・§5表に行追加・Abstract/§1貢献5/§7(7モダリティ)・**ref13確定**(Haugwitz+ 9名 live照合・doi:10.48328/tudatalib-2000)・Fig7配置(`figs/fig7_fairing_sandwich_proxy.png`)。材料ギャップ(鋼/フォーム≠CFRP/ハニカム)明記・素材一致はIMP-PAN/IIT Bombay照会中。正典コード`Payload2026/scripts/tudarmstadt_sandwich/`(版管理下: detect_stage0.py/parse_windows.py/clean_windows.json/NOTES.md・生データはdata/external gitignore)。
 - ✅**References [要確認] 3件すべて解決（2026-06-20 Crossref/Zenodo照合）**：ref2=Dang+ 2022 *Structures* graph-conv SHM(doi:10.1016/j.istruc.2022.01.066・"Zhao 2023"置換)／ref5=自己引用をグループ既刊 Nishioka+ 2025 *Frontiers in Materials*(doi:10.3389/fmats.2025.1652484)でアンカー＋フェアリング応用は内部draft／ref9=BAM COPV-GWデータ Lozano+ 2026 Zenodo **17776240(Baseline)+17782123(Damage)** CC-BY(Fordatis照会不要に)。**全引用が検証可能・捏造ゼロ・[要確認]残ゼロ**。
 - **残（投稿前）**：(1) 英文最終コピーエディット、(2) 投稿先テンプレ整形(IWSHM2027→拡張SHM/MSSP)。両コピー同期済(`GNN/ingest`＝`Payload2026/papers`)。
