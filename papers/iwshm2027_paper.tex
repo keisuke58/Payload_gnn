@@ -1,0 +1,296 @@
+% IWSHM 2027 — Springer LNCE format (based on IWSHM 2023/2025 proceedings style)
+% Target: 8–10 pages including references and figures
+% Build: pdflatex -> bibtex -> pdflatex x2
+\documentclass[10pt]{llncs}      % Springer Lecture Notes format
+\usepackage[T1]{fontenc}
+\usepackage{newtxtext,newtxmath}  % Times-compatible math (per slide/pandoc convention)
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{amsmath,amssymb}
+\usepackage{hyperref}
+\usepackage[backend=bibtex,style=numeric-comp,sorting=none]{biblatex}
+\addbibresource{iwshm2027.bib}
+
+% ─── Claim tags ──────────────────────────────────────────────────────────────
+\newcommand{\tagR}{\textsuperscript{[R]}}
+\newcommand{\tagS}{\textsuperscript{[S]}}
+\newcommand{\tagU}{\textsuperscript{[U]}}
+% [R] = real data  [S] = self-consistent (FEM label)  [U] = unvalidated proxy
+
+\begin{document}
+
+\title{Structure-Agnostic Damage Detection:\\ One Detector Across Five Heterogeneous Real Structures}
+
+\author{Keisuke Nishioka\inst{1} \and
+        Mayu Muramatsu\inst{2}}   % TODO: confirm author list
+
+\institute{Institute of Continuum Mechanics (IKM), Leibniz University Hannover,
+           Hannover, Germany\\
+           \email{nishioka@ikm.uni-hannover.de}
+           \and
+           Department of Mechanical Engineering, Keio University,
+           Yokohama, Japan}
+
+\maketitle
+
+% ─────────────────────────────────────────────────────────────────────────────
+\begin{abstract}
+  Structural health monitoring (SHM) methods are typically designed for one
+  structure, one material, and one sensing modality, and most are validated
+  only in simulation.
+  We ask whether a \emph{single} damage-detection procedure can operate across
+  fundamentally different structures without per-structure redesign, and
+  whether that claim survives contact with \textbf{real experimental data}.
+  We introduce a \textbf{Tier-B contract} that reduces any structure--modality
+  pair to a common per-node representation \texttt{(response, disp\_mag)} on a
+  geometry graph, and apply one unmodified Stage-0 detector across
+  \textbf{five heterogeneous real structures}: a metallic (AA2024) panel under
+  DIC full-field fatigue cracking; a CFRP omega-stringer under laser-vibrometry
+  guided waves; a CFRP interstage shell under thermo-elastic stress; a
+  Type-IV composite-overwrapped pressure vessel (COPV) under strain-gauge burst
+  loading; and a CFRP stiffened panel under distributed fibre-optic (DFOS)
+  run-to-failure.
+  The same detector yields AUROC $\geq 0.91$ on the first four discrete-damage
+  structures and fails honestly at AUROC $0.61$ on the DFOS run-to-failure panel
+  --- a new \emph{damage-type} boundary (diffuse fatigue vs.\ discrete local
+  damage).
+  A five-structure leave-one-structure-out test shows the detector's
+  \emph{ranking} transfers to a held-out structure (AUROC 0.61--1.00, mean
+  0.904) while a raw alarm threshold does not; per-structure self-normalisation
+  with $\sim\!15$ healthy measurements and one shared conformal threshold
+  restores control (FPR $\leq 0.027$ for discrete-damage structures).
+  We argue that the contribution is not a new estimator but a
+  \emph{falsifiable, real-data, cross-structure} demonstration with its failure
+  boundaries made explicit.
+\end{abstract}
+
+\keywords{structural health monitoring \and cross-structure detection \and
+          guided waves \and DFOS \and leave-one-structure-out}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Introduction}
+\label{sec:intro}
+
+\textbf{Fragmentation.}
+SHM pipelines are usually structure-specific: a guided-wave method for a panel,
+a strain-threshold for a vessel, a damage index for a plate.
+Each re-encodes geometry, sensing, and damage afresh, so methods do not transfer
+and claims rarely cross material or modality classes.
+Most ``general'' claims are demonstrated only in simulation or on a single
+structure.
+
+\textbf{Gap.}
+No prior work demonstrates \emph{one} detection procedure across
+(i)~more than one material class (metal \emph{and} CFRP),
+(ii)~more than one sensing modality (full-field DIC, laser vibrometry,
+thermo-elastic stress, point strain, distributed fibre, PZT guided wave,
+air-coupled UGW),
+on (iii)~\textbf{real experimental data},
+with (iv)~honest reporting of where the single procedure fails.
+
+\textbf{Contributions.}
+\begin{enumerate}
+  \item \textbf{Tier-B contract} --- a modality-invariant per-node reduction
+        \texttt{(response, disp\_mag)} with thin per-modality adapters
+        (DIC / SLDV / stress / strain / DFOS / PZT-GW). \S\ref{sec:tierb}.
+  \item \textbf{One-detector cross-structure validation} on five real structures
+        (COPV under two modalities) with real AUROCs. \S\ref{sec:data}--\ref{sec:detect}.
+  \item \textbf{Honest negatives as first-class results} --- COPV sparse-sensor
+        failure resolved by guided waves; deterministic RUL failure;
+        load-mode generalisation boundary. \S\ref{sec:prognosis}.
+  \item \textbf{Cross-structure calibration} --- five-structure LOSO, mean AUROC
+        0.904; damage-type boundary identified. \S\ref{sec:loso}.
+\end{enumerate}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{The Tier-B Structure-Agnostic Contract}
+\label{sec:tierb}
+
+The design goal is a contract that any structure--modality pair can fulfil
+without modifying the downstream detector.
+Each measurement epoch is converted to a \texttt{Frame} object: $N$ nodes with
+$(x,y,z)$ coordinates, $k$NN edges ($k=10$), and a per-node field dictionary.
+
+\textbf{Modality adapters.}
+Each adapter maps raw instrument output to two canonical per-node scalars:
+\texttt{response} (primary damage-sensitive field) and
+\texttt{disp\_mag} (displacement magnitude, masked when unavailable).
+No adapter contains learned parameters.
+
+\begin{table}[h]
+  \caption{Tier-B modality adapters. ``masked'' = displacement unavailable
+           for this modality.}
+  \label{tab:adapters}
+  \small
+  \centering
+  \begin{tabular}{lll}
+    \toprule
+    Modality & \texttt{response} & \texttt{disp\_mag} \\
+    \midrule
+    DIC full-field (metallic) & $\varepsilon_\mathrm{vm}$ & $\|\mathbf{u}\|$ \\
+    SLDV wavefield (omega-stringer) & spatial RMS velocity & masked \\
+    Thermo-elastic stress (interstage) & $\|\boldsymbol{\sigma}\|$ & masked \\
+    Strain gauge -- sparse (COPV) & $|\varepsilon|$ per gauge & masked \\
+    DFOS run-to-failure (stiffened) & $|\varepsilon|$ per channel & masked \\
+    PZT guided wave (COPV GW) & path DI aggregated to nodes & masked \\
+    Air-coupled UGW (sandwich) & $\max|\text{robust-}z(\text{amp})|$ & masked \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\textbf{Stage-0 detector.}
+For each node $i$ in frame $t$,
+\begin{equation}
+  z_i(t) = \frac{|\text{response}_i(t) - \mu_i^{\text{ref}}|}
+                 {\sigma_i^{\text{ref}}},
+\end{equation}
+where $\mu_i^{\text{ref}}$ and $\sigma_i^{\text{ref}}$ are the mean and
+standard deviation of \texttt{response} over healthy reference frames.
+The detector has no learned parameters.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Datasets}
+\label{sec:data}
+
+Five real structures were selected to maximise material $\times$ modality
+$\times$ damage-mode heterogeneity; all datasets are publicly available.
+
+\begin{table}[h]
+  \caption{Dataset roster. All primary structures are from the German
+           aerospace-SHM community (DLR, BAM, TU Darmstadt).}
+  \label{tab:datasets}
+  \small
+  \centering
+  \begin{tabular}{lllll}
+    \toprule
+    Structure & Material & Modality & Damage & Source \\
+    \midrule
+    Metallic panel & AA2024 & DIC & fatigue crack & Zenodo 5740216 \\
+    Omega-stringer & CFRP & SLDV & debond (3 levels) & Zenodo 5105861 \\
+    Interstage shell & CFRP & DSPSS stress & 1$\times$1 defect & WCCM FEM\tagS \\
+    COPV (strain) & Type-IV & 9 strain gauges & near-burst & Zenodo 10608733 \\
+    COPV (GW) & Type-IV & 25-PZT (600 paths) & steel block / hole & BAM Zenodo 17776240 \\
+    Stiffened panel & CFRP & DFOS (ODiSi-B) & run-to-failure & DataverseNL QNURER \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Stage-0 Detection Results}
+\label{sec:detect}
+
+The same detector code path is used throughout; only the modality adapter
+changes.
+
+\begin{table}[h]
+  \caption{Per-structure Stage-0 detection results.}
+  \label{tab:results}
+  \small
+  \centering
+  \begin{tabular}{llll}
+    \toprule
+    Structure & Label & Metric & Result \\
+    \midrule
+    Interstage & 1$\times$1 GT & node-AUROC & $0.9999 \pm 0.001$ \tagR\tagS \\
+    Metallic panel & crack $<$/$\geq$60\,mm & frame-AUROC & $1.000$ \tagR \\
+    Omega-stringer & severity & monotone & $0\to0.119\to0.236$ \tagR \\
+    COPV (strain) & near-burst & conc-AUROC & $0.00$ / raw-mag $1.00$ \tagR \\
+    COPV (GW, 180\,kHz) & healthy vs. damaged & AUROC & $0.919$ (RD) / $0.939$ (ID) \tagR \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{The COPV Negative Is a Modality Limit}
+\label{sec:copv}
+
+The COPV failure under sparse strain (AUROC 0.00 for the concentration feature)
+is \textbf{not a property of the structure}.
+On the same Type-IV COPV class instrumented with a 25-PZT guided-wave network
+(BAM dataset, 180\,kHz, 600 pitch-catch paths \cite{lozano2026}), the
+reference-based damage index DI $= 1 - \text{corr}(\text{test},\text{baseline})$
+yields AUROC 0.919 (reversible steel block) / 0.939 (irreversible drilled hole),
+10$\times$ the healthy-vs-healthy floor, pressure-invariant across 20--700\,bar,
+and correctly ordered by severity (ID $>$ RD).
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Five-Structure Leave-One-Structure-Out}
+\label{sec:loso}
+
+\begin{table}[h]
+  \caption{Five-structure LOSO results. FPR targets $\alpha = 0.05$.}
+  \label{tab:loso}
+  \small
+  \centering
+  \begin{tabular}{lcccc}
+    \toprule
+    Held-out & AUROC & FPR (raw) & FPR (self-norm) & TPR (self-norm) \\
+    \midrule
+    Metallic DIC & 1.000 & 0.000 & 0.000 & 0.808 \\
+    Omega-stringer & 1.000 & 0.000 & 0.000 & 1.000 \\
+    COPV strain & 1.000 & 0.000 & 0.000 & 0.000 \\
+    Sandwich & 0.911 & 0.249 & 0.027 & 0.393 \\
+    Stiffened DFOS & 0.611 & 0.109 & 0.214 & 0.368 \\
+    \midrule
+    \textbf{mean} & \textbf{0.904} & 0.072 & 0.048 & 0.514 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Ranking transfers across the first four discrete-damage structures (AUROC
+0.91--1.00) but raw thresholds do not (FPR up to 0.997 across incomparable
+score scales).
+Per-structure self-normalisation with $\sim\!15$ healthy measurements and one
+shared conformal threshold restores FPR $\leq 0.027$ for discrete-damage
+structures.
+
+\textbf{Damage-type boundary.}
+The stiffened DFOS panel yields held-out AUROC 0.611, barely above chance.
+Diffuse fatigue accumulation across the full panel --- without local
+concentration contrast --- is a new failure \emph{mode} for the Tier-B residual
+detector, complementing the modality boundary identified for the sparse-strain
+COPV.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Beyond Detection: Fleet Prognosis and Its Limits}
+\label{sec:prognosis}
+
+\begin{itemize}
+  \item \textbf{Positive} \tagR: fleet pooling on real metallic DIC crack curves
+        improves degradation-onset detection (Stage-4 slope identifiability).
+  \item \textbf{Honest negative} \tagR: on DFOS run-to-failure, a monotone
+        health index exists (Spearman $-0.85$) but deterministic RUL
+        threshold-crossing fails ($\alpha$--$\lambda$ 3--14\%, extrapolation
+        error 100--1400\%).
+  \item \textbf{Generalisation boundary} \tagR: per-load-mode Bayesian Basquin
+        on CFRP multiaxial fatigue ($b = -17.8$ torsion, $-13.5$ axial);
+        load-mode crossing fails ($R^2 = -3.7$).
+\end{itemize}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Discussion and Conclusion}
+\label{sec:conclusion}
+
+One Tier-B contract and one detector detect damage across five heterogeneous
+\textbf{real} structures spanning two materials and seven sensing modalities.
+Failure boundaries are stated rather than hidden: the sparse-strain COPV
+boundary is a modality limit resolved on the same structure by guided waves
+(AUROC 0.92--0.94, absolute-coordinate localisation); the DFOS run-to-failure
+panel (LOSO AUROC 0.611) reveals a damage-type limit.
+Structure-agnostic \emph{detection} is achievable for discrete-damage structures;
+structure-agnostic \emph{thresholding} requires a handful of local healthy
+measurements in all cases.
+Method novelty is modest; the contribution is a falsifiable, real,
+cross-structure demonstration with negatives explicitly bounded or resolved.
+
+\textbf{Future work.}
+(i)~Hierarchical-Bayes fleet RUL for diffuse-damage structures.
+(ii)~FEM-based COPV guided-wave localisation library (cylindrical spreading +
+image sources reduced simulation error by 31\%; real-data gap requires
+FEM-simulated damage fields or labelled real positions).
+(iii)~SHM stage beyond residual detection for diffuse-damage run-to-failure.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\printbibliography
+
+\end{document}

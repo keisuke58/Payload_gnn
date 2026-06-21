@@ -15,7 +15,7 @@ Structural health monitoring (SHM) methods are typically built for one structure
 
 ## 1. Introduction
 
-**Fragmentation.** SHM pipelines are usually structure-specific: a guided-wave method for a panel, a strain-threshold for a vessel, a damage index for a plate. Each re-encodes geometry, sensing, and damage afresh, so methods do not transfer and claims rarely cross material/modality classes. Meanwhile most "general" claims are demonstrated only on simulation or on a single structure.
+**Fragmentation.** SHM pipelines are usually structure-specific: a guided-wave method for a panel, a strain-threshold for a vessel, a damage index for a plate. Each re-encodes geometry, sensing, and damage afresh, so methods do not transfer and claims rarely cross material/modality classes. Meanwhile most "general" claims are demonstrated only in simulation or on a single structure.
 
 **Gap.** No prior work demonstrates *one* detection procedure across (i) more than one material class (metal *and* CFRP), (ii) more than one sensing modality (full-field optical, laser vibrometry, thermo-elastic stress, point strain, distributed fibre, PZT guided wave, air-coupled ultrasonic guided wave), on (iii) **real experimental data**, with (iv) honest reporting of where the single procedure fails.
 
@@ -45,7 +45,7 @@ We occupy a distinct position. We forgo method novelty and instead ask whether *
 
 The design goal is a contract that any structure–modality pair can fulfil without modifying the downstream detector. Two simplifications keep this tractable: (i) geometry is encoded as a point cloud with kNN edges, so node count varies freely without retraining the detector; (ii) per-node information is reduced to two scalars that are monotonically damage-sensitive for every modality considered.
 
-**Frame.** Each measurement epoch is converted to a `Frame` object: a set of N nodes with (x, y, z) coordinates, kNN edges (k = 10, Euclidean; native edges used where available), and a per-node field dictionary. The frame abstraction decouples the data loader from the detector: `stage0_detect.py` receives frames regardless of their origin. For drifting point clouds (e.g. DIC facet clouds whose membership changes per measurement), edges are rebuilt per frame and the healthy reference is looked up by spatial nearest neighbour rather than fixed node index.
+**Frame.** Each measurement epoch is converted to a `Frame` object: a set of N nodes with (x, y, z) coordinates, kNN edges (k = 10, Euclidean; native edges used where available), and a per-node field dictionary. The frame abstraction decouples the data loader from the detector: `stage0_detect.py` receives frames regardless of their origin. For drifting point clouds (e.g. DIC facet clouds whose membership changes between measurements), edges are rebuilt per frame and the healthy reference is looked up by spatial nearest neighbour rather than fixed node index.
 
 **Modality adapters.** Each adapter maps raw instrument output to two canonical per-node scalars: `response` (the modality's primary damage-sensitive field) and `disp_mag` (displacement magnitude, masked to zero when unavailable). No adapter contains learned parameters; all are deterministic normalisation functions.
 
@@ -92,7 +92,7 @@ Tier-B coverage (one frame each) — `response_cov`/`disp_cov`: metallic 1.00/1.
 
 ## 5. Stage-0 structure-agnostic detection — real numbers
 
-Same detector code path; only the modality adapter differs.
+The same detector code path is used throughout; only the modality adapter changes.
 
 | Structure | Label | Metric | Result | Tag |
 |---|---|---|---|---|
@@ -103,10 +103,10 @@ Same detector code path; only the modality adapter differs.
 | **COPV (guided wave)** | healthy vs damaged (per-pair DI) | detection AUROC **0.919** (RD) / **0.939** (ID) | **[R] negative resolved (§5.5)** |
 | *Sandwich panel (fairing proxy)* | *core defect vs healthy (per-channel, local null)* | *detection AUROC **0.90** [0.85–0.94]* | *[R] real sandwich (§5.4)* |
 
-**Reading.** Three structures detect cleanly through the *same* Tier-B path, spanning metal↔CFRP and DIC↔SLDV↔stress. The COPV exposes the contract's limit under sparse sensing: with only 9 gauges the concentration feature is uninformative (0.00) while raw magnitude separates perfectly (1.00) — the adapter/modality, not the structure, is the bottleneck. §5.5 confirms this directly: the **same COPV structure class under guided waves is detected at AUROC 0.92–0.94**. Evaluation uses a multi-metric panel (AUROC/AUPRC/recall/FPR), not accuracy alone ([[feedback_eval_metrics]]).
+**Reading.** Three structures detect cleanly through the *same* Tier-B path, spanning metal↔CFRP and DIC↔SLDV↔stress. The COPV exposes the contract's limit under sparse sensing: with only 9 gauges the concentration feature is uninformative (0.00) while raw magnitude separates perfectly (1.00) — the adapter/modality, not the structure, is the bottleneck. §5.5 confirms this directly: the **same COPV structure class under guided waves is detected at AUROC 0.92–0.94**. Evaluation uses a multi-metric panel (AUROC/AUPRC/recall/FPR), not accuracy alone.
 
 ### 5.4 The composite fairing as one structure — two real proxies under the no-flight-data constraint
-The prior physics-informed GNN fairing study is the fairing instance. On simulated guided-wave data a 34-dim physics-informed node representation gives GraphSAGE AUC 0.995 / opt-F1 0.788 (5-class), GAT 0.992/0.758 [S/U: simulation].
+The fairing instance is the prior physics-informed GNN study [5]. On simulated guided-wave data, a 34-dimensional physics-informed node representation gives GraphSAGE AUC 0.995 / opt-F1 0.788 (5-class), GAT 0.992/0.758 [S/U: simulation].
 
 **Real flight-fairing data is unavailable** — the H3 fairing exists for us only as design FEM, with no released instrumented test article — so the fairing's real-data validation rests on public *proxy* structures chosen to bracket its two defining attributes, **material** (CFRP) and **construction** (skin–core sandwich):
 
@@ -155,10 +155,10 @@ The §5 COPV failure (sparse 9-gauge strain, concentration AUROC 0.00) is **not 
 
 ## 7. Discussion
 - **What structure-agnosticism buys:** one detector, five structures (the COPV under two modalities) plus the fairing's real sandwich proxy, three materials, seven sensing modalities (DIC, SLDV vibrometry, thermo-elastic stress, point strain, DFOS, PZT guided wave, air-coupled ultrasonic guided wave), real data.
-- **Detection is agnostic for discrete-damage structures; thresholding is not (§5.6).** Five-structure leave-one-structure-out (mean AUROC 0.904) shows the detector's *ranking* transfers to an unseen structure (AUROC 0.61–1.00). The first four discrete-damage structures achieve AUROC 0.91–1.00; the DFOS stiffened panel (AUROC 0.61) is a new **damage-type boundary** — diffuse fatigue accumulation with no local concentration event is near-chance for the Tier-B residual. A *raw* alarm threshold does not transfer — false-alarm runs to 0.997 across structures of incomparable score scale. Per-structure self-normalisation with ~15 healthy measurements plus one shared conformal threshold restores control (FPR ≤0.027 for discrete-damage; 0.21 for DFOS whose healthy variance is genuine and large). The irreducible local ingredient is a handful of healthy measurements — not a re-designed detector.
+- **Detection is agnostic for discrete-damage structures; thresholding is not (§5.6).** Five-structure leave-one-structure-out (mean AUROC 0.904) shows the detector's *ranking* transfers to an unseen structure (AUROC 0.61–1.00). The first four discrete-damage structures achieve AUROC 0.91–1.00; the DFOS stiffened panel (AUROC 0.61) is a new **damage-type boundary** — diffuse fatigue accumulation with no local concentration event is near-chance for the Tier-B residual. A *raw* alarm threshold does not transfer — false-alarm runs to 0.997 across structures of incomparable score scale. Per-structure self-normalisation with ~15 healthy measurements plus one shared conformal threshold restores control (FPR ≤0.027 for discrete-damage; 0.21 for DFOS whose healthy variance is genuine and large). The irreducible local ingredient is a handful of healthy measurements — not a redesigned detector.
 - **Where it breaks (explicit) — and where it doesn't:** (i) sparse sensing degrades the concentration adapter (COPV 0.00 vs raw 1.00) — **but this is a modality limit, resolved on the same structure by guided waves (0.92–0.94, §5.5), not a structure limit**; (ii) deterministic RUL extrapolation; (iii) cross-load-mode generalization. (i) is now a *bounded, resolved* failure; (ii)–(iii) remain open.
 - **Validity tags** per claim ([R]/[S]/[U]) pre-empt the "simulation-only" critique; the interstage stress source is FEM ([S]) while its detection label and all other structures are real ([R]).
-- **Honest stance:** the negatives are the credibility core, distinguishing this from over-claimed single-structure SHM reports ([[feedback_shm_depth_over_breadth]]).
+- **Honest stance:** the negatives are the credibility core, distinguishing this from over-claimed single-structure SHM reports.
 
 ## 8. Conclusion
 One Tier-B contract and one detector detect damage across five heterogeneous **real** structures (metal/CFRP; DIC/SLDV/stress/strain/DFOS/PZT-guided-wave), with failure boundaries stated rather than hidden — the sparse-strain COPV boundary is a **modality limit resolved on the same structure by guided waves** (AUROC 0.92–0.94, absolute-coordinate localization), while the DFOS run-to-failure panel (LOSO AUROC 0.611) reveals a **damage-type limit**: diffuse fatigue accumulation without local contrast events. Method novelty is modest; the contribution is a falsifiable, real, cross-structure demonstration with negatives explicitly resolved or bounded. Future: hierarchical-Bayes fleet RUL; for COPV guided-wave localisation, a FEM-calibrated training library (cylindrical spreading + image-source wrap-around + phase-interference gate) reduces simulation median error by 31 % (103 → 71 mm) but the real-data gap persists — bridging it requires either FEM-simulated damage fields at each candidate position or a calibration set of real defect locations, neither currently available; and an SHM method for diffuse-damage structures beyond residual detection.
