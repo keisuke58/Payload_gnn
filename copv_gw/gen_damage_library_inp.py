@@ -30,15 +30,32 @@ a, _ = p.parse_known_args()
 
 os.makedirs(a.outdir, exist_ok=True)
 
-# ─── 1. Extract Part-level node coordinates from ODB ──────────────────────────
+# ─── 1. Extract node coordinates from ODB (rootAssembly instances) ────────────
 print('Loading ODB: %s' % a.odb)
-odb     = openOdb(a.odb, readOnly=True)
-part    = list(odb.parts.values())[0]
-nodes   = part.nodes
-node_labels  = np.array([n.label for n in nodes])
-node_coords  = np.array([n.coordinates for n in nodes])   # (N, 3)  x,y,z mm
+odb  = openOdb(a.odb, readOnly=True)
+asm  = odb.rootAssembly
+
+labels_list, coords_list = [], []
+for inst_name, inst in asm.instances.items():
+    for n in inst.nodes:
+        labels_list.append(n.label)
+        coords_list.append(n.coordinates)
+    if labels_list:
+        break   # single-instance model; use first instance only
+
+if not labels_list:
+    # fallback: part-level
+    for part in odb.parts.values():
+        for n in part.nodes:
+            labels_list.append(n.label)
+            coords_list.append(n.coordinates)
+        if labels_list:
+            break
+
 odb.close()
-print('Part nodes: %d' % len(node_labels))
+node_labels = np.array(labels_list)
+node_coords = np.array(coords_list, dtype=float)   # (N, 3)  x,y,z mm
+print('Nodes loaded: %d' % len(node_labels))
 
 # Max existing element label (to create a new unique MASS element label)
 # Read from INP rather than ODB (ODB may not expose element labels easily)
