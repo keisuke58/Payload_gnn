@@ -34,7 +34,7 @@ for inp in "${inps[@]}"; do
 #PBS -N $job
 #PBS -l nodes=1:ppn=1
 #PBS -l walltime=03:00:00
-#PBS -q serial
+#PBS -q default
 #PBS -e $JOBS_DIR/${job}.e
 #PBS -o $JOBS_DIR/${job}.o
 cd "$JOBS_DIR"
