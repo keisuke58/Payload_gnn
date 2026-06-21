@@ -21,16 +21,18 @@
 
 ### ② 衛星(ペイロード)フェアリング = H3 cohesive
 > **2トラックに分離**（詳細=[FAIRING_USABLE_ASSETS.md](FAIRING_USABLE_ASSETS.md)）：
-> - **トラックA：GW動解析 検出＋実データe2e** … **〜80/100** 🟢（odb133・CSV100・F1 0.788＋**実34ヶ月GW縦断検証/OGW実DI 0/0.57/0.998 monotone 完了**）。残り穴＝**温度交絡FPR(0.577)のみ**。「実検証ゼロ」はもう該当しない
-> - **トラックB：静的Max-Q応力/SCF** … **14/100** 🔴（下記。旧データ全削除・2.0mmで再構築中）
+> - **トラックA：GW動解析 検出＋実データe2e** … **〜82/100** 🟢（odb133・CSV100・F1 0.788＋**実34ヶ月GW縦断検証/OGW実DI 0/0.57/0.998 monotone 完了**）。温度補正FULL(amp+regress,2018-2019→2020-2022): FPR=**0.508**↓(AMP-only 0.577), Recall=0.566。スコア+2（但し補正でrecall 0.702→0.566も低下のためFPR問題は部分解消のみ）
+> - **トラックB：静的Max-Q応力/SCF** … **14/100** 🔴（ENCASTRE BC修正+2.0mm adhesive → job40859 H3_healthy_a3 実行中 2026-06-21）
 
-#### トラックB詳細（静的Max-Q応力）= **14 / 100** 🔴
+#### トラックB詳細（静的Max-Q応力）= **14 / 100** 🔴（修正実行中）
 - S1=10：9部品サンドイッチ、datacheck通過
-- S2=**0**：全シナリオ求解失敗。真因＝**cohesive厚0.2mm→歪み要素で解けない**（既知。datacheck通るが実solveで落ちる）
-- S3=2：8シナリオparam_fileあるが**有効odbゼロ**
-- S4=0：有効データ0（mq8本+t2全滅）
+- S2=**0**：全シナリオ求解失敗。**真因2つ**: (1) **outer skin shell BC に回転拘束(DOF4-6)なし**→剛体回転モード→zero pivot（TieがNODE-TO-SURFACEに降格→outer skinが宙ぶらり） (2) adhesive cohesive厚0.2mm→歪み要素
+  - 修正: `generate_cohesive_fairing.py` 全4 BC を **ENCASTRE(u1-u3+ur1-ur3=0)** に更新済 + adhesive=2.0mm
+  - **H3_healthy_a3** (job 40859): ENCASTRE修正版・求解中（2026-06-21 20:44 start・preprocessing中）
+- S3=2：7シナリオparam_fileあるが**有効odbゼロ**（a3収束後にgen_and_solve_defects.sh実行予定）
+- S4=0：有効データ0（a3収束確認後に7欠陥一括生成）
 - S5=0 / S6=2（※別途GW無荷重検出 SAGE F1 0.788 は存在するが本データ＝Max-Q応力とは別物）/ S7=0
-- **次の一手**：`--adhesive_thickness 2.0` で再生成→収束確認（**2026-06-20 実行中：job名 H3_healthy_a2**）。通れば一気にS2→20, S3,S4回収可能。
+- **次の一手**：H3_healthy_a3.sta が COMPLETED → `bash gen_and_solve_defects.sh` → 7欠陥ジョブ submit → S2=20, S3=15, S4増加
 
 ### ① 段間構造 = CFRP 1穴サンドイッチパネル（実物）  ……  **77 / 100** 🟢（S6実行中・暫定）
 - S1=10：実段間部180,944要素/193,866節点・曲面・L1-L20積層+FOAMCORE
@@ -99,7 +101,7 @@
 | S6確定値でスコアカード更新 | 段間①S6確定→論文数値確定 | 転移完走後 |
 | BAM COPV ODB解析→sim2real dispersion更新 | ③S5改善・PAPER_DRAFT §3精緻化 | PBS GW 5本完了後 |
 | 段間①残10ケースsolve | S4=18→20 | abaqus serial queue |
-| フェアリングB 2.0mm cohesive収束確認 | ②S2=0→20 | H3_healthy_a2 確認 |
+| フェアリングB ENCASTRE+2.0mm 収束確認 | ②S2=0→20 | H3_healthy_a3 .sta COMPLETED確認後にgen_and_solve_defects.sh |
 
 ### 中期（〜7月末）= 論文形成フェーズ
 | 目標 | 論文 | 内容 |

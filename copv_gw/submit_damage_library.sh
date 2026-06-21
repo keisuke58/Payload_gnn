@@ -8,7 +8,7 @@
 # Jobs are submitted with SERIAL token licence (cpus=1) to respect the token budget.
 # With 80 jobs × ~1h each → schedule over 2-3 days (max 4 concurrent recommended).
 
-JOBS_DIR="$(realpath "$(dirname "$0")")/damage_lib"
+JOBS_DIR="/home/nishioka/Payload2026/copv_gw/damage_lib"
 N_CONCURRENT=4   # max simultaneous Abaqus jobs (conservative for QSD50)
 DRY_RUN=0
 
