@@ -1355,8 +1355,9 @@ def apply_boundary_conditions_with_adhesive(model, assembly,
     if set_kwargs:
         bot_set = assembly.Set(name='BC_Bottom', **set_kwargs)
         model.DisplacementBC(name='Fix_Bottom', createStepName='Initial',
-                             region=bot_set, u1=0, u2=0, u3=0)
-        print("BC: Fixed at y=0 (%s)" % ', '.join(
+                             region=bot_set, u1=0, u2=0, u3=0,
+                             ur1=0, ur2=0, ur3=0)
+        print("BC: ENCASTRE at y=0 (%s)" % ', '.join(
             '%s=%d' % (k, len(v)) for k, v in set_kwargs.items()))
     else:
         print("Warning: No BC geometry found at y=0")
@@ -1383,8 +1384,9 @@ def apply_post_mesh_bcs_with_adhesive(model, assembly,
             combined = combined + ns
         nose_set = assembly.Set(name='BC_NoseTip', nodes=combined)
         model.DisplacementBC(name='Fix_NoseTip', createStepName='Initial',
-                             region=nose_set, u1=0, u2=0, u3=0)
-        print("BC: Nose tip pinned (y>%.0f, r<150mm): %d nodes" % (
+                             region=nose_set, u1=0, u2=0, u3=0,
+                             ur1=0, ur2=0, ur3=0)
+        print("BC: Nose tip ENCASTRE (y>%.0f, r<150mm): %d nodes" % (
             nose_y_min, len(nose_nodes)))
 
     # 1b. Ogive truncation cap: solid nodes near r_min not tied to skins
@@ -1402,8 +1404,9 @@ def apply_post_mesh_bcs_with_adhesive(model, assembly,
             combined_cap = combined_cap + ns
         cap_set = assembly.Set(name='BC_OgiveCap', nodes=combined_cap)
         model.DisplacementBC(name='Fix_OgiveCap', createStepName='Initial',
-                             region=cap_set, u1=0, u2=0, u3=0)
-        print("BC: Ogive cap pinned (r<%.0f, y>%.0f): %d nodes" % (
+                             region=cap_set, u1=0, u2=0, u3=0,
+                             ur1=0, ur2=0, ur3=0)
+        print("BC: Ogive cap ENCASTRE (r<%.0f, y>%.0f): %d nodes" % (
             cap_r_max, H_BARREL, len(cap_nodes)))
 
     # 2. VOID opening nodes: skins/core use Set-Opening,
@@ -1427,9 +1430,10 @@ def apply_post_mesh_bcs_with_adhesive(model, assembly,
             combined = combined + ns
         void_bc_set = assembly.Set(name='BC_VoidOpening', nodes=combined)
         model.DisplacementBC(name='Fix_VoidOpening', createStepName='Initial',
-                             region=void_bc_set, u1=0, u2=0, u3=0)
+                             region=void_bc_set, u1=0, u2=0, u3=0,
+                             ur1=0, ur2=0, ur3=0)
         n_total = sum([len(ns) for ns in void_node_seqs])
-        print("BC: VOID opening nodes pinned: %d nodes" % n_total)
+        print("BC: VOID opening nodes ENCASTRE: %d nodes" % n_total)
 
 
 # ==============================================================================

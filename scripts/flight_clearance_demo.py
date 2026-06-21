@@ -13,6 +13,11 @@ flight-clearance decision:
     REPAIR  — refurbish the panel before the next flight
     RETIRE  — pull the structure (vehicle loss >> refurbishment cost)
 
+Fatigue-aware since 2026-06: each flight is K load cycles and the
+Carrara-2020 fatigue history variable persists across flights, so the
+survival probability decays even at constant load; decision thresholds come
+from expected-cost calibration (vehicle-loss : repair = 100 : 1).
+
 This demo runs flight_clearance() for three load levels (normalised
 transverse peel-strain proxy — see the module docstring; mapping real flight
 loads to this local driver needs an outer structural analysis) and prints
@@ -104,6 +109,7 @@ def main() -> None:
         out = flight_clearance(posterior,
                                load_profile=[0.5 * load, load],
                                n_flights=N_FLIGHTS,
+                               fatigue=True,
                                cfg=cfg, n_draws=N_DRAWS,
                                rng=np.random.default_rng(SEED))
         dt = time.perf_counter() - t0
@@ -113,9 +119,15 @@ def main() -> None:
               f"{out['expected_remaining_flights']:>11.1f} "
               f"{out['decision']:>9}   [{dt:.0f}s]")
 
-    print("\nCaveats: quasi-static AT2 (no fatigue — Carrara 2020 = future "
-          "work);\nnormalised load proxy; thresholds alpha/beta are placeholders"
-          " for an\nexpected-cost decision rule (vehicle loss >> refurbishment).")
+    a, b = rows[0][2]["alpha"], rows[0][2]["beta"]
+    print(f"\nFatigue: Carrara-2020 phase-field fatigue, "
+          f"K={cfg.cycles_per_flight} cycles/flight, damage + fatigue "
+          f"variable persist\nacross the {N_FLIGHTS}-flight horizon "
+          f"(legacy rate-independent mode: fatigue=False).")
+    print(f"Thresholds: expected-cost calibration, vehicle-loss:repair = "
+          f"100:1 -> alpha={a:.3f}, beta={b:.3f}.")
+    print("Caveats: normalised load proxy; fatigue cycle counts are relative "
+          "severity\n(alpha_T not yet anchored to S-N data).")
 
     _make_figure(rows, posterior, cfg)
     print(f"\nfigure saved: {OUT_PNG}")
@@ -129,15 +141,16 @@ def _make_figure(rows, posterior, cfg) -> None:
     os.makedirs(os.path.dirname(OUT_PNG), exist_ok=True)
     dec_color = {"OK": "#2a9d3a", "REPAIR": "#e9a800", "RETIRE": "#d62728"}
 
-    fig, axes = plt.subplots(1, 3, figsize=(14, 4.2),
-                             gridspec_kw={"width_ratios": [1.1, 1.0, 1.4]})
+    fig, axes = plt.subplots(1, 4, figsize=(18, 4.2),
+                             gridspec_kw={"width_ratios": [1.1, 1.1, 1.0, 1.4]})
 
-    # (a) P(growth) bar chart with decisions
+    # (a) P(growth) bar chart with decisions (expected-cost thresholds)
     ax = axes[0]
     names = [r[0] for r in rows]
     loads = [r[1] for r in rows]
     ps = [r[2]["p_growth_next"] for r in rows]
     decs = [r[2]["decision"] for r in rows]
+    alpha, beta = rows[0][2]["alpha"], rows[0][2]["beta"]
     bars = ax.bar(range(len(rows)), ps,
                   color=[dec_color[d] for d in decs], width=0.6)
     for b, d, p in zip(bars, decs, ps):
@@ -149,24 +162,38 @@ def _make_figure(rows, posterior, cfg) -> None:
                        fontsize=8)
     ax.set_ylim(0, 1.15)
     ax.set_ylabel("P(growth next flight)")
-    ax.axhline(0.05, ls=":", c="gray", lw=1)
-    ax.axhline(0.30, ls="--", c="gray", lw=1)
-    ax.text(2.45, 0.055, r"$\alpha$=0.05", fontsize=7, color="gray")
-    ax.text(2.45, 0.305, r"$\beta$=0.30", fontsize=7, color="gray")
-    ax.set_title("(a) Stage-3 clearance decision")
+    ax.axhline(alpha, ls=":", c="gray", lw=1)
+    ax.axhline(beta, ls="--", c="gray", lw=1)
+    ax.text(2.45, alpha + 0.005, rf"$\alpha$={alpha:.2f}", fontsize=7,
+            color="gray")
+    ax.text(2.45, beta + 0.005, rf"$\beta$={beta:.2f}", fontsize=7,
+            color="gray")
+    ax.set_title("(a) clearance decision\n(expected-cost 100:1)", fontsize=9)
 
-    # (b) FMPE posterior scatter (depth vs size)
+    # (b) fatigue survival curves (decay even at constant load)
     ax = axes[1]
+    for (name, load, out), c in zip(rows, ("#2a9d3a", "#e9a800", "#d62728")):
+        curve = out["p_survive_curve"]
+        ax.plot(np.arange(1, len(curve) + 1), curve, "-o", ms=3, color=c,
+                label=f"{name} ({load:.2f})")
+    ax.set_xlabel("flight n")
+    ax.set_ylabel("P(survive n)")
+    ax.set_ylim(-0.03, 1.05)
+    ax.legend(fontsize=7)
+    ax.set_title("(b) Carrara-2020 fatigue survival", fontsize=9)
+
+    # (c) FMPE posterior scatter (depth vs size)
+    ax = axes[2]
     sc = ax.scatter(2.0 ** posterior[:, 3], posterior[:, 2],
                     c=posterior[:, 0], s=12, alpha=0.6, cmap="viridis")
     ax.set_xlabel("defect size [elements]")
     ax.set_ylabel("layer (depth)")
     ax.invert_yaxis()
     fig.colorbar(sc, ax=ax, label="cx")
-    ax.set_title("(b) Stage-2 FMPE posterior")
+    ax.set_title("(c) Stage-2 FMPE posterior", fontsize=9)
 
-    # (c) example damage field at the intermediate load
-    ax = axes[2]
+    # (d) example damage field at the intermediate load
+    ax = axes[3]
     theta_mean = posterior.mean(axis=0)
     d0 = seed_defect(*theta_mean, cfg)
     res = simulate_growth(d0, rows[1][1], cfg)
@@ -179,12 +206,12 @@ def _make_figure(rows, posterior, cfg) -> None:
     fig.colorbar(im, ax=ax, label="damage d")
     ax.set_xlabel("x (in-plane)")
     ax.set_ylabel("y (thickness)")
-    ax.set_title(f"(c) damage field, posterior-mean defect "
+    ax.set_title(f"(d) damage field, posterior-mean defect "
                  f"@ load {rows[1][1]:.2f} "
-                 f"(rel. growth {res.rel_growth:.1f})")
+                 f"(rel. growth {res.rel_growth:.1f})", fontsize=9)
 
-    fig.suptitle("CFRP panel flight clearance: NDT posterior → phase-field "
-                 "prognosis → go/no-go", fontsize=11)
+    fig.suptitle("CFRP panel flight clearance: NDT posterior → fatigue "
+                 "phase-field prognosis → go/no-go", fontsize=11)
     fig.tight_layout(rect=[0, 0, 1, 0.94])
     fig.savefig(OUT_PNG, dpi=150)
     plt.close(fig)

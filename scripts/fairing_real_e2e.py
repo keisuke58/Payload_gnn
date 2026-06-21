@@ -48,13 +48,15 @@ lt=None
 try: lt=json.load(open(os.path.join(RES,"detection_over_time.json")))
 except Exception: pass
 lt_recall=lt_fpr=None
-if lt and "AMP" in lt:
-    r=[x for x in lt["AMP"]["rows"]]
+COMP_MODE = "FULL"  # amp-norm + temp-regress (train 2018-2019, test 2020-2022)
+if lt and COMP_MODE in lt:
+    r=[x for x in lt[COMP_MODE]["rows"]]
     rv=[x["recall"] for x in r if x.get("recall") is not None]
     fv=[x["fpr"] for x in r if x.get("fpr") is not None]
     lt_recall=float(np.mean(rv)); lt_fpr=float(np.mean(fv))
+lt_fpr_raw = float(np.mean([x["fpr"] for x in lt.get("AMP",{}).get("rows",[]) if x.get("fpr") is not None])) if lt else None
 
-out={"stage0_detect_realdata":"long-term GW 34mo large-N: mean recall=%.3f mean FPR=%.3f (temp-confounded, DA recovers §9)"%(lt_recall or 0,lt_fpr or 0),
+out={"stage0_detect_realdata":"long-term GW 34mo large-N FULL(amp+regress): recall=%.3f FPR=%.3f (AMP-only FPR=%.3f)"%(lt_recall or 0,lt_fpr or 0, lt_fpr_raw or 0),
      "stringer_note":"single intact baseline -> no stringer detection-rate; stringer used for classify/characterise",
      "stage2_mean_DI":{"Intact":0.0,"First":sev[1],"Second":sev[2]},
      "stage2_severity_monotone":bool(sev[2]>sev[1]>0),
@@ -67,13 +69,15 @@ gs=fig.add_gridspec(1,4,width_ratios=[1.15,1.25,0.9,1.15],wspace=0.42)
 
 # (a) Stage 0 detect — 長期 大N 実データ (温度に対する recall)
 axa=fig.add_subplot(gs[0,0])
-if lt and "AMP" in lt:
-    r=[x for x in lt["AMP"]["rows"] if x.get("recall") is not None]
-    T=[x["tempC"] for x in r]; rec=[x["recall"] for x in r]
-    axa.scatter(T,rec,s=14,c="#1565c0",alpha=0.7)
+if lt and "AMP" in lt and "FULL" in lt:
+    for mode,col,lab in [("AMP","#aaa","AMP-only (FPR=%.2f)"%lt_fpr_raw),
+                         ("FULL","#1565c0","FULL amp+regress (FPR=%.2f)"%lt_fpr)]:
+        r=[x for x in lt[mode]["rows"] if x.get("recall") is not None]
+        T=[x["tempC"] for x in r]; rec=[x["recall"] for x in r]
+        axa.scatter(T,rec,s=14,c=col,alpha=0.75,label=lab)
     axa.set_xlabel("temperature [$^\\circ$C]");axa.set_ylabel("detection recall")
-    axa.set_title("(a) Stage 0 detect — REAL long-term GW\n(34 months, large-N; temp confound $\\to$ DA, §9)",fontsize=8.5)
-    axa.set_ylim(0,1.05);axa.grid(alpha=0.3)
+    axa.set_title("(a) Stage 0 detect — REAL 34mo GW\nFULL: Recall=%.2f FPR=%.2f (AMP: FPR=%.2f)"%(lt_recall,lt_fpr,lt_fpr_raw),fontsize=8.5)
+    axa.set_ylim(0,1.05);axa.grid(alpha=0.3);axa.legend(fontsize=6,frameon=False)
 else:
     axa.text(0.5,0.5,"long-term JSON\nnot found",ha="center")
 

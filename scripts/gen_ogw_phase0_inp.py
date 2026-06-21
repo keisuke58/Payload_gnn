@@ -208,7 +208,7 @@ with open(out_path, 'w') as f:
     comment()
     comment('STEP: guided wave propagation')
     comment()
-    W('*Step, name=Step-Wave, nlgeom=NO\n')
+    W('*Step, name=Step-Wave\n')
     W('*Dynamic, Explicit\n')
     W(f', {T_TOTAL}\n')
     W('*Bulk Viscosity\n')
@@ -223,15 +223,15 @@ with open(out_path, 'w') as f:
     comment('OUTPUT')
     comment()
     W('*Restart, write, number interval=1, time marks=NO\n')
-    comment('Field: full-field U3 every 20µs for snapshot comparison with OGW SLDV')
+    comment('Field: full-field displacement every 20µs for snapshot comparison with OGW SLDV')
     W(f'*Output, field, time interval={DT_FIELD}\n')
     W('*Node Output\n')
-    W('U3,\n')
+    W('U,\n')
     comment('History: sensors at OGW sampling rate (7.8125e-7 s) for group velocity')
     W(f'*Output, history, time interval={DT_HIST}\n')
     for sname in sensors:
         W(f'*Node Output, nset={sname}\n')
-        W('U3,\n')
+        W('U,\n')
     W('*End Step\n')
 
 # ── PBS submit script ──────────────────────────────────────────────────────────
@@ -247,7 +247,7 @@ with open(pbs_path, 'w') as f:
 cd {out_dir}
 module load abaqus 2>/dev/null || true
 
-abaqus job={JOB} input={JOB}.inp cpus=1 interactive > {JOB}_stdout.txt 2>&1
+abaqus job={JOB} input={JOB}.inp cpus=1 > {JOB}_stdout.txt 2>&1
 echo "Exit code: $?" >> {JOB}_stdout.txt
 """)
 os.chmod(pbs_path, 0o755)
@@ -258,6 +258,6 @@ print(f'  inp: {out_path}  ({os.path.getsize(out_path)/1024/1024:.1f} MB)')
 print(f'  pbs: {pbs_path}')
 print()
 print('Next steps:')
-print(f'  1. DATACHECK: abaqus job={JOB} input={JOB}.inp datacheck cpus=1 interactive')
+print(f'  1. DATACHECK: abaqus job={JOB} input={JOB}.inp datacheck cpus=1')
 print(f'  2. Submit:    qsub {pbs_path}')
 print(f'  3. After run: extract U3 → compare A0 group velocity with OGW healthy signal')

@@ -1,5 +1,5 @@
 {
-  "stage0_detect_realdata": "long-term GW 34mo large-N: mean recall=0.702 mean FPR=0.577 (temp-confounded, DA recovers \u00a79)",
+  "stage0_detect_realdata": "long-term GW 34mo large-N FULL(amp+regress): recall=0.566 FPR=0.508 (AMP-only FPR=0.577)",
   "stringer_note": "single intact baseline -> no stringer detection-rate; stringer used for classify/characterise",
   "stage2_mean_DI": {
     "Intact": 0.0,
