@@ -17,7 +17,7 @@ Usage (on frontale, after module abaqus/2024 loaded):
      and   damage_lib/damage_positions.json
 """
 from odbAccess import openOdb
-import numpy as np, json, os, argparse, math, shutil
+import numpy as np, json, os, argparse, math
 
 p = argparse.ArgumentParser()
 p.add_argument('--odb',       default='COPV_GW_180k.odb')
@@ -63,8 +63,14 @@ print('Max element label in INP: %d' % max_elem)
 # ─── 2. Build search tree ─────────────────────────────────────────────────────
 # The FEM is a 90° barrel sector at R≈176mm, z in [0, 500mm].
 # All surface nodes are on the outer shell.
-from scipy.spatial import cKDTree
-tree = cKDTree(node_coords)
+# Abaqus Python has no scipy — brute-force nearest-neighbour (80 queries × 348k nodes ~OK)
+def _nn_query(coords, targets):
+    idxs, dists = [], []
+    for t in targets:
+        d = np.sqrt(((coords - t) ** 2).sum(axis=1))
+        k = int(d.argmin())
+        idxs.append(k); dists.append(float(d[k]))
+    return np.array(dists), np.array(idxs)
 
 # ─── 3. Sample N damage positions within the FEM domain ───────────────────────
 # Unrolled sector: circ ∈ [-R*π/4, R*π/4] ≈ [-138, 138] mm; axial ∈ [20, 480] mm
@@ -82,7 +88,7 @@ theta = circ_pos / R   # radians from θ=0
 targets = np.column_stack([R * np.cos(theta), R * np.sin(theta), axial_pos])
 
 # ─── 4. Find nearest Part-level node for each target ─────────────────────────
-dists, idxs = tree.query(targets)
+dists, idxs = _nn_query(node_coords, targets)
 nearest_labels = node_labels[idxs]
 actual_coords  = node_coords[idxs]
 
