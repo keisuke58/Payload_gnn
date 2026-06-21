@@ -47,8 +47,8 @@ PBSEOF
     else
         # Throttle: wait if N_CONCURRENT jobs already running
         while true; do
-            running=$(qstat -u "$USER" 2>/dev/null | grep -c "COPV_GW_180k_d" || echo 0)
-            if [[ "$running" -lt "$N_CONCURRENT" ]]; then break; fi
+            running=$(qstat -u "$USER" 2>/dev/null | grep "COPV_GW_180k_d" | wc -l)
+            if [ "$running" -lt "$N_CONCURRENT" ]; then break; fi
             sleep 60
         done
         qid=$(qsub "$pbsfile")
