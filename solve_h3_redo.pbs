@@ -1,0 +1,20 @@
+#!/bin/bash
+#PBS -N H3_redo
+#PBS -q default
+#PBS -l nodes=1:ppn=4
+#PBS -l walltime=24:00:00
+#PBS -j oe
+#PBS -o /home/nishioka/render_scratch/H3_redo.pbslog
+# Solve the REGENERATED (valid) InnerDebond + Thermal fairing models.
+# cpus=1 because the DSLS license has a single seat (parallel tokens unavailable),
+# so frontale buys queue time + RAM headroom, not extra parallelism.
+cd /home/nishioka/Payload2026
+export PATH=/home/nishioka/DassaultSystemes/SIMULIA/Commands:$PATH
+export TMPDIR=/home/nishioka/render_scratch
+for j in H3_InnerDebond_gen H3_Thermal_gen; do
+  echo "[$(date '+%F %T')] solving $j on $(hostname)"
+  rm -f "$j.odb" "$j.lck" 2>/dev/null
+  abq2024 job="$j" input="$j.inp" cpus=1 interactive scratch="$TMPDIR"
+  echo "[$(date '+%F %T')] $j finished (abaqus rc=$?)"
+done
+echo "ALLDONE $(date '+%F %T')"

@@ -1,0 +1,7 @@
+type(m)=<class 'abaqus.Model'>
+has fieldOutputRequests=False
+has historyOutputRequests=False
+steps=['Initial', 'gw']
+fieldReqs ERR 'Model' object has no attribute 'fieldOutputRequests'
+elements=1122900 nodes=1125114 seed=0.351
+output-related model attrs=[]

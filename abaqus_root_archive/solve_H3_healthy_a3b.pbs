@@ -1,0 +1,16 @@
+#!/bin/bash
+#PBS -N H3_healthy_a3b
+#PBS -q default
+#PBS -l nodes=frontale03:ppn=1
+#PBS -l walltime=08:00:00
+#PBS -j oe
+#PBS -o /home/nishioka/render_scratch/H3_healthy_a3b.pbslog
+cd /home/nishioka/Payload2026/abaqus_root_archive
+export PATH=/home/nishioka/DassaultSystemes/SIMULIA/Commands:$PATH
+export TMPDIR=/home/nishioka/render_scratch
+j=H3_healthy_a3
+rm -f $j.odb $j.lck $j.sta $j.msg 2>/dev/null
+echo "[$(date '+%F %T')] solving $j on $(hostname)"
+abq2024 job=$j input=H3_healthy_a3.inp cpus=1 scratch=$TMPDIR interactive
+echo "===STA==="; tail -10 $j.sta 2>/dev/null
+echo "H3_healthy_a3b_DONE $(date '+%F %T')"

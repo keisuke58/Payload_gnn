@@ -1,0 +1,553 @@
+{
+  "summary": {
+    "n_months": 54,
+    "mean_fpr_raw": 0.04182771013138246,
+    "mean_fpr_comp": 0.01455452452141345,
+    "mean_recall_raw": 0.013560046625430857,
+    "mean_recall_comp": 0.0025238852197216758,
+    "threshold": 0.8935213685035706,
+    "Tref": 13.497906150400413
+  },
+  "rows": [
+    {
+      "month": "2018_04",
+      "tempC": 13.283299763772176,
+      "n_heal": 7005,
+      "n_dmg": 492,
+      "fpr_raw": 0.011277658815132048,
+      "fpr_comp": 0.015703069236259814,
+      "recall_raw": 0.018292682926829267,
+      "recall_comp": 0.026422764227642278
+    },
+    {
+      "month": "2018_06",
+      "tempC": 25.07704841390817,
+      "n_heal": 7492,
+      "n_dmg": 0,
+      "fpr_raw": 0.1528296849973305,
+      "fpr_comp": 0.05726107848371596,
+      "recall_raw": NaN,
+      "recall_comp": NaN
+    },
+    {
+      "month": "2018_07",
+      "tempC": 29.620342111284653,
+      "n_heal": 7683,
+      "n_dmg": 0,
+      "fpr_raw": 0.13132890797865418,
+      "fpr_comp": 0.04073929454640115,
+      "recall_raw": NaN,
+      "recall_comp": NaN
+    },
+    {
+      "month": "2018_08",
+      "tempC": 26.41460181676338,
+      "n_heal": 7755,
+      "n_dmg": 0,
+      "fpr_raw": 0.1276595744680851,
+      "fpr_comp": 0.0448742746615087,
+      "recall_raw": NaN,
+      "recall_comp": NaN
+    },
+    {
+      "month": "2018_09",
+      "tempC": 22.408753543287162,
+      "n_heal": 7508,
+      "n_dmg": 0,
+      "fpr_raw": 0.09070324986680874,
+      "fpr_comp": 0.03169952051145445,
+      "recall_raw": NaN,
+      "recall_comp": NaN
+    },
+    {
+      "month": "2018_10",
+      "tempC": 11.545286446638276,
+      "n_heal": 7749,
+      "n_dmg": 0,
+      "fpr_raw": 0.10840108401084012,
+      "fpr_comp": 0.1118854045683314,
+      "recall_raw": NaN,
+      "recall_comp": NaN
+    },
+    {
+      "month": "2018_11",
+      "tempC": 3.3959394423923857,
+      "n_heal": 7039,
+      "n_dmg": 0,
+      "fpr_raw": 0.09262679357863333,
+      "fpr_comp": 0.08950134962352607,
+      "recall_raw": NaN,
+      "recall_comp": NaN
+    },
+    {
+      "month": "2018_12",
+      "tempC": -0.30565340401441066,
+      "n_heal": 7772,
+      "n_dmg": 0,
+      "fpr_raw": 0.0,
+      "fpr_comp": 0.0007720020586721565,
+      "recall_raw": NaN,
+      "recall_comp": NaN
+    },
+    {
+      "month": "2019_01",
+      "tempC": -0.7267801020881671,
+      "n_heal": 7758,
+      "n_dmg": 0,
+      "fpr_raw": 0.004253673627223511,
+      "fpr_comp": 0.010440835266821345,
+      "recall_raw": NaN,
+      "recall_comp": NaN
+    },
+    {
+      "month": "2019_02",
+      "tempC": 0.10526761123417722,
+      "n_heal": 6320,
+      "n_dmg": 0,
+      "fpr_raw": 0.09430379746835443,
+      "fpr_comp": 0.061708860759493674,
+      "recall_raw": NaN,
+      "recall_comp": NaN
+    },
+    {
+      "month": "2019_03",
+      "tempC": 5.624579292284588,
+      "n_heal": 5327,
+      "n_dmg": 0,
+      "fpr_raw": 0.0657030223390276,
+      "fpr_comp": 0.01370377323071147,
+      "recall_raw": NaN,
+      "recall_comp": NaN
+    },
+    {
+      "month": "2019_04",
+      "tempC": 11.950281944887601,
+      "n_heal": 2846,
+      "n_dmg": 4049,
+      "fpr_raw": 0.013703443429374561,
+      "fpr_comp": 0.003162333099086437,
+      "recall_raw": 0.012101753519387503,
+      "recall_comp": 0.0024697456162015314
+    },
+    {
+      "month": "2019_05",
+      "tempC": 14.364632286758109,
+      "n_heal": 0,
+      "n_dmg": 7801,
+      "fpr_raw": NaN,
+      "fpr_comp": NaN,
+      "recall_raw": 0.017433662350980643,
+      "recall_comp": 0.0007691321625432636
+    },
+    {
+      "month": "2019_06",
+      "tempC": 21.806421899973536,
+      "n_heal": 0,
+      "n_dmg": 7558,
+      "fpr_raw": NaN,
+      "fpr_comp": NaN,
+      "recall_raw": 0.0,
+      "recall_comp": 0.0002646202699126753
+    },
+    {
+      "month": "2019_07",
+      "tempC": 27.88149801156677,
+      "n_heal": 2988,
+      "n_dmg": 4620,
+      "fpr_raw": 0.0,
+      "fpr_comp": 0.0,
+      "recall_raw": 0.0,
+      "recall_comp": 0.0
+    },
+    {
+      "month": "2019_08",
+      "tempC": 26.882358619287377,
+      "n_heal": 7746,
+      "n_dmg": 0,
+      "fpr_raw": 0.0,
+      "fpr_comp": 0.0,
+      "recall_raw": NaN,
+      "recall_comp": NaN
+    },
+    {
+      "month": "2019_09",
+      "tempC": 19.97447719173884,
+      "n_heal": 7505,
+      "n_dmg": 0,
+      "fpr_raw": 0.0,
+      "fpr_comp": 0.0,
+      "recall_raw": NaN,
+      "recall_comp": NaN
+    },
+    {
+      "month": "2019_10",
+      "tempC": 7.934803993457344,
+      "n_heal": 3705,
+      "n_dmg": 4090,
+      "fpr_raw": 0.0,
+      "fpr_comp": 0.0,
+      "recall_raw": 0.0,
+      "recall_comp": 0.0
+    },
+    {
+      "month": "2019_11",
+      "tempC": 5.055963961279239,
+      "n_heal": 3845,
+      "n_dmg": 3722,
+      "fpr_raw": 0.0,
+      "fpr_comp": 0.0,
+      "recall_raw": 0.00026867275658248256,
+      "recall_comp": 0.0
+    },
+    {
+      "month": "2019_12",
+      "tempC": 0.8718683370756121,
+      "n_heal": 7393,
+      "n_dmg": 0,
+      "fpr_raw": 0.004328418774516434,
+      "fpr_comp": 0.00013526308670363857,
+      "recall_raw": NaN,
+      "recall_comp": NaN
+    },
+    {
+      "month": "2020_01",
+      "tempC": 1.2249830320855615,
+      "n_heal": 3876,
+      "n_dmg": 2108,
+      "fpr_raw": 0.02760577915376677,
+      "fpr_comp": 0.0,
+      "recall_raw": 0.04316888045540797,
+      "recall_comp": 0.0
+    },
+    {
+      "month": "2020_02",
+      "tempC": 1.3052683006460877,
+      "n_heal": 0,
+      "n_dmg": 6965,
+      "fpr_raw": NaN,
+      "fpr_comp": NaN,
+      "recall_raw": 0.014213926776740847,
+      "recall_comp": 0.0
+    },
+    {
+      "month": "2020_03",
+      "tempC": 7.890189892773285,
+      "n_heal": 4891,
+      "n_dmg": 2775,
+      "fpr_raw": 0.022899202617051726,
+      "fpr_comp": 0.0,
+      "recall_raw": 0.05693693693693694,
+      "recall_comp": 0.00036036036036036037
+    },
+    {
+      "month": "2020_04",
+      "tempC": 12.31814562839719,
+      "n_heal": 7543,
+      "n_dmg": 0,
+      "fpr_raw": 0.005302929868752485,
+      "fpr_comp": 0.0,
+      "recall_raw": NaN,
+      "recall_comp": NaN
+    },
+    {
+      "month": "2020_05",
+      "tempC": 18.485770480816118,
+      "n_heal": 7793,
+      "n_dmg": 0,
+      "fpr_raw": 0.0,
+      "fpr_comp": 0.0,
+      "recall_raw": NaN,
+      "recall_comp": NaN
+    },
+    {
+      "month": "2020_06",
+      "tempC": 21.649562866542848,
+      "n_heal": 7538,
+      "n_dmg": 0,
+      "fpr_raw": 0.0,
+      "fpr_comp": 0.0,
+      "recall_raw": NaN,
+      "recall_comp": NaN
+    },
+    {
+      "month": "2020_07",
+      "tempC": 28.079513858281892,
+      "n_heal": 7776,
+      "n_dmg": 0,
+      "fpr_raw": 0.0,
+      "fpr_comp": 0.0,
+      "recall_raw": NaN,
+      "recall_comp": NaN
+    },
+    {
+      "month": "2020_08",
+      "tempC": 29.14939696818317,
+      "n_heal": 6726,
+      "n_dmg": 0,
+      "fpr_raw": 0.0,
+      "fpr_comp": 0.0,
+      "recall_raw": NaN,
+      "recall_comp": NaN
+    },
+    {
+      "month": "2020_09",
+      "tempC": 21.997333892293742,
+      "n_heal": 5515,
+      "n_dmg": 0,
+      "fpr_raw": 0.0,
+      "fpr_comp": 0.0,
+      "recall_raw": NaN,
+      "recall_comp": NaN
+    },
+    {
+      "month": "2020_10",
+      "tempC": 13.24703095034642,
+      "n_heal": 7794,
+      "n_dmg": 0,
+      "fpr_raw": 0.025404157043879907,
+      "fpr_comp": 0.00025660764690787786,
+      "recall_raw": NaN,
+      "recall_comp": NaN
+    },
+    {
+      "month": "2020_11",
+      "tempC": 5.396700163292311,
+      "n_heal": 7557,
+      "n_dmg": 0,
+      "fpr_raw": 0.11605134312557894,
+      "fpr_comp": 0.006219399232499669,
+      "recall_raw": NaN,
+      "recall_comp": NaN
+    },
+    {
+      "month": "2020_12",
+      "tempC": -0.6973954000769625,
+      "n_heal": 7796,
+      "n_dmg": 0,
+      "fpr_raw": 0.07773217034376603,
+      "fpr_comp": 0.002565418163160595,
+      "recall_raw": NaN,
+      "recall_comp": NaN
+    },
+    {
+      "month": "2021_01",
+      "tempC": 0.8499076387882148,
+      "n_heal": 7803,
+      "n_dmg": 0,
+      "fpr_raw": 0.08894015122388825,
+      "fpr_comp": 0.0010252466999871844,
+      "recall_raw": NaN,
+      "recall_comp": NaN
+    },
+    {
+      "month": "2021_02",
+      "tempC": 2.1652721873845717,
+      "n_heal": 7039,
+      "n_dmg": 0,
+      "fpr_raw": 0.13751953402471942,
+      "fpr_comp": 0.0025571814178150304,
+      "recall_raw": NaN,
+      "recall_comp": NaN
+    },
+    {
+      "month": "2021_03",
+      "tempC": 6.89887445981741,
+      "n_heal": 7777,
+      "n_dmg": 0,
+      "fpr_raw": 0.016973125884016973,
+      "fpr_comp": 0.0006429214350006429,
+      "recall_raw": NaN,
+      "recall_comp": NaN
+    },
+    {
+      "month": "2021_04",
+      "tempC": 11.236198060915727,
+      "n_heal": 4246,
+      "n_dmg": 3289,
+      "fpr_raw": 0.00659444182760245,
+      "fpr_comp": 0.0,
+      "recall_raw": 0.0003040437823046519,
+      "recall_comp": 0.0
+    },
+    {
+      "month": "2021_05",
+      "tempC": 17.942462967858063,
+      "n_heal": 4049,
+      "n_dmg": 128,
+      "fpr_raw": 0.0,
+      "fpr_comp": 0.0,
+      "recall_raw": 0.0,
+      "recall_comp": 0.0
+    },
+    {
+      "month": "2021_06",
+      "tempC": 26.667106046638324,
+      "n_heal": 0,
+      "n_dmg": 0,
+      "fpr_raw": NaN,
+      "fpr_comp": NaN,
+      "recall_raw": NaN,
+      "recall_comp": NaN
+    },
+    {
+      "month": "2021_07",
+      "tempC": 29.19739800355819,
+      "n_heal": 0,
+      "n_dmg": 0,
+      "fpr_raw": NaN,
+      "fpr_comp": NaN,
+      "recall_raw": NaN,
+      "recall_comp": NaN
+    },
+    {
+      "month": "2021_08",
+      "tempC": 24.035586086817133,
+      "n_heal": 0,
+      "n_dmg": 0,
+      "fpr_raw": NaN,
+      "fpr_comp": NaN,
+      "recall_raw": NaN,
+      "recall_comp": NaN
+    },
+    {
+      "month": "2021_09",
+      "tempC": 20.585934573248405,
+      "n_heal": 0,
+      "n_dmg": 0,
+      "fpr_raw": NaN,
+      "fpr_comp": NaN,
+      "recall_raw": NaN,
+      "recall_comp": NaN
+    },
+    {
+      "month": "2021_10",
+      "tempC": 10.419339540653402,
+      "n_heal": 0,
+      "n_dmg": 0,
+      "fpr_raw": NaN,
+      "fpr_comp": NaN,
+      "recall_raw": NaN,
+      "recall_comp": NaN
+    },
+    {
+      "month": "2021_11",
+      "tempC": 2.2487122393939396,
+      "n_heal": 0,
+      "n_dmg": 0,
+      "fpr_raw": NaN,
+      "fpr_comp": NaN,
+      "recall_raw": NaN,
+      "recall_comp": NaN
+    },
+    {
+      "month": "2021_12",
+      "tempC": 0.4139341765685019,
+      "n_heal": 0,
+      "n_dmg": 0,
+      "fpr_raw": NaN,
+      "fpr_comp": NaN,
+      "recall_raw": NaN,
+      "recall_comp": NaN
+    },
+    {
+      "month": "2022_01",
+      "tempC": -1.8577364944857657,
+      "n_heal": 0,
+      "n_dmg": 0,
+      "fpr_raw": NaN,
+      "fpr_comp": NaN,
+      "recall_raw": NaN,
+      "recall_comp": NaN
+    },
+    {
+      "month": "2022_02",
+      "tempC": -1.096599302130682,
+      "n_heal": 0,
+      "n_dmg": 0,
+      "fpr_raw": NaN,
+      "fpr_comp": NaN,
+      "recall_raw": NaN,
+      "recall_comp": NaN
+    },
+    {
+      "month": "2022_03",
+      "tempC": 5.849160378517281,
+      "n_heal": 0,
+      "n_dmg": 0,
+      "fpr_raw": NaN,
+      "fpr_comp": NaN,
+      "recall_raw": NaN,
+      "recall_comp": NaN
+    },
+    {
+      "month": "2022_04",
+      "tempC": 8.618870737931035,
+      "n_heal": 0,
+      "n_dmg": 0,
+      "fpr_raw": NaN,
+      "fpr_comp": NaN,
+      "recall_raw": NaN,
+      "recall_comp": NaN
+    },
+    {
+      "month": "2022_05",
+      "tempC": 13.355231903465981,
+      "n_heal": 0,
+      "n_dmg": 0,
+      "fpr_raw": NaN,
+      "fpr_comp": NaN,
+      "recall_raw": NaN,
+      "recall_comp": NaN
+    },
+    {
+      "month": "2022_06",
+      "tempC": 22.028187172358802,
+      "n_heal": 0,
+      "n_dmg": 0,
+      "fpr_raw": NaN,
+      "fpr_comp": NaN,
+      "recall_raw": NaN,
+      "recall_comp": NaN
+    },
+    {
+      "month": "2022_07",
+      "tempC": 28.076708852699227,
+      "n_heal": 0,
+      "n_dmg": 0,
+      "fpr_raw": NaN,
+      "fpr_comp": NaN,
+      "recall_raw": NaN,
+      "recall_comp": NaN
+    },
+    {
+      "month": "2022_08",
+      "tempC": 25.515929044655927,
+      "n_heal": 0,
+      "n_dmg": 0,
+      "fpr_raw": NaN,
+      "fpr_comp": NaN,
+      "recall_raw": NaN,
+      "recall_comp": NaN
+    },
+    {
+      "month": "2022_09",
+      "tempC": 21.2160468850911,
+      "n_heal": 0,
+      "n_dmg": 0,
+      "fpr_raw": NaN,
+      "fpr_comp": NaN,
+      "recall_raw": NaN,
+      "recall_comp": NaN
+    },
+    {
+      "month": "2022_10",
+      "tempC": 15.055222469179828,
+      "n_heal": 0,
+      "n_dmg": 0,
+      "fpr_raw": NaN,
+      "fpr_comp": NaN,
+      "recall_raw": NaN,
+      "recall_comp": NaN
+    }
+  ]
+}

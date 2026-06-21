@@ -1,0 +1,22 @@
+#!/bin/bash
+#PBS -N COPV260k
+#PBS -q default
+#PBS -l nodes=1:ppn=2
+#PBS -l walltime=06:00:00
+#PBS -j oe
+#PBS -o /home/nishioka/render_scratch/COPV_GW_260k.pbslog
+cd /home/nishioka/Payload2026/copv_gw
+export PATH=/home/nishioka/DassaultSystemes/SIMULIA/Commands:$PATH
+export TMPDIR=/home/nishioka/render_scratch
+j=COPV_GW_260k
+rm -f $j.odb $j.lck $j.sta $j.msg 2>/dev/null
+echo "[$(date '+%F %T')] solving $j on $(hostname)"
+abq2024 job=$j input=${j}_h.inp cpus=1 double=both scratch=$TMPDIR
+for i in $(seq 1 2160); do
+  sleep 10
+  if [ ! -f $j.lck ] && [ -f $j.sta ]; then echo "lck gone -> finished"; break; fi
+  if grep -qi 'HAS COMPLETED' $j.sta 2>/dev/null; then echo "sta COMPLETED"; break; fi
+  if grep -qiE 'ERROR|ABORTED|exited with an error' $j.msg $j.dat 2>/dev/null; then echo "error"; break; fi
+done
+echo "===STA==="; tail -8 $j.sta 2>/dev/null
+echo "COPV_GW_260k_DONE $(date '+%F %T')"

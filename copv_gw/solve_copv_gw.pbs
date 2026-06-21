@@ -1,0 +1,27 @@
+#!/bin/bash
+#PBS -N COPV_GW
+#PBS -q default
+#PBS -l nodes=1:ppn=2
+#PBS -l walltime=03:00:00
+#PBS -j oe
+#PBS -o /home/nishioka/render_scratch/COPV_GW.pbslog
+cd /home/nishioka/Payload2026/copv_gw
+export PATH=/home/nishioka/DassaultSystemes/SIMULIA/Commands:$PATH
+export TMPDIR=/home/nishioka/render_scratch
+j=COPV_GW
+rm -f $j.odb $j.lck $j.sta $j.msg 2>/dev/null
+echo "[$(date '+%F %T')] solving $j on $(hostname) (non-interactive + .sta poll)"
+# NON-interactive: abq returns immediately, solver runs detached. We then poll
+# .sta to keep the PBS job alive (interactive hangs with no tty in batch).
+abq2024 job=$j input=${j}_h.inp cpus=1 double=both scratch=$TMPDIR
+# wait for solver to finish: .sta ends with COMPLETED or an error kills the .lck
+for i in $(seq 1 1080); do          # up to 3h (10s * 1080)
+  sleep 10
+  if [ ! -f $j.lck ] && [ -f $j.sta ]; then echo "lck gone -> finished"; break; fi
+  if grep -qi 'HAS COMPLETED' $j.sta 2>/dev/null; then echo "sta COMPLETED"; break; fi
+  if grep -qiE 'ERROR|ABORTED|exited with an error' $j.msg $j.dat 2>/dev/null; then echo "error detected"; break; fi
+done
+echo "[$(date '+%F %T')] poll done"
+echo "===STA tail==="; tail -8 $j.sta 2>/dev/null
+echo "===MSG tail==="; tail -15 $j.msg 2>/dev/null
+echo "COPV_GW_DONE $(date '+%F %T')"

@@ -1,0 +1,20 @@
+#!/bin/bash
+#PBS -N H3_hfix
+#PBS -q default
+#PBS -l nodes=1:ppn=24
+#PBS -l walltime=04:00:00
+#PBS -j oe
+#PBS -o /home/nishioka/render_scratch/H3_hfix.pbslog
+cd /home/nishioka/Payload2026
+export PATH=/home/nishioka/DassaultSystemes/SIMULIA/Commands:$PATH
+export TMPDIR=/home/nishioka/render_scratch
+j=H3_healthy_fix
+echo "[$(date '+%F %T')] solving $j on $(hostname) (tie position tolerance + cohesive stabilization fix)"
+rm -f "$j.odb" "$j.lck" "$j.sta" "$j.msg" "$j.dat" 2>/dev/null
+abq2024 job="$j" input="$j.inp" cpus=1 memory="85gb" interactive scratch="$TMPDIR"
+echo "[$(date '+%F %T')] $j rc=$?"
+echo "=== tie drops (should be 0) ==="
+grep -c "WILL NOT BE TIED" "$j.dat" 2>/dev/null
+echo "=== sta tail ==="
+tail -5 "$j.sta" 2>/dev/null
+echo "H3_HFIX_DONE $(date '+%F %T')"

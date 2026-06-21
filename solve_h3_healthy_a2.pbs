@@ -1,0 +1,19 @@
+#!/bin/bash
+#PBS -N H3_ha2
+#PBS -q default
+#PBS -l nodes=1:ppn=24
+#PBS -l walltime=04:00:00
+#PBS -j oe
+#PBS -o /home/nishioka/render_scratch/H3_ha2.pbslog
+cd /home/nishioka/Payload2026
+export PATH=/home/nishioka/DassaultSystemes/SIMULIA/Commands:$PATH
+export TMPDIR=/home/nishioka/render_scratch
+j=H3_healthy_a2
+echo "[$(date '+%F %T')] solving $j on $(hostname) (adhesive 2.0mm fix)"
+rm -f "$j.odb" "$j.lck" "$j.sta" "$j.msg" "$j.dat" 2>/dev/null
+abq2024 job="$j" input="$j.inp" cpus=1 memory="85gb" interactive scratch="$TMPDIR"
+echo "[$(date '+%F %T')] $j rc=$?"
+echo "=== tie drops ==="; grep -c "WILL NOT BE TIED" "$j.dat" 2>/dev/null
+echo "=== singularity ==="; for k in "ZERO PIVOT" "NUMERICAL SINGULARITY"; do echo "$k: $(grep -c "$k" "$j.msg" 2>/dev/null)"; done
+echo "=== sta ==="; tail -4 "$j.sta" 2>/dev/null
+echo "H3_HA2_DONE $(date '+%F %T')"

@@ -1,0 +1,19 @@
+#!/bin/bash
+#PBS -N H3_t2
+#PBS -q default
+#PBS -l nodes=1:ppn=24
+#PBS -l walltime=24:00:00
+#PBS -j oe
+#PBS -o /home/nishioka/render_scratch/H3_t2.pbslog
+# Solve the adhesive=2.0mm regenerated InnerDebond + Thermal (distortion fixed; needs RAM).
+# frontale node = 93 GB / 24 cores / 50 Abaqus tokens -> cpus=8 is fine.
+cd /home/nishioka/Payload2026
+export PATH=/home/nishioka/DassaultSystemes/SIMULIA/Commands:$PATH
+export TMPDIR=/home/nishioka/render_scratch
+for j in H3_InnerDebond_t2 H3_Thermal_t2; do
+  echo "[$(date '+%F %T')] solving $j on $(hostname)"
+  rm -f "$j.odb" "$j.lck" 2>/dev/null
+  abq2024 job="$j" input="$j.inp" cpus=1 memory="85gb" interactive scratch="$TMPDIR"
+  echo "[$(date '+%F %T')] $j finished (abaqus rc=$?)"
+done
+echo "ALLDONE $(date '+%F %T')"

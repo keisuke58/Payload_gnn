@@ -108,3 +108,13 @@ ABQcaeK.*
 *.fdb_latexmk
 *.vrb
 *.synctex.gz
+*.out
+
+# Damage library: auto-generated PBS scripts and PBS job I/O (transient)
+copv_gw/damage_lib/*.pbs
+copv_gw/damage_lib/*.e
+copv_gw/damage_lib/*.o
+copv_gw/submit_damage_library.out
+
+# Large synthetic datasets (regenerable from model)
+results/payload_ddpm/synthetic_*.npz
