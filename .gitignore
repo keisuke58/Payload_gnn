@@ -118,3 +118,6 @@ copv_gw/submit_damage_library.out
 
 # Large synthetic datasets (regenerable from model)
 results/payload_ddpm/synthetic_*.npz
+
+# Abaqus odb backups (large, regenerable)
+*.odb.bak

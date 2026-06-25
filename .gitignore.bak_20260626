@@ -1,0 +1,120 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+
+# Abaqus generated files
+*.odb
+*.odb_f
+*.lck
+*.cae
+*.inp
+*.jnl
+*.env
+*.log
+*.sta
+*.msg
+*.dat
+*.com
+*.sim
+*.prt
+*.abq
+*.stt
+*.rpy
+*.rpy.*
+*.rec
+abaqus_work*/
+defect_params.json
+
+# Datasets (large, generated)
+data/
+dataset_*/
+dataset_output*/
+
+# Training runs / figures
+runs/
+figures/
+
+# DOE configs (generated)
+doe_*.json
+
+# Archives
+*.zip
+*.h5
+
+# Test / verify output
+test_multitype/
+verify_defect/
+
+# External repositories
+external/
+
+# Cloned repos (keep scripts/results, exclude repo internals)
+papers/repos/RocketPy/.git/
+papers/repos/RocketPy/rocketpy/
+papers/repos/RocketPy/docs/
+papers/repos/RocketPy/tests/
+papers/repos/RocketPy/data/
+papers/repos/RocketPy/.github/
+papers/repos/poliastro/
+papers/repos/MAPLEAF/
+papers/repos/awesome-space/
+
+# Personal docs
+docs/jaxa_career_roadmap.md
+docs/jaxa_evaluation.md
+
+# qsub scheduler stdout logs (regenerable, not data) + retry counters
+Job-*.o[0-9]*
+*.attempts
+papers/repos/
+
+# large external datasets (OGW 18GB etc.)
+data/external/
+
+# Abaqus solver scratch not covered above (model db, restart, packager bulk)
+*.mdl
+*.cid
+*.cax
+*.023
+*.SMABulk
+*.SMAFocus
+*.simlog
+*.simdir/
+*.exception
+*.ipm
+*.pac
+*.sel
+*.res
+*.fil
+*.odb_f
+ABQcaeK.*
+
+# Cluster (PBS/Torque) per-job stdout/stderr: <jobname>.o<id> / .e<id>
+*.o[0-9]*
+*.e[0-9]*
+
+# LaTeX build artifacts (slides/, papers/)
+*.aux
+*.toc
+*.snm
+*.nav
+*.fls
+*.fdb_latexmk
+*.vrb
+*.synctex.gz
+*.out
+
+# Damage library: auto-generated PBS scripts and PBS job I/O (transient)
+copv_gw/damage_lib/*.pbs
+copv_gw/damage_lib/*.e
+copv_gw/damage_lib/*.o
+copv_gw/submit_damage_library.out
+
+# Large synthetic datasets (regenerable from model)
+results/payload_ddpm/synthetic_*.npz

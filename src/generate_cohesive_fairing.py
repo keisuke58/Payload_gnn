@@ -1199,6 +1199,9 @@ def create_cohesive_connections(model, assembly,
     effective_core_t = CORE_T - 2 * adh_t
     adh_tol = max(adh_t * 0.45, 0.05)
     core_tol = effective_core_t * 0.3
+    # Explicit TIE tolerance: COMPUTED can miss edge nodes on thin (2mm) adhesive.
+    # Use 1.5x adhesive thickness to capture boundary nodes.
+    tie_pos_tol = adh_t * 1.5
 
     # --- Classify AdhesiveInner faces ---
     ai_inner_pts, ai_outer_pts = _classify_solid_faces(
@@ -1234,7 +1237,8 @@ def create_cohesive_connections(model, assembly,
             side1Faces=ai_inner_seq, name='Surf-AdhInner-Inner')
         model.Tie(name='Tie-InnerSkin-AdhInner',
                   main=surf_ai_inner, secondary=surf_inner_skin,
-                  positionToleranceMethod=COMPUTED, adjust=ON,
+                  positionToleranceMethod=SPECIFIED,
+                  positionTolerance=tie_pos_tol, adjust=ON,
                   tieRotations=ON, thickness=ON)
         print("  Tie 1: InnerSkin <-> AdhesiveInner(inner), %d faces" % (
             len(ai_inner_pts)))
@@ -1251,7 +1255,8 @@ def create_cohesive_connections(model, assembly,
             side1Faces=core_inner_seq, name='Surf-Core-Inner')
         model.Tie(name='Tie-AdhInner-Core',
                   main=surf_core_inner, secondary=surf_ai_outer,
-                  positionToleranceMethod=COMPUTED, adjust=ON,
+                  positionToleranceMethod=SPECIFIED,
+                  positionTolerance=tie_pos_tol, adjust=ON,
                   tieRotations=ON, thickness=ON)
         print("  Tie 2: AdhesiveInner(outer) <-> Core(inner), "
               "%d + %d faces" % (len(ai_outer_pts), len(core_inner_pts)))
@@ -1269,7 +1274,8 @@ def create_cohesive_connections(model, assembly,
             side1Faces=ao_inner_seq, name='Surf-AdhOuter-Inner')
         model.Tie(name='Tie-Core-AdhOuter',
                   main=surf_core_outer, secondary=surf_ao_inner,
-                  positionToleranceMethod=COMPUTED, adjust=ON,
+                  positionToleranceMethod=SPECIFIED,
+                  positionTolerance=tie_pos_tol, adjust=ON,
                   tieRotations=ON, thickness=ON)
         print("  Tie 3: Core(outer) <-> AdhesiveOuter(inner), "
               "%d + %d faces" % (len(core_outer_pts), len(ao_inner_pts)))
@@ -1284,7 +1290,8 @@ def create_cohesive_connections(model, assembly,
             side1Faces=ao_outer_seq, name='Surf-AdhOuter-Outer')
         model.Tie(name='Tie-AdhOuter-OuterSkin',
                   main=surf_ao_outer, secondary=surf_outer_skin,
-                  positionToleranceMethod=COMPUTED, adjust=ON,
+                  positionToleranceMethod=SPECIFIED,
+                  positionTolerance=tie_pos_tol, adjust=ON,
                   tieRotations=ON, thickness=ON)
         print("  Tie 4: AdhesiveOuter(outer) <-> OuterSkin, %d faces" % (
             len(ao_outer_pts)))
@@ -1299,7 +1306,8 @@ def create_cohesive_connections(model, assembly,
             side1Faces=inst_frame.faces, name='Surf-Frame-%d' % i)
         model.Tie(name='Tie-Frame-%d' % i, main=surf_inner_skin,
                   secondary=surf_f,
-                  positionToleranceMethod=COMPUTED, adjust=ON,
+                  positionToleranceMethod=SPECIFIED,
+                  positionTolerance=tie_pos_tol, adjust=ON,
                   tieRotations=ON, thickness=ON)
     if frame_instances:
         print("  Tie 5+: %d ring frames <-> InnerSkin" % len(frame_instances))
