@@ -56,3 +56,6 @@ This roadmap outlines the development of a Graph Neural Network (GNN) based Stru
 ## Phase 5: Deployment & Visualization
 *   **Visualization**: 3D interactive mapping of damage probabilities on the fairing mesh.
 *   **Inference**: Real-time processing of sensor array data.
+
+## Phase 6: Next Structural Target — Hydrogen Tank (LH2)
+Extend the established fairing SHM stack (geometry-aware GNN, guided-wave, domain adaptation, conformal detection) to the cryogenic hydrogen tank. See **[docs/HYDROGEN_TANK_SHM.md](docs/HYDROGEN_TANK_SHM.md)** for the design note (geometry, cryogenic Al-Li materials, pressure + thermal loading, weld/microcrack/insulation-debond defect models, graph/feature deltas, and the one-sample FEM plan). Public roadmap: [docs/index.html](docs/index.html).
