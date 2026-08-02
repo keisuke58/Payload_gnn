@@ -119,11 +119,17 @@ GW グラフ（センサ=ノード）は `build_gw_graph.py` のスキーマを�
 ## 7. 1サンプル FEM 実行計画 (One-Sample Plan)
 
 プロジェクト流儀に従い、**まず1サンプルで検証**してからバッチ化する。
+着手済みコード: `src/generate_cryotank_doe.py`（DOE, Abaqus 非依存・テスト済み）、
+`src/generate_cryotank_dataset.py`（Abaqus CAE 雛形, `--dry-run` は非 Abaqus で解析プラン確認可）。
 
 ```bash
-# 1) 生成スクリプト雛形（新規, generate_fairing_dataset.py ベース）
-#    → src/generate_cryotank_dataset.py（healthy 1件）
-abaqus cae noGUI=src/generate_cryotank_dataset.py -- --config doe_cryotank_1sample.json
+# 0) DOE 生成（healthy 1件, Abaqus 不要）
+python src/generate_cryotank_doe.py --healthy_only --n_samples 1 --output doe_cryotank_1sample.json
+# ローカルで解析プランを確認（Abaqus 不要）
+python src/generate_cryotank_dataset.py --dry-run --defect doe_cryotank_1sample.json
+
+# 1) FEM 生成（クラスタ, Abaqus）— 雛形の M1/M2 TODO を実装後に実行
+abaqus cae noGUI=src/generate_cryotank_dataset.py -- --job CryoTank_Healthy_0000 --defect doe_cryotank_1sample.json
 
 # 2) ODB 抽出（既存を流用）
 abaqus python src/extract_odb_results.py --odb abaqus_work/Job-CryoTank-Healthy.odb
@@ -157,8 +163,9 @@ cd src && python build_graph.py --data_dir ../dataset_cryotank_1sample
 
 ## 9. 次アクション
 
+- [x] `src/generate_cryotank_doe.py` / `src/generate_cryotank_dataset.py` 雛形作成（DOE + dry-run はテスト済み）
 - [ ] 本メモのレビュー・数値の確定（材料・寸法・荷重）
-- [ ] `src/generate_cryotank_dataset.py` 雛形作成（healthy 1件）
+- [ ] Abaqus 雛形の M1/M2 TODO 実装（sector part・材料・内圧+熱・欠陥）→ クラスタで healthy 1件生成
 - [ ] M1 検証 → 本メモに結果追記
 - [ ] `ROADMAP.md` / `CLAUDE.md` の Research Lines に「Hydrogen Tank SHM」を正式追加
 
