@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hydrogen Tank SHM — Design Note</title>
+<meta name="description" content="Design note: extending the H3 fairing GNN-SHM stack to the cryogenic LH2 hydrogen tank — geometry, materials, loading, defects, graph features, and the one-sample FEM plan.">
+<style>
+  :root{
+    --bg:#f4f6f9; --surface:#ffffff; --surface-2:#eef2f7;
+    --ink:#0f1720; --muted:#5b6875; --line:#d7dee7;
+    --accent:#1f6feb; --cryo:#0995b4; --amber:#b7791f;
+    --good:#158a66;
+    --grid:rgba(9,149,180,.06);
+    --shadow:0 1px 2px rgba(15,23,32,.06),0 8px 24px rgba(15,23,32,.05);
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --bg:#0a0f16; --surface:#111a24; --surface-2:#0d141d;
+      --ink:#e7eef6; --muted:#8b9aa9; --line:#1e2a38;
+      --accent:#4d9bff; --cryo:#38c6e0; --amber:#e0a83a;
+      --good:#2fbf94;
+      --grid:rgba(56,198,224,.08);
+      --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="light"]{
+    --bg:#f4f6f9; --surface:#ffffff; --surface-2:#eef2f7;
+    --ink:#0f1720; --muted:#5b6875; --line:#d7dee7;
+    --accent:#1f6feb; --cryo:#0995b4; --amber:#b7791f;
+    --good:#158a66;
+    --grid:rgba(9,149,180,.06);
+    --shadow:0 1px 2px rgba(15,23,32,.06),0 8px 24px rgba(15,23,32,.05);
+  }
+  :root[data-theme="dark"]{
+    --bg:#0a0f16; --surface:#111a24; --surface-2:#0d141d;
+    --ink:#e7eef6; --muted:#8b9aa9; --line:#1e2a38;
+    --accent:#4d9bff; --cryo:#38c6e0; --amber:#e0a83a;
+    --good:#2fbf94;
+    --grid:rgba(56,198,224,.08);
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.35);
+  }
+
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    line-height:1.6; -webkit-font-smoothing:antialiased;
+    background-image:linear-gradient(var(--grid) 1px,transparent 1px),
+                     linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+    background-size:44px 44px;
+  }
+  .wrap{max-width:1000px;margin:0 auto;padding:clamp(28px,5vw,64px) clamp(20px,4vw,40px)}
+  .eyebrow{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--cryo);font-weight:600}
+
+  .toggle{position:fixed;top:14px;right:14px;z-index:10;
+    font-family:ui-monospace,monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+    background:var(--surface);color:var(--muted);border:1px solid var(--line);border-radius:20px;
+    padding:7px 13px;cursor:pointer;box-shadow:var(--shadow)}
+  .toggle:hover{color:var(--ink)}
+  .toggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+  .back{display:inline-flex;align-items:center;gap:7px;font-family:ui-monospace,monospace;
+    font-size:12.5px;color:var(--accent);text-decoration:none;margin-bottom:20px}
+  .back:hover{text-decoration:underline}
+
+  header{border-bottom:1px solid var(--line);padding-bottom:30px;margin-bottom:16px}
+  h1{font-size:clamp(28px,4.5vw,44px);line-height:1.06;margin:12px 0 12px;
+     font-weight:800;letter-spacing:-.02em;text-wrap:balance;max-width:18ch}
+  h1 .hl{color:var(--cryo)}
+  .lede{font-size:clamp(15px,1.8vw,18px);color:var(--muted);max-width:62ch;margin:0}
+  .status{margin-top:18px;font-family:ui-monospace,monospace;font-size:12px;color:var(--muted)}
+  .status b{color:var(--amber)}
+
+  section{margin:44px 0}
+  h2{font-size:clamp(19px,2.4vw,24px);font-weight:750;letter-spacing:-.01em;margin:6px 0 16px}
+  p.body{max-width:64ch;color:var(--ink)}
+  .muted{color:var(--muted)}
+
+  .tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);background:var(--surface);margin-top:6px}
+  table{border-collapse:collapse;width:100%;min-width:560px;font-size:13.5px}
+  caption{text-align:left;font-family:ui-monospace,monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+          color:var(--muted);padding:13px 16px 0}
+  th,td{text-align:left;padding:12px 16px;vertical-align:top;border-bottom:1px solid var(--line)}
+  thead th{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600;font-family:ui-monospace,monospace}
+  thead th.tank{color:var(--cryo)}
+  tbody tr:last-child td{border-bottom:none}
+  td.rowlab{font-weight:640;color:var(--muted);white-space:nowrap}
+  td.tank{color:var(--ink);background:color-mix(in srgb,var(--cryo) 6%,transparent)}
+  td.num{font-variant-numeric:tabular-nums}
+
+  .assets{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:6px}
+  .abox{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px;box-shadow:var(--shadow)}
+  .abox h3{margin:0 0 10px;font-size:13px;font-family:ui-monospace,monospace;letter-spacing:.08em;text-transform:uppercase}
+  .abox.reuse h3{color:var(--good)} .abox.build h3{color:var(--cryo)}
+  .abox ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:7px}
+  .abox li{font-size:13.5px}
+  .abox code,td code,p.body code{font-family:ui-monospace,monospace;font-size:12px;color:var(--accent)}
+
+  .steps{counter-reset:s;display:flex;flex-direction:column;gap:2px;margin-top:4px}
+  .step{display:grid;grid-template-columns:auto 1fr;gap:16px;padding:16px 0;border-bottom:1px solid var(--line)}
+  .step:last-child{border-bottom:none}
+  .step .n{counter-increment:s;font-family:ui-monospace,monospace;font-size:13px;font-weight:700;color:var(--cryo);
+           border:1px solid color-mix(in srgb,var(--cryo) 45%,transparent);border-radius:8px;width:34px;height:34px;
+           display:flex;align-items:center;justify-content:center}
+  .step .n::before{content:counter(s,decimal-leading-zero)}
+  .step h3{margin:2px 0 3px;font-size:15px;font-weight:660}
+  .step p{margin:0;font-size:13.5px;color:var(--muted)}
+
+  .miles{display:flex;flex-direction:column;gap:0;margin-top:4px;border-left:2px solid var(--line);padding-left:20px}
+  .mile{position:relative;padding:12px 0}
+  .mile::before{content:"";position:absolute;left:-27px;top:16px;width:10px;height:10px;border-radius:50%;
+    background:var(--surface);border:2px solid var(--cryo)}
+  .mile .k{font-family:ui-monospace,monospace;font-size:12px;font-weight:700;color:var(--cryo)}
+  .mile p{margin:3px 0 0;font-size:13.5px;color:var(--ink)}
+
+  .note{background:color-mix(in srgb,var(--amber) 8%,var(--surface));border:1px solid color-mix(in srgb,var(--amber) 40%,var(--line));
+    border-radius:10px;padding:14px 16px;font-size:13px;color:var(--ink);margin-top:8px}
+  .note b{color:var(--amber)}
+
+  ul.open{margin:6px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:7px;max-width:64ch}
+  ul.open li{font-size:14px}
+
+  footer{margin-top:52px;padding-top:20px;border-top:1px solid var(--line);
+          font-family:ui-monospace,monospace;font-size:11.5px;color:var(--muted);
+          display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+  footer a{color:var(--accent);text-decoration:none}
+  footer a:hover{text-decoration:underline}
+
+  @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+  @media (max-width:720px){ .assets{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+<button class="toggle" id="themeToggle" type="button" aria-label="Toggle color theme">◑ Theme</button>
+<div class="wrap">
+  <a class="back" href="index.html">← Roadmap</a>
+  <header>
+    <div class="eyebrow">GNN-SHM · Design Note</div>
+    <h1>Hydrogen Tank SHM <span class="hl">(LH2)</span></h1>
+    <p class="lede">Extending the established H3 fairing GNN-SHM stack to the cryogenic hydrogen tank. The damage physics differ from the fairing, but the pipeline transfers with a small, targeted set of additions.</p>
+    <div class="status">Status: <b>Design phase</b> — not yet implemented. Numbers below are design assumptions (require FEM / literature verification).</div>
+  </header>
+
+  <section>
+    <div class="eyebrow">01 — Geometry</div>
+    <h2>Geometry</h2>
+    <div class="tablewrap">
+      <table>
+        <caption>Table 1 — Modeling assumptions</caption>
+        <thead><tr><th>Item</th><th>Design assumption</th><th>Note</th></tr></thead>
+        <tbody>
+          <tr><td class="rowlab">Target</td><td>H3 upper-stage LH2 tank — cylindrical shell + domes</td><td class="muted">Exact dimensions non-public → representative values</td></tr>
+          <tr><td class="rowlab">Diameter</td><td class="num">φ ≈ 5.2 m</td><td class="muted">Representative upper-structure diameter</td></tr>
+          <tr><td class="rowlab">Model</td><td>Symmetric sector (1/6–1/12) + circumferential symmetry BC</td><td class="muted">Same approach as the fairing generator</td></tr>
+          <tr><td class="rowlab">Regions</td><td>Barrel + dome + <b>weld land</b></td><td class="muted">Weld lines modeled explicitly (defect-prone)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="body muted" style="margin-top:14px">Reuses the sector generation, symmetry BCs, and mesh control logic from <code>generate_fairing_dataset.py</code> / <code>generate_realistic_fairing.py</code>.</p>
+  </section>
+
+  <section>
+    <div class="eyebrow">02 — Materials</div>
+    <h2>Cryogenic material shift</h2>
+    <p class="body">Primary target: <b>Al-Li alloy</b> (H-IIA/H3 tank heritage, e.g. 2219 / 2195). The essence is the property shift from room temperature (RT) to liquid-hydrogen temperature (LH2, −253 °C / 20 K).</p>
+    <div class="tablewrap">
+      <table>
+        <caption>Table 2 — RT → cryogenic property shift (design assumption)</caption>
+        <thead><tr><th>Property</th><th>RT (design)</th><th class="tank">Cryo (LH2, design)</th><th>Trend</th></tr></thead>
+        <tbody>
+          <tr><td class="rowlab">Young's modulus E</td><td class="num">~70–78 GPa</td><td class="tank num">+5–15 %</td><td>Increase</td></tr>
+          <tr><td class="rowlab">Yield strength σy</td><td class="num">~380–450 MPa</td><td class="tank num">+15–30 %</td><td>Increase</td></tr>
+          <tr><td class="rowlab">Elongation</td><td class="num">~10–12 %</td><td class="tank">Decrease</td><td><b>Embrittlement</b></td></tr>
+          <tr><td class="rowlab">CTE α</td><td class="num">~23×10⁻⁶/℃</td><td class="tank">Integrated CTE drops (use contraction)</td><td>Decrease</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note"><b>⚠ Design assumption.</b> Ranges are from literature and must be fixed against material data (JAXA / references) before implementation. Future line — CFRP composite cryotank — swaps the material model (microcracking + hydrogen permeability).</div>
+  </section>
+
+  <section>
+    <div class="eyebrow">03 — Loading</div>
+    <h2>Loading</h2>
+    <p class="body">Unlike the fairing (thermal CTE + static), the tank superimposes:</p>
+    <ul class="open">
+      <li><b>Internal pressure</b> — operational fill/flight pressure</li>
+      <li><b>Cryogenic thermal stress</b> — constrained contraction from RT → 20 K</li>
+      <li><b>Fill-cycle fatigue</b> — repeated pressurization / thermal cycling</li>
+      <li><b>Elastic-wave excitation</b> (GW dynamic analysis) — 50–300 kHz actuation</li>
+    </ul>
+    <p class="body muted" style="margin-top:12px">Static analysis (defect stress concentration) and GW dynamic analysis (sensor time-histories) run in parallel — the same two-branch structure as the fairing.</p>
+  </section>
+
+  <section>
+    <div class="eyebrow">04 — Defect models</div>
+    <h2>Defect models</h2>
+    <div class="tablewrap">
+      <table>
+        <caption>Table 3 — Defect physics &amp; modeling</caption>
+        <thead><tr><th>Defect</th><th>Physics</th><th>Modeling</th><th>Fairing analog</th></tr></thead>
+        <tbody>
+          <tr><td class="rowlab">Weld flaw</td><td>Porosity / lack-of-fusion / cracks on weld line</td><td>Stiffness/continuity loss on weld line (element weakening or cohesive)</td><td class="muted">— (new)</td></tr>
+          <tr><td class="rowlab">Thermal-cycle microcrack</td><td>Micro-cracking from cryogenic cycling</td><td>Local stiffness loss + partial contact discontinuity</td><td class="muted">Similar to delamination</td></tr>
+          <tr><td class="rowlab">Insulation debond</td><td>Foam / MLI insulation separation</td><td>Interface cohesive degradation</td><td class="muted"><b>Same type as skin-core debond</b></td></tr>
+          <tr><td class="rowlab">H-embrittlement</td><td>Toughness loss from hydrogen embrittlement</td><td>Material toughness reduction (sensitivity study)</td><td class="muted">Handled on the UQ side</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="body muted" style="margin-top:14px">The cohesive/CZM implementations in <code>generate_cohesive_fairing.py</code> / <code>generate_czm_sector12.py</code> apply directly to insulation debond and weld-flaw interfaces.</p>
+  </section>
+
+  <section>
+    <div class="eyebrow">05 — Graph &amp; features</div>
+    <h2>Graph &amp; features — deltas only</h2>
+    <p class="body">The existing static graph uses <b>34-dim node features</b> (<code>build_graph.py</code>). For the tank, keep the base schema and <b>add only a few dimensions</b>:</p>
+    <ul class="open">
+      <li><code>internal_pressure_flag</code> / local pressure stress components (+1–3 dim)</li>
+      <li><code>cryo_property_delta</code> — shift from RT properties (E/α scalarized, +1–2 dim)</li>
+      <li><code>weld_line_flag</code> — boundary flag for weld-adjacent nodes (+1 dim, extends existing boundary flags)</li>
+    </ul>
+    <div class="note" style="background:color-mix(in srgb,var(--cryo) 8%,var(--surface));border-color:color-mix(in srgb,var(--cryo) 40%,var(--line))">
+      <b style="color:var(--cryo)">Design principle.</b> Do not create a new schema — add minimal deltas to the existing 34 dims, so <code>train.py</code> / <code>models.py</code> / DA / conformal connect with no modification. Fiber-orientation dims are zero-filled for isotropic Al-Li (revived for the CFRP cryotank).
+    </div>
+  </section>
+
+  <section>
+    <div class="eyebrow">06 — Reuse map</div>
+    <h2>Reuse map</h2>
+    <div class="tablewrap">
+      <table>
+        <caption>Table 4 — What connects, and how much changes</caption>
+        <thead><tr><th>Existing asset</th><th>Role for the tank</th><th>Change</th></tr></thead>
+        <tbody>
+          <tr><td class="rowlab"><code>build_graph.py</code> / <code>build_gw_graph.py</code></td><td>Graph construction</td><td>+few feature dims only</td></tr>
+          <tr><td class="rowlab"><code>train.py</code> / <code>train_gw.py</code></td><td>Training</td><td><b>No change</b> (swap <code>--data_dir</code>)</td></tr>
+          <tr><td class="rowlab"><code>models.py</code> (GAT/GCN/GIN/SAGE …)</td><td>Models</td><td>No change</td></tr>
+          <tr><td class="rowlab"><code>domain_adapt.py</code> / <code>payload_da_gw.py</code></td><td>Ambient-test → cryo-operation sim2real</td><td>No change (pass X matrix)</td></tr>
+          <tr><td class="rowlab">OGW conformal</td><td>Leak-risk decision with FPR guarantee</td><td>Re-set threshold / cost</td></tr>
+          <tr><td class="rowlab"><code>fairing_stage2.py</code></td><td>Stage-2 characterization (crack size / leak rate)</td><td>Tank-specific labels</td></tr>
+          <tr><td class="rowlab">Temperature-robustness framework</td><td>Cryo = extreme operating point</td><td>Extend operating point to 20 K</td></tr>
+          <tr><td class="rowlab"><code>pce_driver.py</code> / reliability</td><td>UQ for embrittlement / toughness</td><td>Tank-specific uncertainty variables</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="body" style="margin-top:14px"><b>The only substantially new code is the FEM generator</b> (see below).</p>
+  </section>
+
+  <section>
+    <div class="eyebrow">07 — One-sample plan</div>
+    <h2>How the tank line starts</h2>
+    <p class="body muted">Per project practice — <b>validate one sample first</b>, then batch.</p>
+    <div class="steps">
+      <div class="step"><div class="n"></div><div>
+        <h3>FEM generation</h3>
+        <p>New <code>src/generate_cryotank_dataset.py</code> (based on the fairing generator): Al-Li cylinder with internal pressure + cryogenic thermal stress, weld-line and thermal-cycle crack defects. Healthy, 1 sample.</p></div></div>
+      <div class="step"><div class="n"></div><div>
+        <h3>ODB extraction</h3>
+        <p>Reuse <code>extract_odb_results.py</code> as-is.</p></div></div>
+      <div class="step"><div class="n"></div><div>
+        <h3>Graph &amp; visual check</h3>
+        <p>Reuse <code>build_graph.py</code>; eyeball one graph (feature distributions, defect labels) before scaling.</p></div></div>
+      <div class="step"><div class="n"></div><div>
+        <h3>Batch → same flow</h3>
+        <p>If OK, expand the DOE → <code>run_batch.py</code>, then the identical fairing flow (train → DA → conformal → Stage-2).</p></div></div>
+    </div>
+
+    <h2 style="margin-top:36px">Milestones</h2>
+    <div class="miles">
+      <div class="mile"><span class="k">M1</span><p>Healthy 1-sample generation → graph visual OK (this note's validation).</p></div>
+      <div class="mile"><span class="k">M2</span><p>One sample per defect type → verify physical plausibility of stress concentration / waveform change.</p></div>
+      <div class="mile"><span class="k">M3</span><p>DOE batch (N ≈ 100) → detection baseline with <code>train.py</code>.</p></div>
+      <div class="mile"><span class="k">M4</span><p>Ambient ↔ cryo domain adaptation + conformal → leak-risk FPR guarantee.</p></div>
+      <div class="mile"><span class="k">M5</span><p>Stage-2 characterization (crack size / leak rate) → go/no-go prognosis.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="eyebrow">08 — Open items</div>
+    <h2>Risks &amp; open items</h2>
+    <ul class="open">
+      <li>Confirmed cryogenic properties / toughness of Al-Li (Table 2 is assumption)</li>
+      <li>Actual tank dimensions &amp; weld layout (non-public → representative-value validity)</li>
+      <li>GW frequency band &amp; sensor placement (transferability of fairing settings)</li>
+      <li>Coupling order of pressure × cryo × fatigue (analysis-step design)</li>
+      <li>Material-model swap scope for the future CFRP cryotank</li>
+    </ul>
+  </section>
+
+  <footer>
+    <span>GNN-SHM · Hydrogen Tank SHM — Design Note</span>
+    <span><a href="index.html">← Roadmap</a> · <a href="https://github.com/keisuke58/Payload_gnn">GitHub</a></span>
+  </footer>
+</div>
+<script>
+  (function(){
+    var root=document.documentElement, btn=document.getElementById('themeToggle');
+    function cur(){ if(root.dataset.theme) return root.dataset.theme;
+      return window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'; }
+    btn.addEventListener('click',function(){ root.dataset.theme = cur()==='dark' ? 'light' : 'dark'; });
+  })();
+</script>
+</body>
+</html>
