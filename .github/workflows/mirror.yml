@@ -36,5 +36,9 @@ jobs:
           # ソース(public)を GitHub ランナー上で bare clone → 対象へ完全ミラー
           git clone --mirror "https://github.com/${GITHUB_REPOSITORY}.git" src.git
           cd src.git
-          git push --mirror "https://x-access-token:${MIRROR_PAT}@github.com/${TARGET}.git"
-          echo "Mirrored ${GITHUB_REPOSITORY} -> ${TARGET}"
+          # ブランチとタグのみミラー（PR 参照 refs/pull/* は hidden ref で常に拒否されるため除外）。
+          # 注意: 対象へ .github/workflows/* を含むブランチを push するため、
+          #       MIRROR_PAT には 'repo' に加えて 'workflow' スコープが必要。
+          git push --prune "https://x-access-token:${MIRROR_PAT}@github.com/${TARGET}.git" \
+            "+refs/heads/*:refs/heads/*" "+refs/tags/*:refs/tags/*"
+          echo "Mirrored ${GITHUB_REPOSITORY} (branches + tags) -> ${TARGET}"
