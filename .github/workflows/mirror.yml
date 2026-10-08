@@ -1,0 +1,40 @@
+name: Mirror to lab repo
+
+# keisuke58/payload_gnn を研究室リポジトリへ自動ミラー（GitHub 上で実行）。
+# ローカルの大きな clone を経由しないので通信リセットの影響を受けない。
+# 必要な設定（管理者不要・リポジトリオーナーの操作のみ）:
+#   1) 対象リポジトリ mmc-research-group/nishioka-payload-gnn を空で作成
+#   2) このリポジトリに Secret 'MIRROR_PAT' を登録
+#      （対象へ push できる個人アクセストークン。classic=repo / fine-grained=Contents:Read&Write）
+on:
+  push:
+    branches: ["**"]
+    tags: ["**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mirror-lab
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mirror to lab repository
+        env:
+          MIRROR_PAT: ${{ secrets.MIRROR_PAT }}
+          TARGET: mmc-research-group/nishioka-payload-gnn
+        run: |
+          set -euo pipefail
+          if [ -z "${MIRROR_PAT:-}" ]; then
+            echo "::warning::Secret 'MIRROR_PAT' が未設定です。対象($TARGET)へ push 可能な PAT を登録してください。今回はスキップします。"
+            exit 0
+          fi
+          # ソース(public)を GitHub ランナー上で bare clone → 対象へ完全ミラー
+          git clone --mirror "https://github.com/${GITHUB_REPOSITORY}.git" src.git
+          cd src.git
+          git push --mirror "https://x-access-token:${MIRROR_PAT}@github.com/${TARGET}.git"
+          echo "Mirrored ${GITHUB_REPOSITORY} -> ${TARGET}"
