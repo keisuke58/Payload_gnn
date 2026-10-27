@@ -92,26 +92,213 @@ def resolve_plan(defect_params):
 
 
 # ==============================================================================
-# Abaqus build (cluster only) — bodies TODO, reuse fairing generator logic
+# Abaqus build (cluster only)
 # ==============================================================================
+# M2 baseline defect model: Young's modulus knockdown factor applied to a z-band
+# of the shell around the defect (stiffness-loss proxy; CZM/cohesive comes later).
+DEFECT_E_KNOCKDOWN = {"weld_flaw": 0.5, "microcrack": 0.3, "insulation_debond": 0.2}
+
+PI = 3.141592653589793
+
+
+def _add_material(model, name, props, ref_C):
+    """Create an isotropic Abaqus material (density, elastic, thermal expansion).
+
+    Units: tonne/mm^3, MPa, 1/degC. `zero=ref_C` sets the stress-free reference
+    temperature for the CTE so a Predefined Field at op_C drives contraction.
+    Runs only inside Abaqus (model is an Abaqus Model object).
+    """
+    m = model.Material(name=name)
+    m.Density(table=((props["density_t_mm3"],),))
+    m.Elastic(table=((props["E_MPa"], props["nu"]),))
+    m.Expansion(table=((props["alpha_per_C"],),), zero=ref_C)
+    return m
+
+
 def build_model(job_name, defect_params):
+    """Build the Al-Li cryogenic tank barrel SECTOR shell model and write the INP.
+
+    *** Requires cluster validation (milestone M1) — cannot be executed here. ***
+    Key assumptions:
+      - Single-part shell (S4R by default), revolved about global Y (Y = axial).
+      - Units: mm, N, MPa, tonne; temperatures converted to degC for CTE.
+      - Internal pressure applied on `side1Faces` of the revolved shell. The shell
+        normal of BaseShellRevolve is NOT guaranteed to point inward; if the ODB
+        shows hoop compression, flip to `side2Faces` (or negate magnitude).
+      - Defect (if any) = z-band stiffness knockdown (Sec-Defect over the full
+        sector arc between z_lo..z_hi). TODO(M2): localized (theta, z) patch / CZM.
+      - Symmetry BCs: theta=0 cut edges selected by bounding box around the global
+        z~0 plane; theta=sector cut edges selected by the angle of edge.pointOn
+        (tolerant to revolve direction sign); bottom edge y~0 fixed axially.
+    """
     if not _HAVE_ABAQUS:
-        raise RuntimeError("Abaqus not available. Use --dry-run for a local plan check, "
-                           "or run via: abaqus cae noGUI=generate_cryotank_dataset.py -- ...")
+        raise RuntimeError("Abaqus not available; use --dry-run or run via abaqus cae noGUI=...")
+    # Local imports: keep module import Abaqus-free and dependency-free.
+    import os
+    from math import atan2, cos, radians, sin
+
     executeOnCaeStartup()
     plan = resolve_plan(defect_params)
-    # TODO(M1): create sector shell part (reuse generate_fairing_dataset.py sector logic)
-    # TODO(M1): assign Al-Li material from plan["material"]; set expansion (alpha) + ref temp
-    # TODO(M1): sections + assembly + symmetry BCs on circumferential edges
-    # TODO(M1): Step-1 static: internal pressure (plan["loading"]) + Predefined Field
-    #           temperature (operating_K) for cryogenic thermal stress
-    # TODO(M2): insert defect per plan["defect"]["model"]
-    #           - insulation_debond / weld_flaw: cohesive interface (generate_cohesive_fairing.py,
-    #             generate_czm_sector12.py)
-    #           - microcrack: local stiffness reduction + seam
-    # TODO(M1): mesh (continuum/solid shell) + element type
-    # TODO(M1): create + write Job(job_name)
-    raise NotImplementedError("Abaqus model build is a scaffold — implement M1 bodies.")
+    model = mdb.models['Model-1']
+
+    geo = plan["geometry"]
+    mat = plan["material"]
+    load = plan["loading"]
+    dfx = plan["defect"]
+    R = float(geo["radius_mm"])
+    Hb = float(geo["h_barrel_mm"])
+    sector_deg = float(geo["sector_deg"])
+    tw = float(geo["wall_mm"])
+    press = float(load["internal_pressure_MPa"])
+    ref_C = REFERENCE_TEMP_K - 273.15
+    op_C = float(load["thermal"]["operating_K"]) - 273.15
+    dtype = dfx["type"]
+    print("build_model: job=%s defect=%s R=%.1f Hb=%.1f sector=%.1f tw=%.2f P=%.3f MPa "
+          "T: %.1fC -> %.1fC" % (job_name, dtype, R, Hb, sector_deg, tw, press, ref_C, op_C))
+
+    # ---------------- Materials & sections ----------------
+    _add_material(model, 'AlLi', mat, ref_C)
+    model.HomogeneousShellSection(name='Sec-Wall', material='AlLi', thickness=tw,
+                                  idealization=NO_IDEALIZATION, poissonDefinition=DEFAULT,
+                                  integrationRule=SIMPSON, numIntPts=5)
+    if dtype != 'healthy':
+        mat_d = dict(mat)
+        mat_d["E_MPa"] = mat["E_MPa"] * DEFECT_E_KNOCKDOWN.get(dtype, 0.5)
+        _add_material(model, 'AlLi_Defect', mat_d, ref_C)
+        model.HomogeneousShellSection(name='Sec-Defect', material='AlLi_Defect', thickness=tw,
+                                      idealization=NO_IDEALIZATION, poissonDefinition=DEFAULT,
+                                      integrationRule=SIMPSON, numIntPts=5)
+
+    # ---------------- Part: barrel sector (revolve a vertical line about Y) ----------------
+    s = model.ConstrainedSketch(name='prof', sheetSize=max(2 * R, Hb) * 2.0)
+    s.Line(point1=(R, 0.0), point2=(R, Hb))
+    p = model.Part(name='Tank', dimensionality=THREE_D, type=DEFORMABLE_BODY)
+    p.BaseShellRevolve(sketch=s, angle=sector_deg, flipRevolveDirection=OFF)
+
+    region = p.Set(faces=p.faces, name='Set-All')
+    p.SectionAssignment(region=region, sectionName='Sec-Wall')
+
+    # ---------------- Defect partition (M2 baseline: z-band knockdown) ----------------
+    # The defect is approximated as a circumferential z-band [z_lo, z_hi] of reduced
+    # stiffness spanning the whole sector arc. TODO(M2): localized (theta, z) patch.
+    if dtype != 'healthy':
+        try:
+            z_center = float(dfx["z_center_mm"])
+            radius = float(dfx["radius_mm"])
+            z_lo = max(1.0, z_center - radius)
+            z_hi = min(Hb - 1.0, z_center + radius)
+            for off in (z_lo, z_hi):
+                dp = p.DatumPlaneByPrincipalPlane(principalPlane=XZPLANE, offset=off)
+                p.PartitionFaceByDatumPlane(datumPlane=p.datums[dp.id], faces=p.faces)
+            band = p.faces.getByBoundingBox(xMin=-1e9, yMin=z_lo - 0.1, zMin=-1e9,
+                                            xMax=1e9, yMax=z_hi + 0.1, zMax=1e9)
+            if band:
+                reg_d = p.Set(faces=band, name='Set-Defect')
+                p.SectionAssignment(region=reg_d, sectionName='Sec-Defect')
+                print("Defect band z=[%.1f, %.1f] -> %d face(s) assigned Sec-Defect"
+                      % (z_lo, z_hi, len(band)))
+            else:
+                print("WARNING: defect band selection empty (z=[%.1f, %.1f])" % (z_lo, z_hi))
+        except Exception as e:
+            print("WARNING: defect partition failed (%s); continuing with healthy section" % e)
+
+    # ---------------- Assembly & mesh ----------------
+    a = model.rootAssembly
+    inst = a.Instance(name='Tank-1', part=p, dependent=OFF)
+    arc = R * sector_deg * PI / 180.0
+    seed = max(arc, Hb) / 60.0
+    a.seedPartInstance(regions=(inst,), size=seed, deviationFactor=0.1)
+    a.generateMesh(regions=(inst,))
+    print("Mesh: seed=%.2f mm, %d elements" % (seed, len(inst.elements)))
+
+    # ---------------- Step & outputs ----------------
+    model.StaticStep(name='Step-1', previous='Initial')
+    model.fieldOutputRequests['F-Output-1'].setValues(variables=('S', 'U', 'RF', 'TEMP', 'E'))
+
+    # ---------------- Internal pressure ----------------
+    # NOTE: side1Faces assumed to be the inner (pressurized) side. Verify sign on the
+    # cluster (hoop stress must be tensile); flip to side2Faces if not.
+    surf = a.Surface(side1Faces=inst.faces, name='Surf-Inner')
+    model.Pressure(name='Internal_P', createStepName='Step-1', region=surf,
+                   distributionType=UNIFORM, magnitude=press)
+
+    # ---------------- Thermal: ref (Initial) -> operating (Step-1) ----------------
+    model.Temperature(name='T_ref', createStepName='Initial', region=inst.sets['Set-All'],
+                      distributionType=UNIFORM, magnitudes=(ref_C,))
+    model.Temperature(name='T_op', createStepName='Step-1', region=inst.sets['Set-All'],
+                      distributionType=UNIFORM, magnitudes=(op_C,))
+
+    # ---------------- Symmetry BCs (sector cut planes) ----------------
+    th = radians(sector_deg)
+    # theta=0 cut: edges lie in global plane z~0 (x>0).
+    try:
+        e0 = inst.edges.getByBoundingBox(xMin=1.0, yMin=-0.1, zMin=-0.1,
+                                         xMax=1e9, yMax=Hb + 0.1, zMax=0.1)
+        set0 = a.Set(edges=e0, name='BC_Sym_T0')
+        model.DisplacementBC(name='Sym_T0', createStepName='Initial', region=set0,
+                             u3=0.0, ur1=0.0, ur2=0.0)
+        print("BC Sym_T0: %d edge(s)" % len(e0))
+    except Exception as e:
+        print("WARNING: Sym_T0 BC failed (%s)" % e)
+
+    # theta=sector cut: local Cartesian CSYS with local Z normal to the cut plane
+    # (same construction as generate_fairing_dataset.py). Edges picked by angle of
+    # edge.pointOn, accepting +-th since the revolve direction sign is uncertain.
+    try:
+        cs = a.DatumCsysByThreePoints(name='CSYS-SymTheta', coordSysType=CARTESIAN,
+                                      origin=(0.0, 0.0, 0.0),
+                                      point1=(cos(th), 0.0, sin(th)),   # local X = tangent
+                                      point2=(0.0, 1.0, 0.0))           # local Z = normal
+        tol = radians(0.5)
+        matched = []
+        for edge in inst.edges:
+            x, y, z = edge.pointOn[0]
+            if (x * x + z * z) < 1.0:   # skip anything on the axis
+                continue
+            ang = atan2(z, x)
+            if abs(abs(ang) - th) < tol:
+                matched.append(edge)
+        if matched:
+            set_a = a.Set(edges=_edge_array(inst, matched), name='BC_Sym_Ta')
+            model.DisplacementBC(name='Sym_Ta', createStepName='Initial', region=set_a,
+                                 u3=0.0, ur1=0.0, ur2=0.0, localCsys=a.datums[cs.id])
+            print("BC Sym_Ta: %d edge(s) at theta=%.1f deg" % (len(matched), sector_deg))
+        else:
+            print("WARNING: no edges found at theta=%.1f deg for Sym_Ta" % sector_deg)
+    except Exception as e:
+        print("WARNING: Sym_Ta BC failed (%s)" % e)
+
+    # Axial rigid-body fix: bottom edge y~0.
+    try:
+        eb = inst.edges.getByBoundingBox(xMin=-1e9, yMin=-0.1, zMin=-1e9,
+                                         xMax=1e9, yMax=0.1, zMax=1e9)
+        setb = a.Set(edges=eb, name='BC_Bottom')
+        model.DisplacementBC(name='Fix_Bottom_Axial', createStepName='Initial', region=setb,
+                             u2=0.0)
+        print("BC Fix_Bottom_Axial: %d edge(s)" % len(eb))
+    except Exception as e:
+        print("WARNING: bottom BC failed (%s)" % e)
+
+    # ---------------- Job ----------------
+    mdb.Job(name=job_name, model='Model-1', type=ANALYSIS, resultsFormat=ODB,
+            numCpus=4, numDomains=4, multiprocessingMode=DEFAULT)
+    mdb.saveAs(pathName=job_name + '.cae')
+    print("Writing INP for '%s'..." % job_name)
+    mdb.jobs[job_name].writeInput(consistencyChecking=OFF)
+    print("INP written: %s" % os.path.abspath(job_name + '.inp'))
+
+
+def _edge_array(inst, edges):
+    """Combine individual Edge objects into one EdgeArray (slicing by index).
+
+    Abaqus Sets require an EdgeArray; `inst.edges[i:i+1]` yields a 1-element
+    EdgeArray and EdgeArrays support `+`. Cluster-only helper.
+    """
+    arr = None
+    for e in edges:
+        piece = inst.edges[e.index:e.index + 1]
+        arr = piece if arr is None else arr + piece
+    return arr
 
 
 def main():
