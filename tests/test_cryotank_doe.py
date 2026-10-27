@@ -68,6 +68,24 @@ def test_cryotank_patch_rejects_out_of_sector():
         ds.defect_patch(15.0, 5000.0, 80.0)   # beyond the 4000 mm barrel
 
 
+def test_cryotank_insulation_plan():
+    import pytest
+    ds = importlib.import_module("generate_cryotank_dataset")
+    loc = {"theta_deg": 12.0, "z_center": 2000.0, "radius": 100.0}
+    debond = ds.resolve_plan(dict(defect_type="insulation_debond", **loc))
+    assert debond["insulation"]["enabled"] is True
+    assert debond["defect"]["mechanism"] == "czm_debond"
+    # at the LH2 operating point the foam CTE is several times the Al-Li CTE: this
+    # mismatch is what loads the bond line on cooling
+    assert debond["insulation"]["foam"]["alpha_per_C"] > 3 * ds.material_at(20.0)["alpha_per_C"]
+    weld = ds.resolve_plan(dict(defect_type="weld_flaw", **loc))
+    assert weld["insulation"]["enabled"] is False
+    assert weld["defect"]["mechanism"] == "stiffness_knockdown"
+    assert ds.resolve_plan({"defect_type": "healthy", "insulation": True})["insulation"]["enabled"]
+    with pytest.raises(ValueError):
+        ds.resolve_plan(dict(defect_type="insulation_debond", insulation=False, **loc))
+
+
 def test_cryotank_end_cap_and_bottom_bc():
     import pytest
     m = importlib.import_module("generate_cryotank_dataset")
