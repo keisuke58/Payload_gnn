@@ -1,7 +1,7 @@
 # 論文化ロードマップ — Paper Publication Checklist
 
 > 最終更新: 2026-02-28
-> **2026-10 時点の論文骨子（発表1本 + 修論の章立て・TODO）は [`PAPER_OUTLINE_FAIRING.md`](PAPER_OUTLINE_FAIRING.md) を参照。**
+> **2026-10 時点の論文骨子（発表1本・TODO）は [`PAPER_OUTLINE_FAIRING.md`](PAPER_OUTLINE_FAIRING.md) を参照。**
 > 本ページの「現状サマリ」は 2026-02 時点の記録（データは 100 → 700 サンプルに拡張済み）。
 
 ## 現状サマリ
