@@ -50,6 +50,15 @@ REFERENCE_TEMP_K = 293.0
 
 BOTTOM_BC_CHOICES = ("skirt", "axial")
 
+# Spray-on foam insulation (SOFI) on the outer wall + its bond line (CZM layer).
+# DESIGN ASSUMPTIONS — polyurethane-foam order of magnitude (NCFI/BX class); verify
+# against material data. The bond's strength is foam-limited (~0.3 MPa), not epoxy.
+FOAM = {"t_mm": 25.0, "E_MPa": 7.0, "nu": 0.30, "density_t_mm3": 3.8e-11,
+        "alpha_per_C": 5.4e-5}
+BOND = {"t_mm": 0.2, "Kn": 1.0e4, "Ks": 5.0e3, "tn": 0.35, "ts": 0.30,
+        "GIc": 0.10, "GIIc": 0.30, "BK_eta": 2.284}
+BOND_DEBONDED_FACTOR = 1.0e-3   # pre-debonded patch stiffness = K/1000 (as cohesive_fairing)
+
 
 def material_at(temperature_K):
     """Return effective Al-Li properties at a temperature (RT interpolation endpoints)."""
@@ -96,6 +105,11 @@ def resolve_plan(defect_params):
     bottom_bc = defect_params.get("bottom_bc", "skirt")
     if bottom_bc not in BOTTOM_BC_CHOICES:
         raise ValueError("bottom_bc must be one of %s, got %r" % (BOTTOM_BC_CHOICES, bottom_bc))
+    # Insulation layer: always on for insulation_debond (the defect lives in its bond
+    # line); optional for other samples (e.g. matching healthy baselines).
+    insulation = bool(defect_params.get("insulation", dtype == "insulation_debond"))
+    if dtype == "insulation_debond" and not insulation:
+        raise ValueError("insulation_debond requires the insulation layer (insulation=True)")
     plan = {
         "geometry": {"radius_mm": RADIUS, "h_barrel_mm": H_BARREL,
                      "sector_deg": SECTOR_DEG, "wall_mm": T_WALL},
@@ -111,6 +125,8 @@ def resolve_plan(defect_params):
         #          local cryogenic thermal stress and edge bending at the junction.
         # 'axial': bottom edge fixed axially only -> free contraction, ~zero thermal stress.
         "boundary": {"bottom": bottom_bc},
+        "insulation": ({"enabled": True, "foam": dict(FOAM), "bond": dict(BOND)}
+                       if insulation else {"enabled": False}),
         "defect": {"type": dtype},
     }
     if dtype != "healthy":
@@ -121,10 +137,14 @@ def resolve_plan(defect_params):
             "patch": defect_patch(defect_params.get("theta_deg"),
                                   defect_params.get("z_center"),
                                   defect_params.get("radius")),
+            # How the defect enters the FE model:
+            #   stiffness_knockdown: wall E x DEFECT_E_KNOCKDOWN on the patch
+            #   czm_debond: bond-line cohesive elements pre-debonded (K x BOND_DEBONDED_FACTOR)
+            "mechanism": "czm_debond" if dtype == "insulation_debond" else "stiffness_knockdown",
             "model": {
-                "weld_flaw": "cohesive/element weakening on weld line",
-                "microcrack": "local stiffness loss + partial contact discontinuity",
-                "insulation_debond": "interface cohesive degradation (reuse CZM)",
+                "weld_flaw": "wall stiffness knockdown on the weld-line patch",
+                "microcrack": "wall stiffness knockdown on the patch",
+                "insulation_debond": "pre-debonded CZM bond line between wall and foam",
             }.get(dtype, "TODO"),
         })
     return plan
@@ -164,8 +184,13 @@ def build_model(job_name, defect_params):
       - Internal pressure applied on `side1Faces` of the revolved shell. The shell
         normal of BaseShellRevolve is NOT guaranteed to point inward; if the ODB
         shows hoop compression, flip to `side2Faces` (or negate magnitude).
-      - Defect (if any) = stiffness knockdown on a localized (theta, z) patch, the
-        bounding box of the defect circle (see defect_patch). TODO: CZM interface.
+      - Defect (if any) on a localized (theta, z) patch, the bounding box of the defect
+        circle (see defect_patch): weld_flaw / microcrack = wall stiffness knockdown;
+        insulation_debond = pre-debonded cohesive (COH3D8) bond line between the wall
+        and a foam shell (K x BOND_DEBONDED_FACTOR), the rest of the bond carries
+        MAXS initiation + BK energy evolution so debond growth is representable.
+      - Insulation (bond + foam) is added for insulation_debond or with --insulation;
+        foam CTE >> Al-Li CTE, so cooling loads the bond line (the debond driver).
       - Symmetry BCs: theta=0 cut edges selected by bounding box around the global
         z~0 plane; theta=sector cut edges selected by the angle of edge.pointOn
         (tolerant to revolve direction sign).
@@ -180,7 +205,7 @@ def build_model(job_name, defect_params):
         raise RuntimeError("Abaqus not available; use --dry-run or run via abaqus cae noGUI=...")
     # Local imports: keep module import Abaqus-free and dependency-free.
     import os
-    from math import atan2, cos, degrees, radians, sin
+    from math import atan2, cos, radians, sin
 
     executeOnCaeStartup()
     plan = resolve_plan(defect_params)
@@ -206,7 +231,8 @@ def build_model(job_name, defect_params):
     model.HomogeneousShellSection(name='Sec-Wall', material='AlLi', thickness=tw,
                                   idealization=NO_IDEALIZATION, poissonDefinition=DEFAULT,
                                   integrationRule=SIMPSON, numIntPts=5)
-    if dtype != 'healthy':
+    mechanism = dfx.get("mechanism")
+    if mechanism == "stiffness_knockdown":
         mat_d = dict(mat)
         mat_d["E_MPa"] = mat["E_MPa"] * DEFECT_E_KNOCKDOWN.get(dtype, 0.5)
         _add_material(model, 'AlLi_Defect', mat_d, ref_C)
@@ -215,50 +241,44 @@ def build_model(job_name, defect_params):
                                       integrationRule=SIMPSON, numIntPts=5)
 
     # ---------------- Part: barrel sector (revolve a vertical line about Y) ----------------
-    s = model.ConstrainedSketch(name='prof', sheetSize=max(2 * R, Hb) * 2.0)
-    s.Line(point1=(R, 0.0), point2=(R, Hb))
-    p = model.Part(name='Tank', dimensionality=THREE_D, type=DEFORMABLE_BODY)
-    p.BaseShellRevolve(sketch=s, angle=sector_deg, flipRevolveDirection=OFF)
-
+    p = _revolve_part(model, 'Tank', [((R, 0.0), (R, Hb))], sector_deg, Hb, solid=False)
     region = p.Set(faces=p.faces, name='Set-All')
     p.SectionAssignment(region=region, sectionName='Sec-Wall')
+    # Revolve direction sign: which side of the z=0 plane the sector sweeps into.
+    # Used for every radial datum plane / CSYS below so they match the geometry.
+    sgn = 1.0 if p.faces[0].pointOn[0][2] >= 0.0 else -1.0
 
-    # ---------------- Defect partition (M2: localized (theta, z) patch) ----------------
-    # Cut the shell with two axial-height planes (z_lo, z_hi) and two radial planes
-    # through the axis (th_lo, th_hi), then give the face inside both ranges the
-    # knocked-down section. The patch is the defect's (arc, z) bounding box.
-    if dtype != 'healthy':
+    # ---------------- Defect (localized (theta, z) patch) ----------------
+    if mechanism == "stiffness_knockdown":
         try:
-            th_lo, th_hi = dfx["patch"]["theta_deg"]
-            z_lo, z_hi = dfx["patch"]["z_mm"]
-            # Revolve direction sign: which side of the z=0 plane the sector sweeps into.
-            z_probe = p.faces[0].pointOn[0][2]
-            sgn = 1.0 if z_probe >= 0.0 else -1.0
-            for off in (z_lo, z_hi):
-                dp = p.DatumPlaneByPrincipalPlane(principalPlane=XZPLANE, offset=off)
-                p.PartitionFaceByDatumPlane(datumPlane=p.datums[dp.id], faces=p.faces)
-            for ang in (th_lo, th_hi):
-                phi = radians(ang)
-                dp = p.DatumPlaneByThreePoints(point1=(0.0, 0.0, 0.0),
-                                               point2=(0.0, 1.0, 0.0),
-                                               point3=(cos(phi), 0.0, sgn * sin(phi)))
-                p.PartitionFaceByDatumPlane(datumPlane=p.datums[dp.id], faces=p.faces)
-            inside = []
-            for face in p.faces:
-                x, y, z = face.pointOn[0]
-                ang = degrees(abs(atan2(z, x)))
-                if z_lo < y < z_hi and th_lo < ang < th_hi:
-                    inside.append(face)
+            inside = _partition_patch(p, dfx["patch"], sgn, cells=False)
             if inside:
                 reg_d = p.Set(faces=_seq_array(p.faces, inside), name='Set-Defect')
                 p.SectionAssignment(region=reg_d, sectionName='Sec-Defect')
-                print("Defect patch theta=[%.2f, %.2f] deg z=[%.1f, %.1f] mm -> %d face(s)"
-                      % (th_lo, th_hi, z_lo, z_hi, len(inside)))
+                print("Defect patch (wall knockdown): %d face(s) %s" % (len(inside), dfx["patch"]))
             else:
-                print("WARNING: defect patch selection empty (theta=[%.2f, %.2f], "
-                      "z=[%.1f, %.1f])" % (th_lo, th_hi, z_lo, z_hi))
+                print("WARNING: defect patch selection empty %s" % dfx["patch"])
         except Exception as e:
             print("WARNING: defect partition failed (%s); continuing with healthy section" % e)
+
+    # ---------------- Insulation: bond line (CZM) + foam ----------------
+    ins = plan["insulation"]
+    p_bond = p_foam = None
+    if ins["enabled"]:
+        p_bond, p_foam = _build_insulation_parts(model, ins, R, tw, Hb, sector_deg, ref_C)
+        if mechanism == "czm_debond":
+            try:
+                inside = _partition_patch(p_bond, dfx["patch"], sgn, cells=True)
+                if inside:
+                    reg_d = p_bond.Set(cells=_seq_array(p_bond.cells, inside),
+                                       name='Set-Debond')
+                    p_bond.SectionAssignment(region=reg_d, sectionName='Sec-Bond-Debonded')
+                    print("Defect patch (pre-debonded bond): %d cell(s) %s"
+                          % (len(inside), dfx["patch"]))
+                else:
+                    print("WARNING: debond patch selection empty %s" % dfx["patch"])
+            except Exception as e:
+                print("WARNING: debond partition failed (%s); bond left intact" % e)
 
     # ---------------- Assembly & mesh ----------------
     a = model.rootAssembly
@@ -267,7 +287,18 @@ def build_model(job_name, defect_params):
     seed = max(arc, Hb) / 60.0
     a.seedPartInstance(regions=(inst,), size=seed, deviationFactor=0.1)
     a.generateMesh(regions=(inst,))
-    print("Mesh: seed=%.2f mm, %d elements" % (seed, len(inst.elements)))
+    print("Mesh wall: seed=%.2f mm, %d elements" % (seed, len(inst.elements)))
+    shells = [inst]
+    solids = []
+    if ins["enabled"]:
+        inst_foam = a.Instance(name='Foam-1', part=p_foam, dependent=OFF)
+        a.seedPartInstance(regions=(inst_foam,), size=seed, deviationFactor=0.1)
+        a.generateMesh(regions=(inst_foam,))
+        inst_bond = a.Instance(name='Bond-1', part=p_bond, dependent=OFF)
+        _mesh_bond(a, inst_bond, min(seed, 25.0))
+        _tie_insulation(model, a, inst, inst_bond, inst_foam, ins, R, tw)
+        shells.append(inst_foam)
+        solids.append(inst_bond)
 
     # ---------------- Step & outputs ----------------
     model.StaticStep(name='Step-1', previous='Initial')
@@ -300,50 +331,54 @@ def build_model(job_name, defect_params):
             print("WARNING: end-cap thrust failed (%s)" % e)
 
     # ---------------- Thermal: ref (Initial) -> operating (Step-1) ----------------
-    model.Temperature(name='T_ref', createStepName='Initial', region=inst.sets['Set-All'],
-                      distributionType=UNIFORM, magnitudes=(ref_C,))
-    model.Temperature(name='T_op', createStepName='Step-1', region=inst.sets['Set-All'],
-                      distributionType=UNIFORM, magnitudes=(op_C,))
+    for it in shells + solids:
+        model.Temperature(name='T_ref_%s' % it.name, createStepName='Initial',
+                          region=it.sets['Set-All'], distributionType=UNIFORM,
+                          magnitudes=(ref_C,))
+        model.Temperature(name='T_op_%s' % it.name, createStepName='Step-1',
+                          region=it.sets['Set-All'], distributionType=UNIFORM,
+                          magnitudes=(op_C,))
 
     # ---------------- Symmetry BCs (sector cut planes) ----------------
+    # Shells (wall, foam): cut-plane EDGES, u_n = 0 and the two in-plane rotations.
+    # Solids (bond line): cut-plane FACES, u_n = 0 only (no rotational DOFs).
+    # theta=0 cut is the global plane z=0. theta=sector cut uses a local Cartesian CSYS
+    # whose local Z is the cut-plane normal (as generate_fairing_dataset.py), built with
+    # the same revolve sign `sgn` as the geometry.
     th = radians(sector_deg)
-    # theta=0 cut: edges lie in global plane z~0 (x>0).
-    try:
-        e0 = inst.edges.getByBoundingBox(xMin=1.0, yMin=-0.1, zMin=-0.1,
-                                         xMax=1e9, yMax=Hb + 0.1, zMax=0.1)
-        set0 = a.Set(edges=e0, name='BC_Sym_T0')
-        model.DisplacementBC(name='Sym_T0', createStepName='Initial', region=set0,
-                             u3=0.0, ur1=0.0, ur2=0.0)
-        print("BC Sym_T0: %d edge(s)" % len(e0))
-    except Exception as e:
-        print("WARNING: Sym_T0 BC failed (%s)" % e)
-
-    # theta=sector cut: local Cartesian CSYS with local Z normal to the cut plane
-    # (same construction as generate_fairing_dataset.py). Edges picked by angle of
-    # edge.pointOn, accepting +-th since the revolve direction sign is uncertain.
-    try:
-        cs = a.DatumCsysByThreePoints(name='CSYS-SymTheta', coordSysType=CARTESIAN,
-                                      origin=(0.0, 0.0, 0.0),
-                                      point1=(cos(th), 0.0, sin(th)),   # local X = tangent
-                                      point2=(0.0, 1.0, 0.0))           # local Z = normal
-        tol = radians(0.5)
-        matched = []
-        for edge in inst.edges:
-            x, y, z = edge.pointOn[0]
-            if (x * x + z * z) < 1.0:   # skip anything on the axis
-                continue
-            ang = atan2(z, x)
-            if abs(abs(ang) - th) < tol:
-                matched.append(edge)
-        if matched:
-            set_a = a.Set(edges=_edge_array(inst, matched), name='BC_Sym_Ta')
-            model.DisplacementBC(name='Sym_Ta', createStepName='Initial', region=set_a,
-                                 u3=0.0, ur1=0.0, ur2=0.0, localCsys=a.datums[cs.id])
-            print("BC Sym_Ta: %d edge(s) at theta=%.1f deg" % (len(matched), sector_deg))
-        else:
-            print("WARNING: no edges found at theta=%.1f deg for Sym_Ta" % sector_deg)
-    except Exception as e:
-        print("WARNING: Sym_Ta BC failed (%s)" % e)
+    # Cut-plane entities sit on the plane to numerical precision; a tight tolerance keeps
+    # short partition pieces near the cut (e.g. bottom-arc segments) from being caught.
+    tol = radians(0.05)
+    cs = a.DatumCsysByThreePoints(name='CSYS-SymTheta', coordSysType=CARTESIAN,
+                                  origin=(0.0, 0.0, 0.0),
+                                  point1=(cos(th), 0.0, sgn * sin(th)),  # local X in plane
+                                  point2=(0.0, 1.0, 0.0))               # local Z = normal
+    for it in shells + solids:
+        is_solid = it in solids
+        seq = it.faces if is_solid else it.edges
+        for tag, target, csys in (("T0", 0.0, None), ("Ta", th, a.datums[cs.id])):
+            try:
+                hits = []
+                for ent in seq:
+                    x, _, z = ent.pointOn[0]
+                    if (x * x + z * z) < 1.0:   # skip anything on the axis
+                        continue
+                    if abs(abs(atan2(z, x)) - target) < tol:
+                        hits.append(ent)
+                if not hits:
+                    print("WARNING: no cut-plane entities for Sym_%s on %s" % (tag, it.name))
+                    continue
+                arr = _seq_array(seq, hits)
+                bc_set = (a.Set(faces=arr, name='BC_Sym_%s_%s' % (tag, it.name)) if is_solid
+                          else a.Set(edges=arr, name='BC_Sym_%s_%s' % (tag, it.name)))
+                kw = {"u3": 0.0} if is_solid else {"u3": 0.0, "ur1": 0.0, "ur2": 0.0}
+                if csys is not None:
+                    kw["localCsys"] = csys
+                model.DisplacementBC(name='Sym_%s_%s' % (tag, it.name),
+                                     createStepName='Initial', region=bc_set, **kw)
+                print("BC Sym_%s on %s: %d entit(ies)" % (tag, it.name, len(hits)))
+            except Exception as e:
+                print("WARNING: Sym_%s BC on %s failed (%s)" % (tag, it.name, e))
 
     # Bottom edge y~0: 'axial' = axial fix only (free contraction);
     # 'skirt' = radial + axial fix in a cylindrical CSYS (local 1 = R, local 3 = global Y),
@@ -379,6 +414,166 @@ def build_model(job_name, defect_params):
     print("INP written: %s" % os.path.abspath(job_name + '.inp'))
 
 
+def _revolve_part(model, name, lines, angle_deg, h_max, solid):
+    """Revolve a closed (solid) or open (shell) profile about the global Y axis.
+
+    The sketch carries the revolve axis as a ConstructionLine (x = 0), as in
+    generate_fairing_dataset.py — BaseShellRevolve/BaseSolidRevolve need it.
+    `lines` is a list of ((x1, y1), (x2, y2)) segments in the (r, axial) plane.
+    """
+    s = model.ConstrainedSketch(name='prof_%s' % name, sheetSize=20000.0)
+    s.setPrimaryObject(option=STANDALONE)
+    s.ConstructionLine(point1=(0.0, -100.0), point2=(0.0, h_max + 1000.0))
+    for p1, p2 in lines:
+        s.Line(point1=p1, point2=p2)
+    part = model.Part(name=name, dimensionality=THREE_D, type=DEFORMABLE_BODY)
+    if solid:
+        part.BaseSolidRevolve(sketch=s, angle=angle_deg, flipRevolveDirection=OFF)
+    else:
+        part.BaseShellRevolve(sketch=s, angle=angle_deg, flipRevolveDirection=OFF)
+    return part
+
+
+def _partition_patch(part, patch, sgn, cells):
+    """Cut `part` along the defect patch and return the faces/cells inside it.
+
+    Two axial-height planes (z_lo, z_hi) and two radial planes through the axis
+    (th_lo, th_hi, swept to the `sgn` side of z = 0). Selection uses pointOn.
+    """
+    from math import atan2, cos, degrees, radians, sin
+    th_lo, th_hi = patch["theta_deg"]
+    z_lo, z_hi = patch["z_mm"]
+    planes = [part.DatumPlaneByPrincipalPlane(principalPlane=XZPLANE, offset=off)
+              for off in (z_lo, z_hi)]
+    for ang in (th_lo, th_hi):
+        phi = radians(ang)
+        planes.append(part.DatumPlaneByThreePoints(point1=(0.0, 0.0, 0.0),
+                                                   point2=(0.0, 1.0, 0.0),
+                                                   point3=(cos(phi), 0.0, sgn * sin(phi))))
+    for dp in planes:
+        if cells:
+            part.PartitionCellByDatumPlane(datumPlane=part.datums[dp.id], cells=part.cells)
+        else:
+            part.PartitionFaceByDatumPlane(datumPlane=part.datums[dp.id], faces=part.faces)
+    inside = []
+    for ent in (part.cells if cells else part.faces):
+        x, y, z = ent.pointOn[0]
+        if z_lo < y < z_hi and th_lo < degrees(abs(atan2(z, x))) < th_hi:
+            inside.append(ent)
+    return inside
+
+
+def _build_insulation_parts(model, ins, R, tw, Hb, sector_deg, ref_C):
+    """Bond line (solid, cohesive) + foam (shell) outside the wall; returns (bond, foam).
+
+    Radial stack: wall mid-surface R | wall outer R + tw/2 = r_w | bond [r_w, r_b] |
+    foam mid-surface r_b + t_foam/2. Materials/sections mirror generate_cohesive_fairing.py
+    (TRACTION elastic + MAXS initiation + BK energy evolution; pre-debonded = K x factor).
+    """
+    foam, bond = ins["foam"], ins["bond"]
+    r_w = R + tw / 2.0
+    r_b = r_w + bond["t_mm"]
+    r_f = r_b + foam["t_mm"] / 2.0
+
+    _add_material(model, 'Foam', foam, ref_C)
+    model.HomogeneousShellSection(name='Sec-Foam', material='Foam', thickness=foam["t_mm"],
+                                  idealization=NO_IDEALIZATION, poissonDefinition=DEFAULT,
+                                  integrationRule=SIMPSON, numIntPts=5)
+
+    Kn, Ks = bond["Kn"], bond["Ks"]
+    m = model.Material(name='Mat-Bond')
+    m.Elastic(type=TRACTION, table=((Kn, Ks, Ks),))
+    m.Density(table=((1.2e-9,),))
+    m.Expansion(table=((foam["alpha_per_C"],),), zero=ref_C)
+    m.MaxsDamageInitiation(table=((bond["tn"], bond["ts"], bond["ts"]),))
+    m.maxsDamageInitiation.DamageEvolution(
+        type=ENERGY, mixedModeBehavior=BK, power=bond["BK_eta"],
+        table=((bond["GIc"], bond["GIIc"], bond["GIIc"]),))
+    f = BOND_DEBONDED_FACTOR
+    md = model.Material(name='Mat-Bond-Debonded')
+    md.Elastic(type=TRACTION, table=((Kn * f, Ks * f, Ks * f),))
+    md.Density(table=((1.2e-9,),))
+    md.Expansion(table=((foam["alpha_per_C"],),), zero=ref_C)
+    for sec, mat_name in (('Sec-Bond', 'Mat-Bond'), ('Sec-Bond-Debonded', 'Mat-Bond-Debonded')):
+        model.CohesiveSection(name=sec, material=mat_name, response=TRACTION_SEPARATION,
+                              initialThicknessType=SPECIFY, initialThickness=bond["t_mm"])
+
+    p_foam = _revolve_part(model, 'Foam', [((r_f, 0.0), (r_f, Hb))], sector_deg, Hb,
+                           solid=False)
+    p_foam.SectionAssignment(region=p_foam.Set(faces=p_foam.faces, name='Set-All'),
+                             sectionName='Sec-Foam')
+    p_bond = _revolve_part(model, 'Bond',
+                           [((r_w, 0.0), (r_w, Hb)), ((r_w, Hb), (r_b, Hb)),
+                            ((r_b, Hb), (r_b, 0.0)), ((r_b, 0.0), (r_w, 0.0))],
+                           sector_deg, Hb, solid=True)
+    p_bond.SectionAssignment(region=p_bond.Set(cells=p_bond.cells, name='Set-All'),
+                             sectionName='Sec-Bond')
+    print("Insulation: bond %.2f mm (CZM) at r=[%.2f, %.2f], foam %.1f mm shell at r=%.2f"
+          % (bond["t_mm"], r_w, r_b, foam["t_mm"], r_f))
+    return p_bond, p_foam
+
+
+def _mesh_bond(a, inst, seed):
+    """SWEEP + COH3D8 for the bond line; C3D10 fallback warns that CZM is inactive."""
+    from mesh import ElemType
+    a.seedPartInstance(regions=(inst,), size=seed, deviationFactor=0.1)
+    try:
+        a.setMeshControls(regions=inst.cells, elemShape=HEX, technique=SWEEP)
+        a.setElementType(regions=(inst.cells,),
+                         elemTypes=(ElemType(elemCode=COH3D8, elemLibrary=STANDARD),
+                                    ElemType(elemCode=COH3D6, elemLibrary=STANDARD)))
+        a.generateMesh(regions=(inst,))
+        print("Mesh bond: SWEEP COH3D8, %d elements" % len(inst.elements))
+        return
+    except Exception as e:
+        print("WARNING: bond SWEEP/COH3D8 failed (%s); falling back to C3D10" % e)
+    try:
+        a.deleteMesh(regions=(inst,))
+    except Exception:
+        pass
+    a.setMeshControls(regions=inst.cells, elemShape=TET, technique=FREE)
+    a.setElementType(regions=(inst.cells,),
+                     elemTypes=(ElemType(elemCode=C3D10, elemLibrary=STANDARD),))
+    a.generateMesh(regions=(inst,))
+    print("WARNING: bond meshed with C3D10 — CZM NOT active (debond not represented)")
+
+
+def _tie_insulation(model, a, inst_wall, inst_bond, inst_foam, ins, R, tw):
+    """Tie wall-outer <-> bond-inner and bond-outer <-> foam-inner (thickness=ON).
+
+    Main = bond solid faces, secondary = shell surfaces, as generate_cohesive_fairing.py.
+    Shell sides follow the pressure convention (side1 = inner): wall outer = side2,
+    foam inner = side1 (foam is revolved the same way as the wall).
+    """
+    from math import sqrt
+    t_b = ins["bond"]["t_mm"]
+    t_f = ins["foam"]["t_mm"]
+    r_w = R + tw / 2.0
+    r_b = r_w + t_b
+
+    def faces_at(inst, r):
+        hits = [fc for fc in inst.faces
+                if abs(sqrt(fc.pointOn[0][0] ** 2 + fc.pointOn[0][2] ** 2) - r) < 0.25 * t_b]
+        return _seq_array(inst.faces, hits), len(hits)
+
+    try:
+        bond_in, n_in = faces_at(inst_bond, r_w)
+        bond_out, n_out = faces_at(inst_bond, r_b)
+        s_bin = a.Surface(side1Faces=bond_in, name='Surf-Bond-Inner')
+        s_bout = a.Surface(side1Faces=bond_out, name='Surf-Bond-Outer')
+        s_wall = a.Surface(side2Faces=inst_wall.faces, name='Surf-Wall-Outer')
+        s_foam = a.Surface(side1Faces=inst_foam.faces, name='Surf-Foam-Inner')
+        model.Tie(name='Tie-Wall-Bond', main=s_bin, secondary=s_wall,
+                  positionToleranceMethod=SPECIFIED, positionTolerance=tw + t_b,
+                  adjust=ON, tieRotations=ON, thickness=ON)
+        model.Tie(name='Tie-Bond-Foam', main=s_bout, secondary=s_foam,
+                  positionToleranceMethod=SPECIFIED, positionTolerance=0.5 * t_f + t_b,
+                  adjust=ON, tieRotations=ON, thickness=ON)
+        print("Ties: wall<->bond (%d faces), bond<->foam (%d faces)" % (n_in, n_out))
+    except Exception as e:
+        print("WARNING: insulation ties failed (%s)" % e)
+
+
 def _seq_array(seq, items):
     """Combine individual Edge/Face objects into one Edge/FaceArray (slicing by index).
 
@@ -392,11 +587,6 @@ def _seq_array(seq, items):
     return arr
 
 
-def _edge_array(inst, edges):
-    """EdgeArray of `edges` on instance `inst` (see _seq_array)."""
-    return _seq_array(inst.edges, edges)
-
-
 def main():
     p = argparse.ArgumentParser(description="Cryogenic tank FEM generator (Abaqus)")
     p.add_argument("--job", type=str, default="CryoTank_Healthy_0000")
@@ -408,6 +598,8 @@ def main():
                    help="Omit the closed-end (dome) axial thrust on the top edge")
     p.add_argument("--bottom-bc", choices=BOTTOM_BC_CHOICES, default=None,
                    help="Bottom edge BC: skirt (radial+axial fixed, default) or axial only")
+    p.add_argument("--insulation", action="store_true", default=False,
+                   help="Add the foam + CZM bond layer (automatic for insulation_debond)")
     # Abaqus passes script args after '--'; argparse needs them isolated.
     argv = sys.argv[1:]
     if "--" in argv:
@@ -429,6 +621,8 @@ def main():
         defect_params["closed_end"] = False
     if args.bottom_bc:
         defect_params["bottom_bc"] = args.bottom_bc
+    if args.insulation:
+        defect_params["insulation"] = True
 
     if args.dry_run or not _HAVE_ABAQUS:
         plan = resolve_plan(defect_params)

@@ -24,9 +24,9 @@
 |------|-------------------|------|
 | 対象 | H3 2段 LH2 タンク相当の円筒殻 + ドーム | 詳細寸法は非公開 → 代表値で設計 |
 | 直径 | φ ≈ 5.2 m（フェアリングと同径帯） | H3 上段構造の代表径 |
-| モデル化 | **対称セクタ**（1/6 or 1/12）+ 周方向対称 BC | フェアリング生成器と同方針で軽量化 |
-| 要素 | 連続体シェル / ソリッドシェル（壁厚方向 1–数層） | GW 解析は面内伝播が主 |
-| 部位 | barrel（円筒部）+ dome（鏡板）+ **溶接線 (weld land)** | 溶接線は欠陥集中部位として明示的にモデル化 |
+| モデル化 | **対称セクタ 30°（1/12）**+ 周方向対称 BC | 実装: `SECTOR_DEG = 30`、胴高さ 4000 mm、壁厚 4 mm |
+| 要素 | 壁: シェル（S4R 既定）／接着層: COH3D8／断熱フォーム: シェル | GW 解析は面内伝播が主 |
+| 部位 | barrel（円筒部）。鏡板は**軸方向推力 pR/2 として作用**させ形状は省略。**溶接線**は扇形中央 15° に1本 | 欠陥位置は扇形内 6–24°（最大パッチ半幅 ≈4.9° の余白） |
 
 フェアリングの `generate_fairing_dataset.py` / `generate_realistic_fairing.py` の
 セクタ生成・対称 BC・メッシュ制御のロジックを雛形として再利用する。
@@ -63,6 +63,13 @@
 静的解析（欠陥応力集中の把握）と GW 動的解析（センサ時刻歴）の2系統を、
 フェアリングの静的／GW 2ブランチと同じ構成で並走させる。
 
+**実装済みの荷重・境界（`generate_cryotank_dataset.py`）**
+- 内圧: 壁内面に一様圧
+- **鏡板推力**: 上端に軸方向エッジ荷重 **pR/2 [N/mm]**（閉端容器の σz = pR/2t を再現。`--open-end` で無効）
+- 熱: 基準 293 K → 運用温度の一様温度場（CTE 基準温度 = 293 K）
+- **底辺 = スカート取付**: 半径・軸方向を固定（既定）。一様冷却でも取付部で収縮が拘束され、熱応力・曲げが出る。軸方向のみ固定（`--bottom-bc axial`）だと自由収縮で熱応力はほぼゼロ
+- 対称面: θ=0 と θ=30° の切断面（回転方向の符号に追従）
+
 ---
 
 ## 4. 欠陥モデル (Defect Models)
@@ -74,8 +81,17 @@
 | **Insulation debond** | foam/MLI 断熱材の剥離 | 界面 cohesive の劣化 | **skin-core debond と同型** |
 | **H-embrittlement** | 水素脆化による靭性低下 | 材料靭性パラメータ低下（感度解析） | — (UQ 側で扱う) |
 
-`generate_cohesive_fairing.py` / `generate_czm_sector12.py` の cohesive/CZM 実装が
-insulation debond と weld flaw の界面モデルにそのまま使える。
+**実装済みの欠陥表現（すべて局所 (θ, z) パッチ = 欠陥円の外接矩形）**
+
+| Defect | FE での表現 | 主なパラメータ（設計仮定） |
+|--------|------------|------------------------|
+| Weld flaw | 壁の剛性低下（パッチ内 E × 0.5） | 溶接線 15° 上 |
+| Microcrack | 壁の剛性低下（E × 0.3） | — |
+| Insulation debond | 壁の外に **接着層（COH3D8, CZM）+ 断熱フォーム（シェル）** を追加し Tie で結合。パッチ内の接着層を**事前剥離**（剛性 × 1e-3）。外側は MAXS 開始 + BK エネルギー進展で**剥離の進展も表現可能** | フォーム 25 mm, E = 7 MPa, CTE 5.4×10⁻⁵/℃。接着層 0.2 mm, tn = 0.35 MPa, ts = 0.30 MPa, GIc = 0.10 N/mm, GIIc = 0.30 N/mm |
+
+> 断熱フォームの CTE は 20 K の Al-Li の約 4 倍。冷却で接着層に界面応力が生じることが剥離の駆動力になる。
+> 接着強度はエポキシではなく**フォーム側の強度で律速**（≈0.3 MPa 級）として設定（要データ確認）。
+> 材料・セクション・メッシュ（SWEEP + COH3D8）・Tie は `generate_cohesive_fairing.py` と同じ方式。
 
 ---
 
@@ -128,8 +144,10 @@ python src/generate_cryotank_doe.py --healthy_only --n_samples 1 --output doe_cr
 # ローカルで解析プランを確認（Abaqus 不要）
 python src/generate_cryotank_dataset.py --dry-run --defect doe_cryotank_1sample.json
 
-# 1) FEM 生成（クラスタ, Abaqus）— 雛形の M1/M2 TODO を実装後に実行
+# 1) FEM 生成（Abaqus）
 abaqus cae noGUI=src/generate_cryotank_dataset.py -- --job CryoTank_Healthy_0000 --defect doe_cryotank_1sample.json
+#    断熱層つきの健全ベースライン（剥離サンプルとの比較用）
+abaqus cae noGUI=src/generate_cryotank_dataset.py -- --job CryoTank_HealthyIns_0000 --defect doe_cryotank_1sample.json --insulation
 
 # 2) ODB 抽出（既存を流用）
 abaqus python src/extract_odb_results.py --odb abaqus_work/Job-CryoTank-Healthy.odb
@@ -141,6 +159,19 @@ cd src && python build_graph.py --data_dir ../dataset_cryotank_1sample
 ```
 
 クラスタ（PBS/Torque）実行は `scripts/dispatch_parallel.sh` を tank ジョブ名で流用。
+
+### M1 の答え合わせ用 理論値（健全, 20 K, 内圧 0.368 MPa）
+
+| 量 | 理論値 | 見る場所 |
+|----|--------|---------|
+| 周方向応力 σθ = pR/t | **239 MPa** | 胴中央 |
+| 軸方向応力 σz = pR/2t | **120 MPa** | 胴中央（鏡板推力が効いていれば） |
+| von Mises（膜） | 207 MPa（20 K 降伏 480 MPa → 安全率 2.3） | 胴中央 |
+| 半径変位 | 内圧 +6.3 mm、冷却 −9.0 mm → **正味 −2.7 mm** | 胴中央（底辺から十分離れた位置） |
+| 胴の軸方向収縮（冷却） | −13.8 mm | 上端 |
+| 完全拘束時の熱応力 E·α·ΔT | 285 MPa（上限の目安） | スカート取付部付近は局所的にこの方向へ |
+
+σθ が圧縮で出たら内圧の作用面が逆（`side1Faces` ↔ `side2Faces`）、σz ≈ 0 なら鏡板推力が効いていない。
 
 ### マイルストーン
 1. **M1**: healthy 1サンプル生成 → グラフ目視 OK（本メモの検証）
@@ -164,9 +195,10 @@ cd src && python build_graph.py --data_dir ../dataset_cryotank_1sample
 ## 9. 次アクション
 
 - [x] `src/generate_cryotank_doe.py` / `src/generate_cryotank_dataset.py` 雛形作成（DOE + dry-run はテスト済み）
-- [ ] 本メモのレビュー・数値の確定（材料・寸法・荷重）
-- [ ] Abaqus 雛形の M1/M2 TODO 実装（sector part・材料・内圧+熱・欠陥）→ クラスタで healthy 1件生成
-- [ ] M1 検証 → 本メモに結果追記
-- [ ] `ROADMAP.md` / `CLAUDE.md` の Research Lines に「Hydrogen Tank SHM」を正式追加
+- [x] Abaqus モデル構築の実装（扇形シェル・極低温材料・内圧+熱・鏡板推力・スカート境界・対称面）
+- [x] 欠陥の局所パッチ化、断熱材剥離の CZM 接着層モデル
+- [x] `CLAUDE.md` の Research Lines に「Hydrogen Tank SHM」を追加
+- [ ] 本メモのレビュー・数値の確定（材料・寸法・荷重・フォーム/接着層）
+- [ ] M1: healthy 1件を生成し、上の理論値と照合 → 本メモに結果追記
 
 参照: `docs/ARCHITECTURE.md`, `TEMPERATURE_ROBUSTNESS.md`, `docs/index.html`(公開ロードマップ)

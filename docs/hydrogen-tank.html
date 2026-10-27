@@ -141,7 +141,7 @@
     <div class="eyebrow">GNN-SHM · Design Note</div>
     <h1>Hydrogen Tank SHM <span class="hl">(LH2)</span></h1>
     <p class="lede">Extending the established H3 fairing GNN-SHM stack to the cryogenic hydrogen tank. The damage physics differ from the fairing, but the pipeline transfers with a small, targeted set of additions.</p>
-    <div class="status">Status: <b>Design phase</b> — not yet implemented. Numbers below are design assumptions (require FEM / literature verification).</div>
+    <div class="status">Status: <b>FE model implemented</b> — first-sample validation (M1) pending. Material and size numbers are design assumptions (require literature / test verification).</div>
   </header>
 
   <section>
@@ -154,8 +154,8 @@
         <tbody>
           <tr><td class="rowlab">Target</td><td>H3 upper-stage LH2 tank — cylindrical shell + domes</td><td class="muted">Exact dimensions non-public → representative values</td></tr>
           <tr><td class="rowlab">Diameter</td><td class="num">φ ≈ 5.2 m</td><td class="muted">Representative upper-structure diameter</td></tr>
-          <tr><td class="rowlab">Model</td><td>Symmetric sector (1/6–1/12) + circumferential symmetry BC</td><td class="muted">Same approach as the fairing generator</td></tr>
-          <tr><td class="rowlab">Regions</td><td>Barrel + dome + <b>weld land</b></td><td class="muted">Weld lines modeled explicitly (defect-prone)</td></tr>
+          <tr><td class="rowlab">Model</td><td>30° symmetric sector (1/12), barrel height 4000 mm, wall 4 mm</td><td class="muted">Symmetry cuts follow the revolve direction</td></tr>
+          <tr><td class="rowlab">Regions</td><td>Barrel; domes act as axial thrust pR/2; one <b>weld line</b> at the sector centre (15°)</td><td class="muted">Defects placed at 6–24° so the patch never crosses a cut</td></tr>
         </tbody>
       </table>
     </div>
@@ -191,6 +191,7 @@
       <li><b>Fill-cycle fatigue</b> — repeated pressurization / thermal cycling</li>
       <li><b>Elastic-wave excitation</b> (GW dynamic analysis) — 50–300 kHz actuation</li>
     </ul>
+    <p class="body" style="margin-top:12px"><b>Implemented:</b> internal pressure on the inner wall; closed-end <b>dome thrust pR/2</b> as an axial edge load on the top edge (so σ<sub>z</sub> = pR/2t); uniform 293 K → 20 K temperature field; bottom edge as a <b>skirt attachment</b> (radial + axial fixed), which restrains contraction locally and produces cryogenic thermal stress and edge bending there.</p>
     <p class="body muted" style="margin-top:12px">Static analysis (defect stress concentration) and GW dynamic analysis (sensor time-histories) run in parallel — the same two-branch structure as the fairing.</p>
   </section>
 
@@ -209,7 +210,7 @@
         </tbody>
       </table>
     </div>
-    <p class="body muted" style="margin-top:14px">The cohesive/CZM implementations in <code>generate_cohesive_fairing.py</code> / <code>generate_czm_sector12.py</code> apply directly to insulation debond and weld-flaw interfaces.</p>
+    <p class="body" style="margin-top:14px"><b>Implemented:</b> every defect sits on a localized (θ, z) patch — the bounding box of the defect circle. Weld flaw and microcrack reduce wall stiffness inside the patch (E × 0.5 / × 0.3). Insulation debond adds a <b>0.2 mm cohesive bond line (COH3D8)</b> and a <b>25 mm foam shell</b> outside the wall, tied on both sides; the bond is pre-debonded inside the patch (stiffness × 10⁻³), and elsewhere carries MAXS initiation + BK energy evolution so debond growth can be represented. The foam's CTE is about 4× that of Al-Li at 20 K, so cooling itself loads the bond line. Same material / section / meshing approach as <code>generate_cohesive_fairing.py</code>.</p>
   </section>
 
   <section>
@@ -265,6 +266,22 @@
       <div class="step"><div class="n"></div><div>
         <h3>Batch → same flow</h3>
         <p>If OK, expand the DOE → <code>run_batch.py</code>, then the identical fairing flow (train → DA → conformal → Stage-2).</p></div></div>
+    </div>
+
+    <h2 style="margin-top:36px">M1 answer key</h2>
+    <p class="body muted">Closed-form values for the healthy sample (20 K, internal pressure 0.368 MPa) to check the first result against.</p>
+    <div class="tablewrap">
+      <table>
+        <caption>Table 5 — Expected mid-barrel response</caption>
+        <thead><tr><th>Quantity</th><th>Expected</th><th>If it differs</th></tr></thead>
+        <tbody>
+          <tr><td class="rowlab">Hoop stress σ<sub>θ</sub> = pR/t</td><td class="num">239 MPa</td><td class="muted">Compressive → pressure applied on the wrong shell side</td></tr>
+          <tr><td class="rowlab">Axial stress σ<sub>z</sub> = pR/2t</td><td class="num">120 MPa</td><td class="muted">≈ 0 → dome thrust not acting</td></tr>
+          <tr><td class="rowlab">von Mises (membrane)</td><td class="num">207 MPa</td><td class="muted">Yield at 20 K 480 MPa → safety factor 2.3</td></tr>
+          <tr><td class="rowlab">Radial displacement</td><td class="num">−2.7 mm</td><td class="muted">+6.3 mm pressure, −9.0 mm cooling</td></tr>
+          <tr><td class="rowlab">Axial shrink of barrel</td><td class="num">−13.8 mm</td><td class="muted">Cooling only</td></tr>
+        </tbody>
+      </table>
     </div>
 
     <h2 style="margin-top:36px">Milestones</h2>
