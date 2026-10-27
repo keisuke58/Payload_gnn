@@ -40,3 +40,20 @@ def test_cryotank_dataset_dry_run_plan():
                          "pressure_MPa": 0.3, "theta_deg": 45.0, "z_center": 2000, "radius": 80})
     assert rt["material"]["E_MPa"] == m.MAT_ALLI["rt"]["E_MPa"]
     assert rt["defect"]["type"] == "weld_flaw"
+
+
+def test_cryotank_end_cap_and_bottom_bc():
+    import pytest
+    m = importlib.import_module("generate_cryotank_dataset")
+    p = 0.4
+    plan = m.resolve_plan({"defect_type": "healthy", "temperature_K": 20.0, "pressure_MPa": p})
+    # closed-end by default: N_z = pR/2, and the default bottom is the skirt attachment
+    assert plan["loading"]["closed_end"] is True
+    assert abs(plan["loading"]["end_cap_thrust_N_per_mm"] - p * m.RADIUS / 2.0) < 1e-9
+    assert plan["boundary"]["bottom"] == "skirt"
+    open_plan = m.resolve_plan({"defect_type": "healthy", "pressure_MPa": p,
+                                "closed_end": False, "bottom_bc": "axial"})
+    assert open_plan["loading"]["end_cap_thrust_N_per_mm"] == 0.0
+    assert open_plan["boundary"]["bottom"] == "axial"
+    with pytest.raises(ValueError):
+        m.resolve_plan({"defect_type": "healthy", "bottom_bc": "clamped"})

@@ -47,6 +47,8 @@ MAT_ALLI = {
 
 REFERENCE_TEMP_K = 293.0
 
+BOTTOM_BC_CHOICES = ("skirt", "axial")
+
 
 def material_at(temperature_K):
     """Return effective Al-Li properties at a temperature (RT interpolation endpoints)."""
@@ -68,13 +70,25 @@ def resolve_plan(defect_params):
     temp = float(defect_params.get("temperature_K", REFERENCE_TEMP_K))
     press = float(defect_params.get("pressure_MPa", 0.3))
     mat = material_at(temp)
+    closed_end = bool(defect_params.get("closed_end", True))
+    bottom_bc = defect_params.get("bottom_bc", "skirt")
+    if bottom_bc not in BOTTOM_BC_CHOICES:
+        raise ValueError("bottom_bc must be one of %s, got %r" % (BOTTOM_BC_CHOICES, bottom_bc))
     plan = {
         "geometry": {"radius_mm": RADIUS, "h_barrel_mm": H_BARREL,
                      "sector_deg": SECTOR_DEG, "wall_mm": T_WALL},
         "material": mat,
         "loading": {"internal_pressure_MPa": press,
+                    # Closed-end (dome) thrust carried by the barrel: N_z = pR/2 [N/mm],
+                    # applied as an axial edge traction on the top edge.
+                    "closed_end": closed_end,
+                    "end_cap_thrust_N_per_mm": press * RADIUS / 2.0 if closed_end else 0.0,
                     "thermal": {"reference_K": REFERENCE_TEMP_K, "operating_K": temp,
                                 "delta_K": temp - REFERENCE_TEMP_K}},
+        # 'skirt': bottom edge fixed radially + axially (skirt/Y-ring attachment) ->
+        #          local cryogenic thermal stress and edge bending at the junction.
+        # 'axial': bottom edge fixed axially only -> free contraction, ~zero thermal stress.
+        "boundary": {"bottom": bottom_bc},
         "defect": {"type": dtype},
     }
     if dtype != "healthy":
@@ -129,7 +143,13 @@ def build_model(job_name, defect_params):
         sector arc between z_lo..z_hi). TODO(M2): localized (theta, z) patch / CZM.
       - Symmetry BCs: theta=0 cut edges selected by bounding box around the global
         z~0 plane; theta=sector cut edges selected by the angle of edge.pointOn
-        (tolerant to revolve direction sign); bottom edge y~0 fixed axially.
+        (tolerant to revolve direction sign).
+      - Closed-end thrust pR/2 [N/mm] applied as a +Y ShellEdgeLoad on the top edge
+        (disable with --open-end). Expect membrane sigma_z = pR/2t mid-barrel.
+      - Bottom edge: 'skirt' (default, u_r = u_axial = 0, cylindrical CSYS) or
+        'axial' (u_axial = 0 only; free contraction -> ~zero thermal stress).
+        Corner nodes shared with the symmetry edges get consistent zero constraints
+        from two CSYSs; Abaqus may warn but the system is not over-determined in value.
     """
     if not _HAVE_ABAQUS:
         raise RuntimeError("Abaqus not available; use --dry-run or run via abaqus cae noGUI=...")
@@ -222,6 +242,25 @@ def build_model(job_name, defect_params):
     model.Pressure(name='Internal_P', createStepName='Step-1', region=surf,
                    distributionType=UNIFORM, magnitude=press)
 
+    # ---------------- Closed-end (dome) thrust on the top edge ----------------
+    # The barrel alone is an open cylinder; a real tank's domes pull it axially with
+    # N_z = pR/2. Apply that as a +Y edge traction on the top edge (y = Hb) so the
+    # membrane axial stress is pR/2t. Bottom edge reacts it (axial BC below).
+    thrust = float(load["end_cap_thrust_N_per_mm"])
+    if thrust > 0.0:
+        try:
+            et = inst.edges.getByBoundingBox(xMin=-1e9, yMin=Hb - 0.1, zMin=-1e9,
+                                             xMax=1e9, yMax=Hb + 0.1, zMax=1e9)
+            surf_top = a.Surface(side1Edges=et, name='Surf-TopEdge')
+            model.ShellEdgeLoad(name='EndCap_Thrust', createStepName='Step-1',
+                                region=surf_top, magnitude=thrust,
+                                distributionType=UNIFORM, traction=GENERAL,
+                                directionVector=((0.0, 0.0, 0.0), (0.0, 1.0, 0.0)),
+                                follower=OFF, resultant=OFF)
+            print("Load EndCap_Thrust: %.1f N/mm on %d top edge(s)" % (thrust, len(et)))
+        except Exception as e:
+            print("WARNING: end-cap thrust failed (%s)" % e)
+
     # ---------------- Thermal: ref (Initial) -> operating (Step-1) ----------------
     model.Temperature(name='T_ref', createStepName='Initial', region=inst.sets['Set-All'],
                       distributionType=UNIFORM, magnitudes=(ref_C,))
@@ -268,14 +307,28 @@ def build_model(job_name, defect_params):
     except Exception as e:
         print("WARNING: Sym_Ta BC failed (%s)" % e)
 
-    # Axial rigid-body fix: bottom edge y~0.
+    # Bottom edge y~0: 'axial' = axial fix only (free contraction);
+    # 'skirt' = radial + axial fix in a cylindrical CSYS (local 1 = R, local 3 = global Y),
+    # i.e. a stiff skirt/Y-ring attachment that resists cryogenic contraction.
+    bottom_bc = plan["boundary"]["bottom"]
     try:
         eb = inst.edges.getByBoundingBox(xMin=-1e9, yMin=-0.1, zMin=-1e9,
                                          xMax=1e9, yMax=0.1, zMax=1e9)
         setb = a.Set(edges=eb, name='BC_Bottom')
-        model.DisplacementBC(name='Fix_Bottom_Axial', createStepName='Initial', region=setb,
-                             u2=0.0)
-        print("BC Fix_Bottom_Axial: %d edge(s)" % len(eb))
+        if bottom_bc == "skirt":
+            # local X = (1,0,0); point2 in local XY plane -> local Z = X x (0,0,-1) = +Y
+            cyl = a.DatumCsysByThreePoints(name='CSYS-Cyl', coordSysType=CYLINDRICAL,
+                                           origin=(0.0, 0.0, 0.0),
+                                           point1=(1.0, 0.0, 0.0),
+                                           point2=(0.0, 0.0, -1.0))
+            model.DisplacementBC(name='Fix_Bottom_Skirt', createStepName='Initial',
+                                 region=setb, u1=0.0, u3=0.0,
+                                 localCsys=a.datums[cyl.id])
+            print("BC Fix_Bottom_Skirt (u_r = u_axial = 0): %d edge(s)" % len(eb))
+        else:
+            model.DisplacementBC(name='Fix_Bottom_Axial', createStepName='Initial',
+                                 region=setb, u2=0.0)
+            print("BC Fix_Bottom_Axial: %d edge(s)" % len(eb))
     except Exception as e:
         print("WARNING: bottom BC failed (%s)" % e)
 
@@ -308,6 +361,10 @@ def main():
                    help="JSON: single defect_params, or a DOE {'samples':[...]} (uses sample 0)")
     p.add_argument("--dry-run", action="store_true", default=False,
                    help="Print the resolved analysis plan without Abaqus")
+    p.add_argument("--open-end", action="store_true", default=False,
+                   help="Omit the closed-end (dome) axial thrust on the top edge")
+    p.add_argument("--bottom-bc", choices=BOTTOM_BC_CHOICES, default=None,
+                   help="Bottom edge BC: skirt (radial+axial fixed, default) or axial only")
     # Abaqus passes script args after '--'; argparse needs them isolated.
     argv = sys.argv[1:]
     if "--" in argv:
@@ -324,6 +381,11 @@ def main():
             defect_params = data["defect_params"]
         else:
             defect_params = data
+    defect_params = dict(defect_params)
+    if args.open_end:
+        defect_params["closed_end"] = False
+    if args.bottom_bc:
+        defect_params["bottom_bc"] = args.bottom_bc
 
     if args.dry_run or not _HAVE_ABAQUS:
         plan = resolve_plan(defect_params)
