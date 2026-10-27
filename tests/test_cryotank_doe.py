@@ -37,9 +37,35 @@ def test_cryotank_dataset_dry_run_plan():
     assert plan["material"]["E_MPa"] > m.MAT_ALLI["rt"]["E_MPa"]
     assert plan["loading"]["thermal"]["delta_K"] < 0  # cooling from RT reference
     rt = m.resolve_plan({"defect_type": "weld_flaw", "temperature_K": 293.0,
-                         "pressure_MPa": 0.3, "theta_deg": 45.0, "z_center": 2000, "radius": 80})
+                         "pressure_MPa": 0.3, "theta_deg": 15.0, "z_center": 2000, "radius": 80})
     assert rt["material"]["E_MPa"] == m.MAT_ALLI["rt"]["E_MPa"]
     assert rt["defect"]["type"] == "weld_flaw"
+
+
+def test_cryotank_doe_patches_fit_model_sector():
+    doe_mod = importlib.import_module("generate_cryotank_doe")
+    ds = importlib.import_module("generate_cryotank_dataset")
+    assert doe_mod.SECTOR_DEG == ds.SECTOR_DEG
+    doe = doe_mod.generate(300, seed=11)
+    for s in doe["samples"]:
+        plan = ds.resolve_plan(s["defect_params"])
+        th_lo, th_hi = plan["defect"]["patch"]["theta_deg"]
+        z_lo, z_hi = plan["defect"]["patch"]["z_mm"]
+        # patch is a real, non-degenerate box strictly inside the 30 deg sector/barrel
+        assert 0.0 < th_lo < th_hi < ds.SECTOR_DEG
+        assert 0.0 < z_lo < z_hi < ds.H_BARREL
+        # the theta clamp never kicks in, i.e. the full defect circle is modelled
+        half = (th_hi - th_lo) / 2.0
+        assert abs(half - __import__("math").degrees(s["defect_params"]["radius"] / ds.RADIUS)) < 1e-3
+
+
+def test_cryotank_patch_rejects_out_of_sector():
+    import pytest
+    ds = importlib.import_module("generate_cryotank_dataset")
+    with pytest.raises(ValueError):
+        ds.defect_patch(45.0, 2000.0, 80.0)   # old DOE range produced theta up to 85 deg
+    with pytest.raises(ValueError):
+        ds.defect_patch(15.0, 5000.0, 80.0)   # beyond the 4000 mm barrel
 
 
 def test_cryotank_end_cap_and_bottom_bc():

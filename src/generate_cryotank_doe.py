@@ -39,9 +39,12 @@ except Exception:  # scipy missing / too old — fall back to uniform RNG
 
 # ---- Geometry bounds (design assumption; see memo §1) ------------------------
 # Al-Li cylindrical LH2 tank, barrel section (representative, dimensions non-public).
-THETA_RANGE = (5.0, 85.0)        # deg, margin from symmetry edges (1/12--1/6 sector)
+SECTOR_DEG = 30.0                # must match generate_cryotank_dataset.SECTOR_DEG (1/12 model)
+# Defect centre stays >= 6 deg from the symmetry cuts: the largest patch (r = 220 mm on
+# R = 2600 mm) has a half-width of ~4.9 deg, so the patch never crosses a cut.
+THETA_RANGE = (6.0, SECTOR_DEG - 6.0)  # deg
 Z_RANGE = (400.0, 3600.0)        # mm, along barrel, avoid dome junctions
-WELD_THETA_DEG = [15.0, 45.0, 75.0]  # longitudinal weld-line angular positions
+WELD_THETA_DEG = [SECTOR_DEG / 2.0]  # one longitudinal weld line, at the sector centre
 
 # ---- Defect size tiers (mm): (name, r_min, r_max, fraction) ------------------
 SIZE_TIERS = [

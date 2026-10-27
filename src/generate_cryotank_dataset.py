@@ -17,6 +17,7 @@
 
 import argparse
 import json
+import math
 import sys
 
 try:
@@ -64,6 +65,27 @@ def material_at(temperature_K):
             "temperature_K": temperature_K}
 
 
+def defect_patch(theta_deg, z_center, radius):
+    """Localized (theta, z) patch bounding a defect of `radius` [mm] on the barrel.
+
+    The circular defect is approximated by its bounding box in (arc, z): half-width
+    radius/RADIUS [rad] in theta and `radius` in z, clamped inside the sector and barrel.
+    Raises ValueError if the centre lies outside the modelled sector or barrel.
+    """
+    theta = float(theta_deg)
+    zc = float(z_center)
+    r = float(radius)
+    if not (0.0 < theta < SECTOR_DEG):
+        raise ValueError("defect theta_deg=%.2f outside the %.0f deg model sector"
+                         % (theta, SECTOR_DEG))
+    if not (0.0 < zc < H_BARREL):
+        raise ValueError("defect z_center=%.1f outside the barrel [0, %.0f] mm" % (zc, H_BARREL))
+    half_th = math.degrees(r / RADIUS)
+    return {"theta_deg": [round(max(0.5, theta - half_th), 4),
+                          round(min(SECTOR_DEG - 0.5, theta + half_th), 4)],
+            "z_mm": [round(max(1.0, zc - r), 3), round(min(H_BARREL - 1.0, zc + r), 3)]}
+
+
 def resolve_plan(defect_params):
     """Build a human-readable analysis plan from defect_params (no Abaqus needed)."""
     dtype = defect_params.get("defect_type", "healthy")
@@ -96,6 +118,9 @@ def resolve_plan(defect_params):
             "theta_deg": defect_params.get("theta_deg"),
             "z_center_mm": defect_params.get("z_center"),
             "radius_mm": defect_params.get("radius"),
+            "patch": defect_patch(defect_params.get("theta_deg"),
+                                  defect_params.get("z_center"),
+                                  defect_params.get("radius")),
             "model": {
                 "weld_flaw": "cohesive/element weakening on weld line",
                 "microcrack": "local stiffness loss + partial contact discontinuity",
@@ -108,7 +133,7 @@ def resolve_plan(defect_params):
 # ==============================================================================
 # Abaqus build (cluster only)
 # ==============================================================================
-# M2 baseline defect model: Young's modulus knockdown factor applied to a z-band
+# M2 baseline defect model: Young's modulus knockdown factor applied to a (theta, z) patch
 # of the shell around the defect (stiffness-loss proxy; CZM/cohesive comes later).
 DEFECT_E_KNOCKDOWN = {"weld_flaw": 0.5, "microcrack": 0.3, "insulation_debond": 0.2}
 
@@ -139,8 +164,8 @@ def build_model(job_name, defect_params):
       - Internal pressure applied on `side1Faces` of the revolved shell. The shell
         normal of BaseShellRevolve is NOT guaranteed to point inward; if the ODB
         shows hoop compression, flip to `side2Faces` (or negate magnitude).
-      - Defect (if any) = z-band stiffness knockdown (Sec-Defect over the full
-        sector arc between z_lo..z_hi). TODO(M2): localized (theta, z) patch / CZM.
+      - Defect (if any) = stiffness knockdown on a localized (theta, z) patch, the
+        bounding box of the defect circle (see defect_patch). TODO: CZM interface.
       - Symmetry BCs: theta=0 cut edges selected by bounding box around the global
         z~0 plane; theta=sector cut edges selected by the angle of edge.pointOn
         (tolerant to revolve direction sign).
@@ -155,7 +180,7 @@ def build_model(job_name, defect_params):
         raise RuntimeError("Abaqus not available; use --dry-run or run via abaqus cae noGUI=...")
     # Local imports: keep module import Abaqus-free and dependency-free.
     import os
-    from math import atan2, cos, radians, sin
+    from math import atan2, cos, degrees, radians, sin
 
     executeOnCaeStartup()
     plan = resolve_plan(defect_params)
@@ -198,27 +223,40 @@ def build_model(job_name, defect_params):
     region = p.Set(faces=p.faces, name='Set-All')
     p.SectionAssignment(region=region, sectionName='Sec-Wall')
 
-    # ---------------- Defect partition (M2 baseline: z-band knockdown) ----------------
-    # The defect is approximated as a circumferential z-band [z_lo, z_hi] of reduced
-    # stiffness spanning the whole sector arc. TODO(M2): localized (theta, z) patch.
+    # ---------------- Defect partition (M2: localized (theta, z) patch) ----------------
+    # Cut the shell with two axial-height planes (z_lo, z_hi) and two radial planes
+    # through the axis (th_lo, th_hi), then give the face inside both ranges the
+    # knocked-down section. The patch is the defect's (arc, z) bounding box.
     if dtype != 'healthy':
         try:
-            z_center = float(dfx["z_center_mm"])
-            radius = float(dfx["radius_mm"])
-            z_lo = max(1.0, z_center - radius)
-            z_hi = min(Hb - 1.0, z_center + radius)
+            th_lo, th_hi = dfx["patch"]["theta_deg"]
+            z_lo, z_hi = dfx["patch"]["z_mm"]
+            # Revolve direction sign: which side of the z=0 plane the sector sweeps into.
+            z_probe = p.faces[0].pointOn[0][2]
+            sgn = 1.0 if z_probe >= 0.0 else -1.0
             for off in (z_lo, z_hi):
                 dp = p.DatumPlaneByPrincipalPlane(principalPlane=XZPLANE, offset=off)
                 p.PartitionFaceByDatumPlane(datumPlane=p.datums[dp.id], faces=p.faces)
-            band = p.faces.getByBoundingBox(xMin=-1e9, yMin=z_lo - 0.1, zMin=-1e9,
-                                            xMax=1e9, yMax=z_hi + 0.1, zMax=1e9)
-            if band:
-                reg_d = p.Set(faces=band, name='Set-Defect')
+            for ang in (th_lo, th_hi):
+                phi = radians(ang)
+                dp = p.DatumPlaneByThreePoints(point1=(0.0, 0.0, 0.0),
+                                               point2=(0.0, 1.0, 0.0),
+                                               point3=(cos(phi), 0.0, sgn * sin(phi)))
+                p.PartitionFaceByDatumPlane(datumPlane=p.datums[dp.id], faces=p.faces)
+            inside = []
+            for face in p.faces:
+                x, y, z = face.pointOn[0]
+                ang = degrees(abs(atan2(z, x)))
+                if z_lo < y < z_hi and th_lo < ang < th_hi:
+                    inside.append(face)
+            if inside:
+                reg_d = p.Set(faces=_seq_array(p.faces, inside), name='Set-Defect')
                 p.SectionAssignment(region=reg_d, sectionName='Sec-Defect')
-                print("Defect band z=[%.1f, %.1f] -> %d face(s) assigned Sec-Defect"
-                      % (z_lo, z_hi, len(band)))
+                print("Defect patch theta=[%.2f, %.2f] deg z=[%.1f, %.1f] mm -> %d face(s)"
+                      % (th_lo, th_hi, z_lo, z_hi, len(inside)))
             else:
-                print("WARNING: defect band selection empty (z=[%.1f, %.1f])" % (z_lo, z_hi))
+                print("WARNING: defect patch selection empty (theta=[%.2f, %.2f], "
+                      "z=[%.1f, %.1f])" % (th_lo, th_hi, z_lo, z_hi))
         except Exception as e:
             print("WARNING: defect partition failed (%s); continuing with healthy section" % e)
 
@@ -341,17 +379,22 @@ def build_model(job_name, defect_params):
     print("INP written: %s" % os.path.abspath(job_name + '.inp'))
 
 
-def _edge_array(inst, edges):
-    """Combine individual Edge objects into one EdgeArray (slicing by index).
+def _seq_array(seq, items):
+    """Combine individual Edge/Face objects into one Edge/FaceArray (slicing by index).
 
-    Abaqus Sets require an EdgeArray; `inst.edges[i:i+1]` yields a 1-element
-    EdgeArray and EdgeArrays support `+`. Cluster-only helper.
+    Abaqus Sets require an EdgeArray/FaceArray; `seq[i:i+1]` yields a 1-element
+    array and these arrays support `+`. Abaqus-only helper.
     """
     arr = None
-    for e in edges:
-        piece = inst.edges[e.index:e.index + 1]
+    for it in items:
+        piece = seq[it.index:it.index + 1]
         arr = piece if arr is None else arr + piece
     return arr
+
+
+def _edge_array(inst, edges):
+    """EdgeArray of `edges` on instance `inst` (see _seq_array)."""
+    return _seq_array(inst.edges, edges)
 
 
 def main():
