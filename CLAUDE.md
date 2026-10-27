@@ -109,6 +109,7 @@ python scripts/compare_model_results.py
 | **基盤モデル** | `anomalygfm_shm.py`, `chronos_shm.py`, `benchmark_foundation.py`, `gpn_shm.py` | AnomalyGFM / Chronos-2 / Poseidon・DPOT ベンチ |
 | **フェアリング分離動力学** | `generate_fairing_separation.py`, `build_separation_graph.py`, `extract_separation_results.py` | Abaqus/Explicit 分離機構（破断ボルト・火工品） |
 | **Virtual Twin** | `src/vt/orchestrator.py` | T-0→SECO 全フェーズ 6DOF 飛行統合シミュレーション |
+| **水素タンク SHM (LH2)** | `generate_cryotank_doe.py`, `generate_cryotank_dataset.py`, `docs/HYDROGEN_TANK_SHM.md` | Al-Li 極低温タンク扇形モデル（内圧+熱+鏡板推力、溶接/微小亀裂/断熱剥離 CZM）。`--dry-run` で Abaqus なしにプラン確認 |
 | **量子** | `models_quantum.py`, `train_quantum.py`, `train_quantum_node.py` | 量子 GNN プロトタイプ（任意依存） |
 
 ## Docs Map
