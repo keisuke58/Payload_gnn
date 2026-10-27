@@ -1043,7 +1043,7 @@ def cross_validate(args, all_data):
 # =========================================================================
 # Main
 # =========================================================================
-def main():
+def build_parser():
     parser = argparse.ArgumentParser(description='Train GNN for defect localization')
     # Data
     parser.add_argument('--data_dir', type=str, default='data/processed_50mm_100',
@@ -1133,7 +1133,11 @@ def main():
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--no_normalize', action='store_true', default=False,
                         help='Skip feature normalization (debug only)')
-    args = parser.parse_args()
+    return parser
+
+
+def main():
+    args = build_parser().parse_args()
 
     # DDP init
     if args.multi_gpu:

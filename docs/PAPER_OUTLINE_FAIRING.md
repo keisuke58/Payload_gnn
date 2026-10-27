@@ -54,6 +54,9 @@
 - [ ] Table 1 を 200 epoch 完走後の値で確定
 - [ ] Table 2（OOD）を埋める（現状 PENDING、途中経過 ep3: ID 0.732 / OOD 0.857）
 - [ ] **シード違いの反復（平均 ± 標準偏差）** — 現状は単発の値
+  - 手順: `python scripts/table1_seeds.py plan --seeds 0 1 2 --execute`（元の設定を `runs/pinn_l12_*/best_model.pt` から復元して再学習）
+    → `python scripts/table1_seeds.py aggregate` で `results/table1_seeds.tex`（平均 ± 標準偏差）を生成。
+    同じ手順で 200 epoch 完走後の値に差し替わる
 - [ ] タイプ別 F1 の改善 or 限界として位置づける判断
 - [ ] Data/Code availability: Zenodo DOI `10.5281/zenodo.20495444`
 - [ ] AI 支援ツール使用の開示文（学会・大学の規定を確認）
