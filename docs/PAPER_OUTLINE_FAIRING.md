@@ -1,30 +1,38 @@
 # フェアリング論文化 骨子 (Paper Outline) — 2026-10 時点
 
-> RA 計画 P0（2027-01〜03: フェアリング仕上げ・論文ドラフト）の作業台。
+> 修士（2028-03 修了）なので **対外発表は1本に絞る**。残りの成果は修士論文の章に回す。
 > 既存の `docs/PAPER_ROADMAP.md`（2026-02 時点の状況）と
 > `results/composites_b_table1_draft.tex`（Table 1 下書き）を引き継ぐ。
 > 数値はすべてリポジトリ内の結果ファイルから転記（出典を併記）。図・表ラベルは英語。
 
 ---
 
-## 0. 方針: 2本に分ける
+## 0. 方針: 発表は1本、残りは修論へ
 
-成果が「FEM 上の検出性能」と「実データでの誤報制御」の2系統にはっきり分かれるので、1本に詰めず分ける。
-
-| | Paper A（検出） | Paper B（実データの信頼性） |
+| | 対外発表（1本） | 修論のみ（発表しない） |
 |---|---|---|
-| 主張 | 曲率対応 GNN で、H3 フェアリングの多種欠陥を node 単位で検出・局在化 | 温度で分布がずれても、誤報率 (FPR) を分布非依存に保証できる |
-| データ | FEM 700 サンプル、5クラス | Open Guided Waves（実測、長期・温度変動） |
-| 投稿先（第一候補） | Composites Part B（下書き表あり） | Structural Health Monitoring (SAGE) |
-| 投稿先（代替） | Structural Health Monitoring | Mechanical Systems and Signal Processing |
-| 国内・会議 | **JSASS 年会 2027**（締切 1〜2月） | **IWSHM 2027**（締切 前年12月〜3月） |
+| 内容 | **§1 GNN による多種欠陥の検出・局在化**（FEM 700 サンプル） | §2 実測データでの誤報制御（OGW conformal）、水素タンク拡張 |
+| 出し先 | **JSASS 年会 2027**（講演、締切 1〜2月目安） | 修士論文（2028-01〜02 提出） |
+| 理由 | 結果がそろっていて図表の下書きもある。追加実験はシード反復くらい | 発表用の図の整理が残っている。修論の1章としてなら現状でまとまる |
 
-> 投稿先メモ（`wiki_repo/Publication-Venues.md`）では Composites Part B は「材料寄り ★★★」、
-> SHM 誌は「★★★★★」。Paper A を SHM 誌に回す選択肢も残す（先生と相談）。
+- ジャーナル投稿は**しない前提**。先生から勧められたら、§1 を SHM 誌などに出す案を相談する
+  （候補メモは `wiki_repo/Publication-Venues.md`）。
+- 準備は修論の章にそのまま流用できる形で進める（同じ図表を使い回す）。
+
+### 修論の章立て（案）
+
+| 章 | 内容 | 元ネタ |
+|----|------|--------|
+| 1 | 序論（H3 F8 事故、CFRP/Al-HC 界面の SHM） | §1 Introduction |
+| 2 | FEM モデルとデータセット | §1 3.1–3.2 |
+| 3 | GNN による欠陥検出・局在化 | §1 全体（= 発表した内容） |
+| 4 | 実測データでの誤報制御 | §2 |
+| 5 | 極低温水素タンクへの拡張 | `docs/HYDROGEN_TANK_SHM.md`（M1 以降の結果） |
+| 6 | 結論 | |
 
 ---
 
-## 1. Paper A — Geometry-aware GNN for multi-type defect localization on a launch-vehicle CFRP/Al-honeycomb fairing
+## 1. 発表する1本 — Geometry-aware GNN for multi-type defect localization on a launch-vehicle CFRP/Al-honeycomb fairing
 
 ### 構成と図表の割り当て
 
@@ -54,17 +62,17 @@
 - **他構造へのゼロショット転移は効かない**: 分離データで AUC 0.41（`results/cross_dataset_eval.json`）
 - Table 1 は「最良検証チェックポイント（ep 58–132）」で、200 epoch 完走後の値に差し替えが必要
 
-### 投稿までの TODO
+### 講演・修論までの TODO
 - [ ] Table 1 を 200 epoch 完走後の値で確定
 - [ ] Table 2（OOD）を埋める（現状 PENDING、途中経過 ep3: ID 0.732 / OOD 0.857）
 - [ ] **シード違いの反復（平均 ± 標準偏差）** — 現状は単発の値
 - [ ] タイプ別 F1 の改善 or 限界として位置づける判断
 - [ ] Data/Code availability: Zenodo DOI `10.5281/zenodo.20495444`
-- [ ] AI 支援ツール使用の開示文（投稿先規定を確認）
+- [ ] AI 支援ツール使用の開示文（学会・大学の規定を確認）
 
 ---
 
-## 2. Paper B — Distribution-free false-alarm control for guided-wave SHM under temperature shift
+## 2. 修論の章（発表しない） — Distribution-free false-alarm control for guided-wave SHM under temperature shift
 
 ### 構成と図表の割り当て
 
@@ -90,7 +98,7 @@
 - 厳冬期に conformal 保証が崩れ、Mondrian（条件別）で回復させた経緯（`scripts/ogw_conformal_detection.py`）— 手法の適用範囲として記載
 - 損傷の導入時期と季節・経年が交絡している（`defect_type_posterior/metrics.json` の confound probe）。種別判別の精度には環境要因が混ざる
 
-### 投稿までの TODO
+### 修論までの TODO
 - [ ] 厳冬期の破綻と Mondrian 版の結果を図1枚に整理
 - [ ] recall とのトレードオフ曲線（α を振った図）
 - [ ] 交絡の扱い（評価分割の設計）を Methods に明記
@@ -99,12 +107,12 @@
 
 ## 3. スケジュール（RA 計画 P0 と対応）
 
-| 時期 | Paper A | Paper B |
-|------|---------|---------|
-| 2026-11〜12 | Table 1 確定・反復実験 | 図の整理（厳冬期・トレードオフ） |
-| **2027-01〜02** | **JSASS 年会 2027 に投稿**（Paper A の短縮版） | IWSHM 2027 アブストラクト準備 |
-| 2027-03 | ジャーナル原稿ドラフト完成 | **IWSHM 2027 に投稿** |
-| 2027-04 以降 | 投稿・査読対応 | ジャーナル版（SHM 誌）へ拡張 |
+| 時期 | 発表する1本（§1） | 修論 |
+|------|------------------|------|
+| 2026-11〜12 | Table 1 確定・シード反復 | — |
+| **2027-01〜02** | **JSASS 年会 2027 に申込・講演原稿** | §2 の図を整理（厳冬期・トレードオフ） |
+| 2027-04 | 講演 | 章 1〜4 の下書き |
+| 2027 夏〜秋 | — | 章 5（水素タンク）の結果を追加 |
+| 2028-01〜02 | — | **修論提出** |
 
-> 締切は投稿先の当年案内で要確認（上表は `wiki_repo/Publication-Venues.md` の目安）。
-> 水素タンク（M1 以降）は Paper C 候補として別建てにし、P0 には混ぜない。
+> 締切は当年の案内で要確認。
